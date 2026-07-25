@@ -34,6 +34,7 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
     registerUser(data)
       .then((response) => {
         console.log("Registration successful:", response);
+        onNavigate("login");
       })
       .catch((error) => {
         console.error("Registration failed:", error);

@@ -11,6 +11,7 @@ import OAuthButtons from "./OAuthButtons";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { loginUser } from "@/lib/api/auth.api";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface LoginFormProps {
   onNavigate: (target: "login" | "register") => void;
@@ -18,6 +19,7 @@ interface LoginFormProps {
 
 export default function LoginForm({ onNavigate }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const queryClient = useQueryClient();
   // Validation
   const {
     register,
@@ -27,15 +29,16 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
     resolver: zodResolver(loginSchema),
   });
 
-  function onSubmit(data: LoginFormSchema) {
+  async function onSubmit(data: LoginFormSchema) {
     // Call the login API
-    loginUser(data)
-      .then((response) => {
-        console.log("Login successful:", response);
-      })
-      .catch((error) => {
-        console.error("Login failed:", error);
-      });
+    try {
+      await loginUser(data);
+
+      // Refetch
+      await queryClient.refetchQueries({ queryKey: ["currentUser"] });
+    } catch (error) {
+      console.error("Login failed:", error);
+    }
   }
   return (
     <div className="flex flex-col gap-6 w-full max-w-md mx-auto px-6">
