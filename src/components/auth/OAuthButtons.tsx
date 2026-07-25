@@ -16,7 +16,7 @@ export default function OAuthButtons() {
       <div className="flex gap-3">
         <Button
           variant="outline"
-          className="flex-1 gap-2"
+          className="flex-1 gap-2 cursor-pointer"
           onClick={() => {
             // Placeholder — OAuth not implemented yet
           }}
@@ -50,7 +50,7 @@ export default function OAuthButtons() {
         </Button>
         <Button
           variant="outline"
-          className="flex-1 gap-2"
+          className="flex-1 gap-2 cursor-pointer"
           onClick={() => {
             // Placeholder — OAuth not implemented yet
           }}

@@ -1,9 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, UserPlus } from "lucide-react";
 import OAuthButtons from "./OAuthButtons";
+import {
+  registerSchema,
+  type RegisterFormSchema,
+} from "@/lib/validations/auth.schema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { registerUser } from "@/lib/api/auth.api";
 
 interface RegisterFormProps {
   onNavigate: (target: "login" | "register") => void;
@@ -13,16 +20,30 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
-    console.log("Register form submitted");
-    e.preventDefault();
-    // Placeholder — auth not implemented yet
+  // Validation
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormSchema>({
+    resolver: zodResolver(registerSchema),
+  });
+
+  function onSubmit(data: RegisterFormSchema) {
+    // Call the register API
+    registerUser(data)
+      .then((response) => {
+        console.log("Registration successful:", response);
+      })
+      .catch((error) => {
+        console.error("Registration failed:", error);
+      });
   }
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-md mx-auto px-6">
+    <div className="flex flex-col gap-4 w-full max-w-md mx-auto px-6">
       {/* Header */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold tracking-tight">
           Create your account
         </h1>
@@ -32,8 +53,8 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 mb-1">
           <Label htmlFor="register-name">Full name</Label>
           <Input
             id="register-name"
@@ -52,7 +73,11 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
             placeholder="name@example.com"
             required
             autoComplete="email"
+            {...register("email")}
           />
+          <p className="min-h-1 text-sm text-destructive">
+            {errors.email?.message}
+          </p>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -65,6 +90,7 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
               required
               autoComplete="new-password"
               className="pr-9"
+              {...register("password")}
             />
             <button
               type="button"
@@ -80,6 +106,9 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
               )}
             </button>
           </div>
+          <p className="text-xs min-h-1 text-red-500 mt-1">
+            {errors.password?.message}
+          </p>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -92,6 +121,7 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
               required
               autoComplete="new-password"
               className="pr-9"
+              {...register("confirmPassword")}
             />
             <button
               type="button"
@@ -109,6 +139,10 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
               )}
             </button>
           </div>
+
+          <p className="text-xs min-h-1 text-red-500 mt-1">
+            {errors.confirmPassword?.message}
+          </p>
         </div>
 
         <Button type="submit" className="w-full gap-2">

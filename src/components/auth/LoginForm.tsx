@@ -1,9 +1,16 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import {
+  loginSchema,
+  type LoginFormSchema,
+} from "@/lib/validations/auth.schema";
 import OAuthButtons from "./OAuthButtons";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { loginUser } from "@/lib/api/auth.api";
 
 interface LoginFormProps {
   onNavigate: (target: "login" | "register") => void;
@@ -11,25 +18,37 @@ interface LoginFormProps {
 
 export default function LoginForm({ onNavigate }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
+  // Validation
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(loginSchema),
+  });
 
-  function handleSubmit(e: FormEvent) {
-    console.log("Login form submitted");
-    e.preventDefault();
-    // Placeholder — auth not implemented yet
+  function onSubmit(data: LoginFormSchema) {
+    // Call the login API
+    loginUser(data)
+      .then((response) => {
+        console.log("Login successful:", response);
+      })
+      .catch((error) => {
+        console.error("Login failed:", error);
+      });
   }
-
   return (
     <div className="flex flex-col gap-6 w-full max-w-md mx-auto px-6">
       {/* Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
         <p className="text-sm text-muted-foreground">
-          Sign in to continue to your Kanban workspace.
+          Sign in to continue to your work.
         </p>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
           <Label htmlFor="login-email">Email</Label>
           <Input
@@ -38,7 +57,11 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
             placeholder="name@example.com"
             required
             autoComplete="email"
+            {...register("email")}
           />
+          <p className="text-xs min-h-1 text-red-500 ">
+            {errors.email?.message}
+          </p>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -46,7 +69,7 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
             <Label htmlFor="login-password">Password</Label>
             <button
               type="button"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               onClick={() => {
                 // Placeholder — forgot password not implemented
               }}
@@ -62,6 +85,7 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
               required
               autoComplete="current-password"
               className="pr-9"
+              {...register("password")}
             />
             <button
               type="button"
@@ -77,6 +101,9 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
               )}
             </button>
           </div>
+          <p className="text-xs min-h-1 text-red-500">
+            {errors.password?.message}
+          </p>
         </div>
 
         <Button type="submit" className="w-full gap-2">
