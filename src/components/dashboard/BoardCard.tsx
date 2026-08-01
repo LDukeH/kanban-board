@@ -19,11 +19,7 @@ export function BoardCard({ board, className }: BoardCardProps) {
       )}
     >
       {/* Decorative top area */}
-      <div className="flex h-24 items-start justify-end p-3">
-        <span className="rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-          Board
-        </span>
-      </div>
+      <div className="h-24" />
 
       {/* Footer with board name */}
       <div className="bg-black/25 px-4 py-3 backdrop-blur-sm">

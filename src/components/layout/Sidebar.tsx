@@ -7,7 +7,6 @@ import {
   LayoutGrid,
   Plus,
   Users,
-  Sparkles,
   Sun,
   Moon,
 } from "lucide-react";
@@ -43,7 +42,7 @@ export function Sidebar({ className }: SidebarProps) {
       )}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
+      <div className="flex items-center gap-2.5 px-5 py-4">
         <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
           <Kanban className="size-4" />
         </div>
@@ -153,29 +152,6 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Bottom Actions */}
       <div className="space-y-2 border-t border-border p-3">
-        {/* Upsell callout */}
-        <div className="rounded-xl bg-gradient-to-br from-indigo-500/10 to-violet-500/10 p-3 ring-1 ring-inset ring-indigo-500/20">
-          <div className="flex items-start gap-2.5">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm">
-              <Sparkles className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-sidebar-foreground">
-                Kanban Premium
-              </p>
-              <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                Unlock unlimited boards, advanced automation, and more.
-              </p>
-              <Button
-                size="xs"
-                className="mt-2 w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600"
-              >
-                Upgrade
-              </Button>
-            </div>
-          </div>
-        </div>
-
         <Button
           onClick={toggleTheme}
           variant="ghost"

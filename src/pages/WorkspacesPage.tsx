@@ -18,7 +18,7 @@ export default function WorkspacesPage() {
 
   return (
     <DashboardLayout>
-      <header className="flex items-center justify-between border-b border-border bg-background px-6 py-4">
+      <header className="flex items-center justify-between bg-background px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
             <LayoutGrid className="size-5" />

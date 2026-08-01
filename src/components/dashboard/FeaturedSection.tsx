@@ -48,7 +48,7 @@ export function FeaturedSection() {
             Explore features and templates to supercharge your workflow.
           </p>
         </div>
-        <button className="flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80">
+        <button className="cursor-pointer flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80">
           View all
           <ArrowRight className="size-3.5" />
         </button>
@@ -64,8 +64,8 @@ export function FeaturedSection() {
             )}
           >
             <div className="relative flex h-full flex-col">
-              <div className="flex size-9 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
-                <item.icon className="size-5" />
+              <div className="flex size-10 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
+                <item.icon className="size-6" />
               </div>
               <h3 className="mt-3 text-sm font-semibold">{item.title}</h3>
               <p className="mt-1 text-xs leading-snug text-white/85">

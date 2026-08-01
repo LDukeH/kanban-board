@@ -30,10 +30,10 @@ export default function WorkspacePage() {
 
   return (
     <DashboardLayout>
-      <header className="flex items-center justify-between border-b border-border bg-background px-6 py-4">
+      <header className="flex items-center justify-between bg-background px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
-            <LayoutGrid className="size-5" />
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-lg font-semibold text-primary">
+            {workspace?.name.charAt(0).toUpperCase() ?? "W"}
           </div>
           <div>
             <h1 className="text-lg font-semibold text-foreground">
