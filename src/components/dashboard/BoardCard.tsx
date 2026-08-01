@@ -1,56 +1,40 @@
 import { cn } from "@/lib/utils";
-import { Calendar, ListTodo } from "lucide-react";
-
-export interface BoardData {
-  id: string;
-  name: string;
-  description: string;
-  taskCount: number;
-  lastModified: string;
-  color: string;
-}
+import { getGradient } from "@/lib/colors";
+import type { Board } from "@/types/board";
 
 interface BoardCardProps {
-  board: BoardData;
+  board: Board;
   className?: string;
 }
 
 export function BoardCard({ board, className }: BoardCardProps) {
+  const gradient = getGradient(board.id);
+
   return (
     <div
       className={cn(
-        "group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card p-5 transition-all hover:shadow-md hover:border-primary/30",
+        "group relative cursor-pointer overflow-hidden rounded-xl bg-gradient-to-br shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
+        gradient,
         className,
       )}
     >
-      {/* Color accent bar */}
-      <div
-        className="absolute inset-x-0 top-0 h-1"
-        style={{ backgroundColor: board.color }}
-      />
+      {/* Decorative top area */}
+      <div className="flex h-24 items-start justify-end p-3">
+        <span className="rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+          Board
+        </span>
+      </div>
 
-      <div className="mt-1 space-y-3">
-        {/* Board Name */}
-        <h3 className="text-base font-semibold text-card-foreground">
+      {/* Footer with board name */}
+      <div className="bg-black/25 px-4 py-3 backdrop-blur-sm">
+        <h3 className="truncate text-sm font-semibold text-white">
           {board.name}
         </h3>
-
-        {/* Description */}
-        <p className="line-clamp-2 text-sm text-muted-foreground">
-          {board.description}
-        </p>
-
-        {/* Meta Info */}
-        <div className="flex items-center gap-4 pt-1">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ListTodo className="size-3.5" />
-            <span>{board.taskCount} tasks</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar className="size-3.5" />
-            <span>{board.lastModified}</span>
-          </div>
-        </div>
+        {board.description && (
+          <p className="mt-0.5 line-clamp-1 text-xs text-white/80">
+            {board.description}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
-import { BoardCard, type BoardData } from "@/components/dashboard/BoardCard";
+import { BoardCard } from "@/components/dashboard/BoardCard";
 import { cn } from "@/lib/utils";
+import type { Board } from "@/types/board";
 
 interface BoardGridProps {
-  boards: BoardData[];
+  boards: Board[];
   className?: string;
 }
 

@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import AuthPage from "@/pages/AuthPage";
-import DashboardPage from "@/pages/DashboardPage";
+import WorkspacesPage from "@/pages/WorkspacesPage";
+import WorkspacePage from "@/pages/WorkspacePage";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { GuestRoute } from "@/routes/GuestRoute";
 
@@ -12,7 +13,8 @@ function App() {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/workspaces" element={<WorkspacesPage />} />
+        <Route path="/workspaces/:workspaceId" element={<WorkspacePage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/auth" replace />} />

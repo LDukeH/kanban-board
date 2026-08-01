@@ -1,0 +1,36 @@
+// Deterministic color/gradient resolver based on an entity id string.
+// Returns a Tailwind-friendly gradient class string that stays vivid
+// across both light and dark themes.
+
+const GRADIENTS = [
+  "from-emerald-500 to-teal-600",
+  "from-sky-500 to-blue-600",
+  "from-violet-500 to-purple-600",
+  "from-amber-500 to-orange-600",
+  "from-rose-500 to-pink-600",
+  "from-indigo-500 to-blue-700",
+  "from-cyan-500 to-sky-600",
+  "from-fuchsia-500 to-purple-700",
+] as const;
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+export function getGradient(id: string): string {
+  const index = hashString(id) % GRADIENTS.length;
+  return GRADIENTS[index];
+}
+
+// Accent gradients used by FeaturedSection static cards.
+export const FEATURED_GRADIENTS: readonly string[] = [
+  "from-blue-600 via-blue-500 to-cyan-400",
+  "from-violet-600 via-purple-500 to-fuchsia-400",
+  "from-emerald-600 via-emerald-500 to-teal-400",
+  "from-rose-600 via-rose-500 to-orange-400",
+];

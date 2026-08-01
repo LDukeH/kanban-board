@@ -1,15 +1,23 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Plus, Settings, LogOut, Kanban } from "lucide-react";
+import {
+  Settings,
+  LogOut,
+  Kanban,
+  LayoutGrid,
+  Plus,
+  Users,
+  Sparkles,
+  Sun,
+  Moon,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-
-const mockBoards = [
-  { id: "1", name: "Product Launch", color: "#4f46e5" },
-  { id: "2", name: "Design Sprint", color: "#0ea5e9" },
-  { id: "3", name: "Bug Tracker", color: "#ef4444" },
-  { id: "4", name: "Marketing Q3", color: "#10b981" },
-  { id: "5", name: "Feature Requests", color: "#8b5cf6" },
-];
+import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useBoards } from "@/hooks/useBoards";
+import { useWorkspaceStore } from "@/stores/workspaceStore";
+import { useThemeStore } from "@/stores/themeStore";
+import { CreateWorkspaceDialog } from "@/components/workspace/CreateWorkspaceDialog";
+import { useNavigate } from "react-router-dom";
 
 interface SidebarProps {
   className?: string;
@@ -17,6 +25,15 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const { logout } = useAuth();
+  const navigate = useNavigate();
+  const { workspaces, isLoading } = useWorkspaces();
+  const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
+  const { boards } = useBoards(selectedWorkspaceId ?? undefined);
+  const { theme, toggleTheme } = useThemeStore();
+
+  const selectedWorkspace = workspaces.find(
+    (w) => w.id === selectedWorkspaceId,
+  );
 
   return (
     <aside
@@ -27,7 +44,7 @@ export function Sidebar({ className }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
           <Kanban className="size-4" />
         </div>
         <span className="text-base font-semibold tracking-tight">
@@ -35,41 +52,141 @@ export function Sidebar({ className }: SidebarProps) {
         </span>
       </div>
 
-      {/* Board List */}
+      {/* Navigation */}
+      <nav className="border-b border-border px-3 py-3">
+        <div className="space-y-0.5">
+          <button className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+            <LayoutGrid className="size-4 text-muted-foreground" />
+            Boards
+          </button>
+          <button className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+            <Users className="size-4 text-muted-foreground" />
+            Members
+          </button>
+          <button className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+            <Settings className="size-4 text-muted-foreground" />
+            Settings
+          </button>
+        </div>
+      </nav>
+
+      {/* Workspace Switcher */}
       <div className="flex-1 overflow-y-auto px-3 py-4">
         <div className="mb-2 flex items-center justify-between px-2">
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Boards
+            Workspaces
           </span>
+          <CreateWorkspaceDialog
+            trigger={
+              <button
+                className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                aria-label="Create workspace"
+              >
+                <Plus className="size-3.5" />
+              </button>
+            }
+          />
         </div>
-        <nav className="space-y-0.5">
-          {mockBoards.map((board) => (
-            <button
-              key={board.id}
-              className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            >
-              <span
-                className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: board.color }}
+
+        {isLoading ? (
+          <div className="space-y-1 px-2">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-7 animate-pulse rounded-lg bg-sidebar-accent"
               />
-              <span className="truncate">{board.name}</span>
-            </button>
-          ))}
-        </nav>
+            ))}
+          </div>
+        ) : (
+          <nav className="space-y-0.5">
+            {workspaces.map((workspace) => (
+              <button
+                key={workspace.id}
+                onClick={() => {
+                  setSelectedWorkspaceId(workspace.id);
+                  navigate(`/workspaces/${workspace.id}`);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  workspace.id === selectedWorkspaceId &&
+                    "bg-sidebar-accent text-sidebar-accent-foreground",
+                )}
+              >
+                <span className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10 text-[10px] font-semibold text-primary">
+                  {workspace.name.charAt(0).toUpperCase()}
+                </span>
+                <span className="truncate">{workspace.name}</span>
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {/* Boards of selected workspace */}
+        {selectedWorkspace && (
+          <div className="mt-6">
+            <div className="mb-2 flex items-center justify-between px-2">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Boards
+              </span>
+              <LayoutGrid className="size-3.5 text-muted-foreground" />
+            </div>
+            <nav className="space-y-0.5">
+              {boards.length === 0 ? (
+                <p className="px-2 text-xs text-muted-foreground">
+                  No boards yet.
+                </p>
+              ) : (
+                boards.map((board) => (
+                  <button
+                    key={board.id}
+                    className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  >
+                    <span className="size-2 shrink-0 rounded-full bg-primary" />
+                    <span className="truncate">{board.name}</span>
+                  </button>
+                ))
+              )}
+            </nav>
+          </div>
+        )}
       </div>
 
       {/* Bottom Actions */}
-      <div className="border-t border-border p-3 space-y-1">
-        <Button variant="ghost" className="w-full justify-start gap-2 text-sm">
-          <Plus className="size-4" />
-          Create New Board
-        </Button>
+      <div className="space-y-2 border-t border-border p-3">
+        {/* Upsell callout */}
+        <div className="rounded-xl bg-gradient-to-br from-indigo-500/10 to-violet-500/10 p-3 ring-1 ring-inset ring-indigo-500/20">
+          <div className="flex items-start gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm">
+              <Sparkles className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-sidebar-foreground">
+                Kanban Premium
+              </p>
+              <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                Unlock unlimited boards, advanced automation, and more.
+              </p>
+              <Button
+                size="xs"
+                className="mt-2 w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600"
+              >
+                Upgrade
+              </Button>
+            </div>
+          </div>
+        </div>
+
         <Button
+          onClick={toggleTheme}
           variant="ghost"
           className="w-full justify-start gap-2 text-sm text-muted-foreground"
         >
-          <Settings className="size-4" />
-          Settings
+          {theme === "dark" ? (
+            <Sun className="size-4" />
+          ) : (
+            <Moon className="size-4" />
+          )}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
         </Button>
         <Button
           onClick={() => logout()}
