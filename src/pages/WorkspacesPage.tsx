@@ -2,9 +2,39 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { WorkspaceCard } from "@/components/workspace/WorkspaceCard";
 import { CreateWorkspaceDialog } from "@/components/workspace/CreateWorkspaceDialog";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useNavigate } from "react-router-dom";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { Plus, Loader2, LayoutGrid } from "lucide-react";
+import type { Workspace } from "@/types/workspace";
+
+/**
+ * Wrapper that checks the current user's role for a single workspace and
+ * passes the `canEdit` and `canDelete` flags to the WorkspaceCard.
+ *
+ * `useWorkspaceAccess` is per-workspace, so it cannot be called inside a
+ * `.map()` loop. This wrapper component isolates the hook call.
+ */
+function WorkspaceCardWithAccess({
+  workspace,
+  onClick,
+}: {
+  workspace: Workspace;
+  onClick: () => void;
+}) {
+  const { canManageWorkspace, canDeleteWorkspace, isLoadingRole } =
+    useWorkspaceAccess(workspace.id);
+
+  return (
+    <div onClick={onClick}>
+      <WorkspaceCard
+        workspace={workspace}
+        canEdit={canManageWorkspace && !isLoadingRole}
+        canDelete={canDeleteWorkspace && !isLoadingRole}
+      />
+    </div>
+  );
+}
 
 export default function WorkspacesPage() {
   const { workspaces, isLoading, isError } = useWorkspaces();
@@ -62,12 +92,11 @@ export default function WorkspacesPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {workspaces.map((workspace) => (
-              <div
+              <WorkspaceCardWithAccess
                 key={workspace.id}
+                workspace={workspace}
                 onClick={() => openWorkspace(workspace.id)}
-              >
-                <WorkspaceCard workspace={workspace} />
-              </div>
+              />
             ))}
           </div>
         )}

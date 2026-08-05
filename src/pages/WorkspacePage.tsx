@@ -87,7 +87,11 @@ export default function WorkspacePage() {
             <h2 className="mb-3 text-sm font-semibold text-foreground">
               Your boards
             </h2>
-            <BoardGrid boards={boards} />
+            <BoardGrid
+              boards={boards}
+              canEdit={canManageBoards && !isLoadingRole}
+              canDelete={canManageBoards && !isLoadingRole}
+            />
           </>
         )}
       </div>

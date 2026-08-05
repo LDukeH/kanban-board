@@ -43,6 +43,17 @@ export const createColumn = async (
   return mapColumn(response.data);
 };
 
+export const updateColumn = async (
+  columnId: string,
+  data: { name?: string },
+): Promise<Column> => {
+  const response = await api.patch<ColumnApiResponse>(
+    `/columns/${columnId}`,
+    data,
+  );
+  return mapColumn(response.data);
+};
+
 export const updateColumnPosition = async (
   columnId: string,
   position: number,
@@ -52,4 +63,8 @@ export const updateColumnPosition = async (
     { position },
   );
   return mapColumn(response.data);
+};
+
+export const deleteColumn = async (columnId: string): Promise<void> => {
+  await api.delete(`/columns/${columnId}`);
 };

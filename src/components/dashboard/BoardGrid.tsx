@@ -4,10 +4,17 @@ import type { Board } from "@/types/board";
 
 interface BoardGridProps {
   boards: Board[];
+  canEdit?: boolean;
+  canDelete?: boolean;
   className?: string;
 }
 
-export function BoardGrid({ boards, className }: BoardGridProps) {
+export function BoardGrid({
+  boards,
+  canEdit = false,
+  canDelete = false,
+  className,
+}: BoardGridProps) {
   return (
     <div
       className={cn(
@@ -16,7 +23,12 @@ export function BoardGrid({ boards, className }: BoardGridProps) {
       )}
     >
       {boards.map((board) => (
-        <BoardCard key={board.id} board={board} />
+        <BoardCard
+          key={board.id}
+          board={board}
+          canEdit={canEdit}
+          canDelete={canDelete}
+        />
       ))}
     </div>
   );

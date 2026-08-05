@@ -68,7 +68,6 @@ export default function BoardPage() {
 
   function handleDragEnd(event: DragEndEvent) {
     if (event.canceled) return;
-    console.log("Drag ended:", event);
 
     const source = event.operation.source;
     const target = event.operation.target;
@@ -77,10 +76,6 @@ export default function BoardPage() {
     if (!isSortable(source) || !isSortable(target)) return;
 
     if (source.initialIndex === source.index) return;
-
-    console.log(
-      `Moving column ${source.id} from index ${source.initialIndex} to index ${target.index}`,
-    );
 
     updateColumnPosition({
       columnId: String(source.id),
@@ -125,7 +120,16 @@ export default function BoardPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-x-auto px-8 py-6">
+      <div
+        className="flex-1 overflow-x-auto px-8 py-6"
+        onWheel={(e) => {
+          // Allow horizontal scrolling with mouse wheel
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY;
+            e.preventDefault();
+          }
+        }}
+      >
         {isLoadingBoard || isLoadingColumns ? (
           <BoardLoading />
         ) : isBoardError || isColumnsError ? (
@@ -143,7 +147,13 @@ export default function BoardPage() {
           >
             <div className="flex h-full items-start gap-4">
               {sortedColumns.map((column, index) => (
-                <ColumnCard key={column.id} column={column} index={index} />
+                <ColumnCard
+                  key={column.id}
+                  column={column}
+                  index={index}
+                  canEdit={canManageWorkspaceContent && !isLoadingRole}
+                  canDelete={canManageWorkspaceContent && !isLoadingRole}
+                />
               ))}
               {canManageWorkspaceContent && !isLoadingRole && (
                 <div className="pr-2">

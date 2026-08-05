@@ -1,12 +1,18 @@
 import { cn } from "@/lib/utils";
 import { getGradient } from "@/lib/colors";
-import { Users, LayoutGrid } from "lucide-react";
+import { Users, LayoutGrid, Trash2 } from "lucide-react";
 import type { Workspace } from "@/types/workspace";
+import { EditWorkspaceDialog } from "@/components/workspace/EditWorkspaceDialog";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { Button } from "@/components/ui/button";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 
 interface WorkspaceCardProps {
   workspace: Workspace;
   memberCount?: number;
   boardCount?: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
   className?: string;
 }
 
@@ -14,9 +20,12 @@ export function WorkspaceCard({
   workspace,
   memberCount,
   boardCount,
+  canEdit = false,
+  canDelete = false,
   className,
 }: WorkspaceCardProps) {
   const gradient = getGradient(workspace.id);
+  const { deleteWorkspace, isDeleting } = useWorkspaces();
 
   return (
     <div
@@ -28,9 +37,31 @@ export function WorkspaceCard({
     >
       {/* Decorative top area */}
       <div className="flex h-24 items-start justify-end p-3">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-white/20 text-sm font-bold text-white backdrop-blur-sm">
-          {workspace.name.charAt(0).toUpperCase()}
-        </span>
+        <div className="flex items-center gap-1">
+          {canEdit && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <EditWorkspaceDialog workspace={workspace} />
+            </div>
+          )}
+          {canDelete && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <ConfirmDeleteDialog
+                title="Delete Workspace"
+                description={`Are you sure you want to delete "${workspace.name}"? This will permanently delete all boards, columns, and tasks within this workspace.`}
+                onConfirm={() => deleteWorkspace(workspace.id)}
+                isLoading={isDeleting}
+                trigger={
+                  <Button variant="ghost" size="icon-xs" className="text-white">
+                    <Trash2 className="size-3" />
+                  </Button>
+                }
+              />
+            </div>
+          )}
+          <span className="flex size-8 items-center justify-center rounded-lg bg-white/20 text-sm font-bold text-white backdrop-blur-sm">
+            {workspace.name.charAt(0).toUpperCase()}
+          </span>
+        </div>
       </div>
 
       {/* Footer with workspace name */}

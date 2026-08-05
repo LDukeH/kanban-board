@@ -57,6 +57,21 @@ export const createWorkspace = async (data: {
   return mapWorkspace(response.data);
 };
 
+export const updateWorkspace = async (
+  workspaceId: string,
+  data: { name?: string; description?: string },
+): Promise<Workspace> => {
+  const response = await api.patch<WorkspaceApiResponse>(
+    `/workspaces/${workspaceId}`,
+    data,
+  );
+  return mapWorkspace(response.data);
+};
+
+export const deleteWorkspace = async (workspaceId: string): Promise<void> => {
+  await api.delete(`/workspaces/${workspaceId}`);
+};
+
 export const getWorkspaceMembers = async (
   workspaceId: string,
 ): Promise<WorkspaceMember[]> => {

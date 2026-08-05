@@ -1,15 +1,29 @@
 import { cn } from "@/lib/utils";
+import { Trash2 } from "lucide-react";
 import type { Column } from "@/types/board";
 import { useSortable } from "@dnd-kit/react/sortable";
+import { EditColumnDialog } from "@/components/board/EditColumnDialog";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { Button } from "@/components/ui/button";
+import { useBoard } from "@/hooks/useBoard";
 
 interface ColumnCardProps {
   column: Column;
   className?: string;
   index: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export function ColumnCard({ column, className, index }: ColumnCardProps) {
+export function ColumnCard({
+  column,
+  className,
+  index,
+  canEdit = false,
+  canDelete = false,
+}: ColumnCardProps) {
   const { ref, isDragging } = useSortable({ id: column.id, index });
+  const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
 
   return (
     <div
@@ -26,9 +40,25 @@ export function ColumnCard({ column, className, index }: ColumnCardProps) {
         <h3 className="truncate text-sm font-semibold text-foreground">
           {column.name}
         </h3>
-        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-          0
-        </span>
+        <div className="ml-auto flex items-center gap-1">
+          {canEdit && <EditColumnDialog column={column} />}
+          {canDelete && (
+            <ConfirmDeleteDialog
+              title="Delete Column"
+              description={`Are you sure you want to delete "${column.name}"? This will permanently delete all tasks within this column.`}
+              onConfirm={() => deleteColumn(column.id)}
+              isLoading={isDeletingColumn}
+              trigger={
+                <Button variant="ghost" size="icon-xs">
+                  <Trash2 className="size-3" />
+                </Button>
+              }
+            />
+          )}
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            0
+          </span>
+        </div>
       </div>
 
       {/* Task area placeholder */}

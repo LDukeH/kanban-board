@@ -47,3 +47,18 @@ export const createBoard = async (
   );
   return mapBoard(response.data);
 };
+
+export const updateBoard = async (
+  boardId: string,
+  data: { name?: string; description?: string },
+): Promise<Board> => {
+  const response = await api.patch<BoardApiResponse>(
+    `/boards/${boardId}`,
+    data,
+  );
+  return mapBoard(response.data);
+};
+
+export const deleteBoard = async (boardId: string): Promise<void> => {
+  await api.delete(`/boards/${boardId}`);
+};

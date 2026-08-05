@@ -36,9 +36,11 @@ export function useWorkspaceAccess(workspaceId: string | undefined) {
     isMember,
     /** Owner/Admin: manage Workspace members (invite, remove, change roles). */
     canManageMembers: isOwner || isAdmin,
+    /** Owner/Admin: update Workspace details (name, description). */
+    canManageWorkspace: isOwner || isAdmin,
     /** Owner/Admin: create/edit/delete Boards. */
     canManageBoards: isOwner || isAdmin,
-    /** Owner/Admin: manage Workspace content (e.g. create/reorder Columns). */
+    /** Owner/Admin: manage Workspace content (e.g. create/reorder/edit Columns). */
     canManageWorkspaceContent: isOwner || isAdmin,
     /** Owner only: delete the Workspace. */
     canDeleteWorkspace: isOwner,

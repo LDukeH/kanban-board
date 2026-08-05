@@ -3,7 +3,9 @@ import { getBoard } from "@/lib/api/board.api";
 import {
   getBoardColumns,
   createColumn,
+  updateColumn,
   updateColumnPosition,
+  deleteColumn,
 } from "@/lib/api/column.api";
 import type { Column } from "@/types/board";
 
@@ -12,13 +14,17 @@ export function useBoard(boardId: string | undefined) {
 
   const boardQuery = useQuery({
     queryKey: ["boards", boardId],
-    queryFn: () => getBoard(boardId!),
+    queryFn: () => {
+      return getBoard(boardId!);
+    },
     enabled: !!boardId,
   });
 
   const columnsQuery = useQuery({
     queryKey: ["boards", boardId, "columns"],
-    queryFn: () => getBoardColumns(boardId!),
+    queryFn: () => {
+      return getBoardColumns(boardId!);
+    },
     enabled: !!boardId,
   });
 
@@ -28,6 +34,35 @@ export function useBoard(boardId: string | undefined) {
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
         (old) => (old ? [...old, newColumn] : [newColumn]),
+      );
+    },
+  });
+
+  const updateColumnMutation = useMutation({
+    mutationFn: ({
+      columnId,
+      data,
+    }: {
+      columnId: string;
+      data: { name?: string };
+    }) => updateColumn(columnId, data),
+    onSuccess: (updatedColumn) => {
+      queryClient.setQueryData<Column[]>(
+        ["boards", boardId, "columns"],
+        (old) =>
+          old
+            ? old.map((c) => (c.id === updatedColumn.id ? updatedColumn : c))
+            : [updatedColumn],
+      );
+    },
+  });
+
+  const deleteColumnMutation = useMutation({
+    mutationFn: (columnId: string) => deleteColumn(columnId),
+    onSuccess: (_data, deletedColumnId) => {
+      queryClient.setQueryData<Column[]>(
+        ["boards", boardId, "columns"],
+        (old) => (old ? old.filter((c) => c.id !== deletedColumnId) : []),
       );
     },
   });
@@ -96,6 +131,10 @@ export function useBoard(boardId: string | undefined) {
     columnsError: columnsQuery.error,
     createColumn: createColumnMutation.mutateAsync,
     isCreatingColumn: createColumnMutation.isPending,
+    updateColumn: updateColumnMutation.mutateAsync,
+    isUpdatingColumn: updateColumnMutation.isPending,
+    deleteColumn: deleteColumnMutation.mutateAsync,
+    isDeletingColumn: deleteColumnMutation.isPending,
     updateColumnPosition: updateColumnPositionMutation.mutateAsync,
     isUpdatingColumnPosition: updateColumnPositionMutation.isPending,
   };
