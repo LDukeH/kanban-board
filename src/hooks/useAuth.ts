@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api/axios";
-import type { User } from "@/types/auth";
+import { getCurrentUser, logoutUser } from "@/lib/api/auth.api";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -11,17 +10,14 @@ export function useAuth() {
     isError,
   } = useQuery({
     queryKey: ["currentUser"],
-    queryFn: async () => {
-      const response = await api.get<User>("/auth/me");
-      return response.data;
-    },
+    queryFn: getCurrentUser,
     retry: false,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,
   });
 
   const logoutMutation = useMutation({
-    mutationFn: () => api.post("/auth/logout"),
+    mutationFn: logoutUser,
     onSuccess: () => {
       // Clear the user from query cache on logout
       queryClient.setQueryData(["currentUser"], null);

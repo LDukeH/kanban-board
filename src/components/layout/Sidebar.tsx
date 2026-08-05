@@ -16,7 +16,7 @@ import { useBoards } from "@/hooks/useBoards";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThemeStore } from "@/stores/themeStore";
 import { CreateWorkspaceDialog } from "@/components/workspace/CreateWorkspaceDialog";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface SidebarProps {
   className?: string;
@@ -25,6 +25,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { workspaces, isLoading } = useWorkspaces();
   const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
   const { boards } = useBoards(selectedWorkspaceId ?? undefined);
@@ -138,7 +139,12 @@ export function Sidebar({ className }: SidebarProps) {
                 boards.map((board) => (
                   <button
                     key={board.id}
-                    className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    onClick={() => navigate(`/boards/${board.id}`)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                      location.pathname === `/boards/${board.id}` &&
+                        "bg-sidebar-accent text-sidebar-accent-foreground",
+                    )}
                   >
                     <span className="size-2 shrink-0 rounded-full bg-primary" />
                     <span className="truncate">{board.name}</span>

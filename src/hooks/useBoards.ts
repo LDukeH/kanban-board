@@ -9,6 +9,7 @@ export function useBoards(workspaceId: string | undefined) {
     data: boards,
     isLoading,
     isError,
+    error,
   } = useQuery({
     queryKey: ["workspaces", workspaceId, "boards"],
     queryFn: () => getBoards(workspaceId!),
@@ -30,6 +31,7 @@ export function useBoards(workspaceId: string | undefined) {
     boards: boards ?? [],
     isLoading,
     isError,
+    error,
     createBoard: createBoardMutation.mutateAsync,
     isCreating: createBoardMutation.isPending,
   };

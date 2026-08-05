@@ -5,9 +5,11 @@ import { FeaturedSection } from "@/components/dashboard/FeaturedSection";
 import { CreateBoardDialog } from "@/components/workspace/CreateBoardDialog";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useBoards } from "@/hooks/useBoards";
+import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useEffect } from "react";
 import { Loader2, LayoutGrid } from "lucide-react";
+import { describeLoadError } from "@/lib/httpStatus";
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -16,8 +18,10 @@ export default function WorkspacePage() {
   const {
     boards,
     isLoading: isLoadingBoards,
-    isError,
+    isError: isBoardsError,
+    error: boardsError,
   } = useBoards(workspaceId);
+  const { canManageBoards, isLoadingRole } = useWorkspaceAccess(workspaceId);
 
   const workspace = workspaces.find((w) => w.id === workspaceId);
 
@@ -46,7 +50,9 @@ export default function WorkspacePage() {
             </p>
           </div>
         </div>
-        {workspaceId && <CreateBoardDialog workspaceId={workspaceId} />}
+        {workspaceId && canManageBoards && !isLoadingRole && (
+          <CreateBoardDialog workspaceId={workspaceId} />
+        )}
       </header>
 
       <div className="flex-1 p-6">
@@ -55,9 +61,9 @@ export default function WorkspacePage() {
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>
-        ) : isError ? (
+        ) : isBoardsError ? (
           <div className="flex flex-col items-center justify-center gap-2 py-20 text-muted-foreground">
-            <p>Failed to load boards.</p>
+            <p>{describeLoadError(boardsError)}</p>
           </div>
         ) : boards.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
@@ -72,7 +78,9 @@ export default function WorkspacePage() {
                 Create your first board to start organizing tasks.
               </p>
             </div>
-            {workspaceId && <CreateBoardDialog workspaceId={workspaceId} />}
+            {workspaceId && canManageBoards && !isLoadingRole && (
+              <CreateBoardDialog workspaceId={workspaceId} />
+            )}
           </div>
         ) : (
           <>

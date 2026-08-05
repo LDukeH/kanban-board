@@ -13,6 +13,7 @@ export function useWorkspaces() {
     data: workspaces,
     isLoading,
     isError,
+    error,
   } = useQuery({
     queryKey: ["workspaces"],
     queryFn: getWorkspaces,
@@ -31,6 +32,7 @@ export function useWorkspaces() {
     workspaces: workspaces ?? [],
     isLoading,
     isError,
+    error,
     createWorkspace: createWorkspaceMutation.mutateAsync,
     isCreating: createWorkspaceMutation.isPending,
   };

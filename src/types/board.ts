@@ -6,3 +6,12 @@ export interface Board {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Column {
+  id: string;
+  boardId: string;
+  name: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}

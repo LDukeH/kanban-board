@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { getGradient } from "@/lib/colors";
+import { Link } from "react-router-dom";
 import type { Board } from "@/types/board";
 
 interface BoardCardProps {
@@ -11,9 +12,10 @@ export function BoardCard({ board, className }: BoardCardProps) {
   const gradient = getGradient(board.id);
 
   return (
-    <div
+    <Link
+      to={`/boards/${board.id}`}
       className={cn(
-        "group relative cursor-pointer overflow-hidden rounded-xl bg-gradient-to-br shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
+        "group relative block overflow-hidden rounded-xl bg-gradient-to-br shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
         gradient,
         className,
       )}
@@ -32,6 +34,6 @@ export function BoardCard({ board, className }: BoardCardProps) {
           </p>
         )}
       </div>
-    </div>
+    </Link>
   );
 }
