@@ -15,3 +15,13 @@ export interface Column {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Task {
+  id: string;
+  columnId: string;
+  title: string;
+  description?: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}

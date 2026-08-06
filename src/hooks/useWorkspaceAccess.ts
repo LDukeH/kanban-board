@@ -42,6 +42,13 @@ export function useWorkspaceAccess(workspaceId: string | undefined) {
     canManageBoards: isOwner || isAdmin,
     /** Owner/Admin: manage Workspace content (e.g. create/reorder/edit Columns). */
     canManageWorkspaceContent: isOwner || isAdmin,
+    /**
+     * Any workspace member can create/update tasks (matches backend authz).
+     * True once role is known and user is owner, admin, or member.
+     */
+    canWorkOnTasks: isOwner || isAdmin || isMember,
+    /** Owner/Admin: delete tasks (matches backend authz). */
+    canDeleteTask: isOwner || isAdmin,
     /** Owner only: delete the Workspace. */
     canDeleteWorkspace: isOwner,
   };

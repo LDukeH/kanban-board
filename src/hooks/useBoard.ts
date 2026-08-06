@@ -64,6 +64,12 @@ export function useBoard(boardId: string | undefined) {
         ["boards", boardId, "columns"],
         (old) => (old ? old.filter((c) => c.id !== deletedColumnId) : []),
       );
+      // Tasks cascade-delete on the server; drop the column's task cache.
+      if (boardId) {
+        queryClient.removeQueries({
+          queryKey: ["boards", boardId, "columns", deletedColumnId, "tasks"],
+        });
+      }
     },
   });
 
