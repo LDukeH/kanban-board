@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import type { Column } from "@/types/board";
 import { useSortable } from "@dnd-kit/react/sortable";
+import { closestCenter } from "@dnd-kit/collision";
 import { EditColumnDialog } from "@/components/board/EditColumnDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { CreateTaskDialog } from "@/components/board/CreateTaskDialog";
@@ -10,6 +11,7 @@ import { TaskCard } from "@/components/board/TaskCard";
 import { Button } from "@/components/ui/button";
 import { useBoard } from "@/hooks/useBoard";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
+import { useDroppable } from "@dnd-kit/react";
 
 interface ColumnCardProps {
   column: Column;
@@ -32,12 +34,34 @@ export function ColumnCard({
   canEditTask = false,
   canDeleteTask = false,
 }: ColumnCardProps) {
-  const { ref, isDragging } = useSortable({ id: column.id, index });
+  const { ref, isDragging } = useSortable({
+    id: column.id,
+    index,
+    type: "column",
+    accept: "column",
+    collisionDetector: closestCenter,
+    data: { type: "column", columnId: column.id },
+  });
+
+  const { ref: taskDropRef, isDropTarget } = useDroppable({
+    id: `task-container-${column.id}`,
+    type: "task-container",
+    accept: "task",
+    data: {
+      type: "task-container",
+      columnId: column.id,
+    },
+  });
+
   const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
   const { tasks, isLoadingTasks } = useColumnTasks(column.boardId, column.id);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const showMenu = canEdit || canDelete;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -62,8 +86,6 @@ export function ColumnCard({
     };
   }, [menuOpen]);
 
-  const showMenu = canEdit || canDelete;
-
   return (
     <div
       ref={ref}
@@ -73,7 +95,7 @@ export function ColumnCard({
         isDragging && "opacity-50",
       )}
     >
-      {/* Header — stays fixed while tasks scroll */}
+      {/* Header */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
         <span className="size-2 shrink-0 rounded-full bg-primary" />
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
@@ -103,39 +125,32 @@ export function ColumnCard({
                 className="absolute right-0 top-full z-20 mt-1 min-w-36 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-md"
               >
                 {canEdit && (
-                  <EditColumnDialog
-                    column={column}
-                    trigger={
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        <Pencil className="size-3.5" />
-                        Rename
-                      </button>
-                    }
-                  />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex cursor-pointer hover:opacity-75 w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                    onClick={() => {
+                      setIsEditDialogOpen(true);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <Pencil className="size-3.5" />
+                    Rename
+                  </button>
                 )}
                 {canDelete && (
-                  <ConfirmDeleteDialog
-                    title="Delete Column"
-                    description={`Are you sure you want to delete "${column.name}"? This will permanently delete all tasks within this column.`}
-                    onConfirm={() => deleteColumn(column.id)}
-                    isLoading={isDeletingColumn}
-                    trigger={
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted"
-                        onClick={() => setMenuOpen(false)}
-                      >
-                        <Trash2 className="size-3.5" />
-                        Delete
-                      </button>
-                    }
-                  />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex cursor-pointer hover:opacity-75 w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted"
+                    onClick={() => {
+                      setIsDeleteDialogOpen(true);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete
+                  </button>
                 )}
               </div>
             )}
@@ -143,10 +158,15 @@ export function ColumnCard({
         )}
       </div>
 
-      {/* Scrollable task area — vertical scroll only; does not grow the column */}
+      {/* Task area */}
       <div
         data-column-scroll
-        className="flex min-h-0  flex-col gap-2 overflow-y-auto overscroll-contain p-3"
+        data-column-id={column.id}
+        ref={taskDropRef}
+        className={cn(
+          "flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain p-3 transition-colors",
+          isDropTarget && "bg-primary/5",
+        )}
       >
         {isLoadingTasks ? (
           <div className="flex items-center justify-center py-6 text-muted-foreground">
@@ -157,23 +177,44 @@ export function ColumnCard({
             No tasks yet
           </p>
         ) : (
-          tasks.map((task) => (
+          tasks.map((task, index) => (
             <TaskCard
               key={task.id}
               task={task}
               boardId={column.boardId}
               canEdit={canEditTask}
               canDelete={canDeleteTask}
+              index={index}
             />
           ))
         )}
       </div>
 
-      {/* Footer — stays fixed while tasks scroll */}
+      {/* Footer */}
       {canCreateTask && (
         <div className="shrink-0 border-t border-border p-2">
           <CreateTaskDialog boardId={column.boardId} columnId={column.id} />
         </div>
+      )}
+
+      {/* Dialogs rendered outside the unmounting menu */}
+      {canEdit && (
+        <EditColumnDialog
+          column={column}
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+        />
+      )}
+
+      {canDelete && (
+        <ConfirmDeleteDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          title="Delete Column"
+          description={`Are you sure you want to delete "${column.name}"? This will permanently delete all tasks within this column.`}
+          onConfirm={() => deleteColumn(column.id)}
+          isLoading={isDeletingColumn}
+        />
       )}
     </div>
   );

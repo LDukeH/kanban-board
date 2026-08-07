@@ -17,13 +17,11 @@ interface ConfirmDeleteDialogProps {
   cancelText?: string;
   onConfirm: () => Promise<void>;
   isLoading?: boolean;
-  trigger: ReactElement;
+  trigger?: ReactElement;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-/**
- * A reusable confirmation dialog for destructive delete actions.
- * Wraps the base-ui Dialog with a destructive confirm button.
- */
 export function ConfirmDeleteDialog({
   title,
   description,
@@ -32,16 +30,33 @@ export function ConfirmDeleteDialog({
   onConfirm,
   isLoading = false,
   trigger,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
 }: ConfirmDeleteDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
   const [error, setError] = useState<string | null>(null);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setError(null);
+    }
+    if (isControlled) {
+      setControlledOpen?.(nextOpen);
+    } else {
+      setInternalOpen(nextOpen);
+    }
+  };
 
   async function handleConfirm(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     try {
       await onConfirm();
-      setOpen(false);
+      handleOpenChange(false);
     } catch (err) {
       setError("Failed to delete. Please try again.");
       console.error("Delete failed:", err);
@@ -49,8 +64,8 @@ export function ConfirmDeleteDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {trigger && <DialogTrigger render={trigger} />}
       <DialogPopup>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>

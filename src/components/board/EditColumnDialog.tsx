@@ -16,12 +16,31 @@ import type { Column } from "@/types/board";
 
 interface EditColumnDialogProps {
   column: Column;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactElement;
 }
 
-export function EditColumnDialog({ column, trigger }: EditColumnDialogProps) {
+export function EditColumnDialog({
+  column,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+  trigger,
+}: EditColumnDialogProps) {
   const { updateColumn, isUpdatingColumn } = useBoard(column.boardId);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
+  const setOpen = (nextOpen: boolean) => {
+    if (isControlled) {
+      setControlledOpen?.(nextOpen);
+    } else {
+      setInternalOpen(nextOpen);
+    }
+  };
+
   const [name, setName] = useState(column.name);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,15 +74,19 @@ export function EditColumnDialog({ column, trigger }: EditColumnDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          trigger ?? (
-            <Button variant="ghost" size="icon-xs">
-              <Pencil className="size-3" />
-            </Button>
-          )
-        }
-      />
+      {trigger ? (
+        <DialogTrigger render={trigger} />
+      ) : (
+        !isControlled && (
+          <DialogTrigger
+            render={
+              <Button variant="ghost" size="icon-xs">
+                <Pencil className="size-3" />
+              </Button>
+            }
+          />
+        )
+      )}
       <DialogPopup>
         <DialogTitle>Edit Column</DialogTitle>
         <DialogDescription>Update the name of this column.</DialogDescription>

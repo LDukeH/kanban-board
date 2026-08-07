@@ -5,6 +5,8 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { Trash2 } from "lucide-react";
+import { useSortable } from "@dnd-kit/react/sortable";
+import { closestCenter } from "@dnd-kit/collision";
 
 interface TaskCardProps {
   task: Task;
@@ -12,6 +14,7 @@ interface TaskCardProps {
   canEdit?: boolean;
   canDelete?: boolean;
   className?: string;
+  index: number;
 }
 
 export function TaskCard({
@@ -20,14 +23,26 @@ export function TaskCard({
   canEdit = false,
   canDelete = false,
   className,
+  index,
 }: TaskCardProps) {
   const { deleteTask, isDeletingTask } = useColumnTasks(boardId, task.columnId);
+  const { ref, isDragging } = useSortable({
+    id: task.id,
+    index,
+    type: "task",
+    accept: "task",
+    group: task.columnId,
+    collisionDetector: closestCenter,
+    data: { type: "task", taskId: task.id, columnId: task.columnId },
+  });
 
   return (
     <div
+      ref={ref}
       className={cn(
         "group flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-primary/30",
         className,
+        isDragging && "opacity-50",
       )}
     >
       {/* Visual status indicator — backend has no done/status field yet */}
