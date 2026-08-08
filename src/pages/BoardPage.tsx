@@ -1,32 +1,23 @@
 import { useParams, useNavigate } from "react-router-dom";
-
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-
 import { ColumnCard } from "@/components/board/ColumnCard";
-
 import { CreateColumnDialog } from "@/components/board/CreateColumnDialog";
-
 import { useBoard } from "@/hooks/useBoard";
-
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
-
 import { describeLoadError } from "@/lib/httpStatus";
-
 import { Loader2, ArrowLeft, Columns3, Kanban } from "lucide-react";
-
-import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react";
-
+import {
+  DragDropProvider,
+  type DragEndEvent,
+  DragOverlay,
+} from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
-
 import { useQueryClient } from "@tanstack/react-query";
-
 import { columnTasksQueryKey, useColumnTasks } from "@/hooks/useColumnTasks";
-
 import type { Task } from "@/types/board";
-
-import type { WheelEvent } from "react";
+import { useState, useRef, type WheelEvent } from "react";
+import { TaskCard } from "@/components/board/TaskCard";
 
 function BoardLoading() {
   return (
@@ -64,21 +55,10 @@ function EmptyColumns() {
   );
 }
 
-/**
-
- * Route vertical wheel to column task lists when they can still scroll;
-
- * otherwise convert vertical wheel into horizontal board scroll.
-
- * Keeps board horizontal scroll and column vertical scroll independent.
-
- */
-
 function handleBoardWheel(e: WheelEvent<HTMLDivElement>) {
   if (e.deltaY === 0) return;
 
   const board = e.currentTarget;
-
   const path =
     typeof e.nativeEvent.composedPath === "function"
       ? e.nativeEvent.composedPath()
@@ -86,22 +66,15 @@ function handleBoardWheel(e: WheelEvent<HTMLDivElement>) {
 
   for (const node of path) {
     if (!(node instanceof HTMLElement)) continue;
-
     if (!node.hasAttribute("data-column-scroll")) continue;
 
     const { scrollTop, scrollHeight, clientHeight } = node;
-
     const canScrollDown = scrollTop + clientHeight < scrollHeight - 1;
-
     const canScrollUp = scrollTop > 1;
-
     const scrollingDown = e.deltaY > 0;
-
     const scrollingUp = e.deltaY < 0;
 
     if ((scrollingDown && canScrollDown) || (scrollingUp && canScrollUp)) {
-      // Let the task list handle vertical scroll natively.
-
       return;
     }
 
@@ -109,70 +82,68 @@ function handleBoardWheel(e: WheelEvent<HTMLDivElement>) {
   }
 
   board.scrollLeft += e.deltaY;
-
   e.preventDefault();
 }
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
-
   const navigate = useNavigate();
-
   const queryClient = useQueryClient();
-
   const { workspaces } = useWorkspaces();
+
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // Track original parent DOM node to fix removeChild crash cleanly
+  const sourceParentRef = useRef<HTMLElement | null>(null);
 
   const {
     board,
-
     isLoadingBoard,
-
     isBoardError,
     boardError,
-
     columns,
-
     isLoadingColumns,
-
     isColumnsError,
-
     columnsError,
-
     updateColumnPosition,
   } = useBoard(boardId);
 
   const { updateTaskPosition } = useColumnTasks(boardId, undefined);
-
   const workspace = workspaces.find((w) => w.id === board?.workspaceId);
 
   const {
     canManageWorkspaceContent,
-
     canWorkOnTasks,
-
     canDeleteTask,
-
     isLoadingRole,
   } = useWorkspaceAccess(board?.workspaceId);
 
   const sortedColumns = [...columns].sort((a, b) => a.position - b.position);
 
   const canManageColumns = canManageWorkspaceContent && !isLoadingRole;
-
   const canUseTasks = canWorkOnTasks && !isLoadingRole;
-
   const canRemoveTasks = canDeleteTask && !isLoadingRole;
 
   function handleDragEnd(event: DragEndEvent) {
+    // Put the DOM node back into its original container so React can unmount/move it safely
+    const sourceEl = event.operation.source?.element;
+    const originalParent = sourceParentRef.current;
+    if (
+      sourceEl &&
+      originalParent &&
+      sourceEl.parentElement !== originalParent
+    ) {
+      originalParent.appendChild(sourceEl);
+    }
+    sourceParentRef.current = null;
+    setActiveTask(null);
+
     if (event.canceled) return;
 
     const source = event.operation.source;
-
     const target = event.operation.target;
 
     if (!source || !target) return;
-
-    // --- 1. COLUMN REORDERING ---
 
     if (source.data?.type === "column" && isSortable(source)) {
       const { initialIndex, index: newIndex } = source.sortable;
@@ -187,63 +158,44 @@ export default function BoardPage() {
       return;
     }
 
-    // --- 2. TASK REORDERING ---
-
     if (source.data?.type === "task" && isSortable(source)) {
       const taskId = String(source.id);
-
+      const targetId = String(target.id);
       const { initialIndex, index, group, initialGroup } = source.sortable;
 
-      // IMPORTANT: dnd-kit's OptimisticSortingPlugin sets `target` to the
-      // same element as `source` for sortable-vs-sortable collisions —
-      // "source and target on the operation will refer to the same
-      // element... you cannot compare their IDs to determine what moved"
-      // (https://dndkit.com/concepts/sortable/). So target.data here is
-      // usually just the dragged task's own original data reflected back
-      // at itself, not the actual hovered task. We rely on source.sortable
-      // (group/initialGroup/index/initialIndex), which dnd-kit keeps live
-      // during the drag, instead — except for the empty-column case below,
-      // where target is a genuinely distinct (non-sortable) droppable.
+      const sourceColumnId = String(initialGroup ?? "");
+      const targetColumnId = String(group ?? sourceColumnId);
 
-      // Dropping into an empty column's drop zone. task-container is a
-      // plain droppable, not part of the sortable group, so target is
-      // reliable here — but only when it isn't just `source` again.
-      if (
-        target.data?.type === "task-container" &&
-        String(target.id) !== String(source.id)
-      ) {
-        const sourceColumnId = String(initialGroup ?? "");
-        const targetColumnId = String(target.data.columnId ?? target.id);
-
-        if (!sourceColumnId || !targetColumnId) return;
-
-        const isSameColumn = sourceColumnId === targetColumnId;
+      // Dropped onto empty container area
+      if (target.data?.type === "task-container" && targetId !== taskId) {
+        const containerColumnId = String(target.data.columnId ?? target.id);
+        if (!sourceColumnId || !containerColumnId) return;
 
         const targetTasks = (
           queryClient.getQueryData<Task[]>(
-            columnTasksQueryKey(boardId!, targetColumnId),
+            columnTasksQueryKey(boardId!, containerColumnId),
           ) ?? []
         ).filter((t) => String(t.id) !== taskId);
 
         const destinationPosition = targetTasks.length;
 
-        if (isSameColumn && initialIndex === destinationPosition) return;
+        if (
+          sourceColumnId === containerColumnId &&
+          initialIndex === destinationPosition
+        )
+          return;
 
         updateTaskPosition({
           taskId,
           sourceColumnId,
-          columnId: targetColumnId,
+          columnId: containerColumnId,
           position: destinationPosition,
         });
 
         return;
       }
 
-      // Normal case: dropped on/near another task. Trust dnd-kit's own
-      // live-tracked group/index instead of `target`.
-      const sourceColumnId = String(initialGroup ?? "");
-      const targetColumnId = String(group ?? sourceColumnId);
-
+      // Normal drop on or between tasks
       if (!sourceColumnId || !targetColumnId) return;
 
       const isSameColumn = sourceColumnId === targetColumnId;
@@ -317,6 +269,13 @@ export default function BoardPage() {
           </div>
         ) : (
           <DragDropProvider
+            onDragStart={(e) => {
+              const sourceEl = e.operation.source?.element;
+              if (sourceEl) {
+                sourceParentRef.current = sourceEl.parentElement;
+              }
+              setActiveTask(e.operation.source?.data?.task ?? null);
+            }}
             onDragEnd={
               canManageColumns || canUseTasks ? handleDragEnd : undefined
             }
@@ -341,6 +300,19 @@ export default function BoardPage() {
                 </div>
               )}
             </div>
+
+            <DragOverlay>
+              {activeTask ? (
+                <TaskCard
+                  task={activeTask}
+                  boardId={boardId}
+                  canEdit={false}
+                  canDelete={false}
+                  index={0}
+                  isOverlay
+                />
+              ) : null}
+            </DragOverlay>
           </DragDropProvider>
         )}
       </div>

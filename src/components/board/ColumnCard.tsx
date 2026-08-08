@@ -164,7 +164,7 @@ export function ColumnCard({
         data-column-id={column.id}
         ref={taskDropRef}
         className={cn(
-          "flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain p-3 transition-colors",
+          "flex h-full min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain p-3 pt-6 transition-colors",
           isDropTarget && "bg-primary/5",
         )}
       >

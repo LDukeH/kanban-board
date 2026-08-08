@@ -15,6 +15,7 @@ interface TaskCardProps {
   canDelete?: boolean;
   className?: string;
   index: number;
+  isOverlay?: boolean;
 }
 
 export function TaskCard({
@@ -24,8 +25,10 @@ export function TaskCard({
   canDelete = false,
   className,
   index,
+  isOverlay = false,
 }: TaskCardProps) {
   const { deleteTask, isDeletingTask } = useColumnTasks(boardId, task.columnId);
+
   const { ref, isDragging } = useSortable({
     id: task.id,
     index,
@@ -33,26 +36,27 @@ export function TaskCard({
     accept: "task",
     group: task.columnId,
     collisionDetector: closestCenter,
-    data: { type: "task", taskId: task.id, columnId: task.columnId },
+    disabled: isOverlay, // Prevents overlay from registering as a active sortable node
+    data: { type: "task", task: task, columnId: task.columnId },
   });
 
   return (
     <div
-      ref={ref}
+      ref={isOverlay ? undefined : ref}
       className={cn(
         "group flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-primary/30",
         className,
-        isDragging && "opacity-50",
+        isDragging && "opacity-40",
+        isOverlay && "shadow-lg border-primary/40 rotate-1",
       )}
     >
-      {/* Visual status indicator — backend has no done/status field yet */}
       <span
         className="mt-0.5 size-4 shrink-0 rounded-full border-2 border-muted-foreground/40"
         aria-hidden
       />
 
       <div className="min-w-0 flex-1">
-        {canEdit ? (
+        {canEdit && !isOverlay ? (
           <EditTaskDialog
             task={task}
             boardId={boardId}
@@ -77,7 +81,7 @@ export function TaskCard({
         ) : null}
       </div>
 
-      {canDelete && (
+      {canDelete && !isOverlay && (
         <ConfirmDeleteDialog
           title="Delete Task"
           description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
