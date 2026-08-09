@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 import {
   Settings,
   LogOut,
@@ -16,6 +17,7 @@ import { useBoards } from "@/hooks/useBoards";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useThemeStore } from "@/stores/themeStore";
 import { CreateWorkspaceDialog } from "@/components/workspace/CreateWorkspaceDialog";
+import { WorkspaceMembersDialog } from "@/components/workspace/WorkspaceMembersDialog";
 import { useNavigate, useLocation } from "react-router-dom";
 
 interface SidebarProps {
@@ -26,6 +28,7 @@ export function Sidebar({ className }: SidebarProps) {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [membersOpen, setMembersOpen] = useState(false);
   const { workspaces, isLoading } = useWorkspaces();
   const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
   const { boards } = useBoards(selectedWorkspaceId ?? undefined);
@@ -59,10 +62,15 @@ export function Sidebar({ className }: SidebarProps) {
             <LayoutGrid className="size-4 text-muted-foreground" />
             Boards
           </button>
-          <button className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-            <Users className="size-4 text-muted-foreground" />
-            Members
-          </button>
+          {selectedWorkspace && (
+            <button
+              onClick={() => setMembersOpen(true)}
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <Users className="size-4 text-muted-foreground" />
+              Members
+            </button>
+          )}
           <button className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
             <Settings className="size-4 text-muted-foreground" />
             Settings
@@ -179,6 +187,14 @@ export function Sidebar({ className }: SidebarProps) {
           Logout
         </Button>
       </div>
+
+      {selectedWorkspace && (
+        <WorkspaceMembersDialog
+          workspaceId={selectedWorkspace.id}
+          open={membersOpen}
+          onOpenChange={setMembersOpen}
+        />
+      )}
     </aside>
   );
 }

@@ -13,6 +13,13 @@ export interface WorkspaceMember {
   workspaceId: string;
   userId: string;
   role: WorkspaceRole;
+  email: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** A user returned by the `GET /users/search` endpoint. */
+export interface SearchedUser {
+  id: string;
+  email: string;
 }

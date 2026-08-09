@@ -1,5 +1,9 @@
 import { api } from "./axios";
-import type { Workspace, WorkspaceMember } from "@/types/workspace";
+import type {
+  Workspace,
+  WorkspaceMember,
+  WorkspaceRole,
+} from "@/types/workspace";
 
 /**
  * The backend returns entities with snake_case fields
@@ -29,6 +33,7 @@ interface WorkspaceMemberApiResponse {
   workspace_id: string;
   user_id: string;
   role: WorkspaceMember["role"];
+  email: string;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +44,7 @@ function mapMember(raw: WorkspaceMemberApiResponse): WorkspaceMember {
     workspaceId: raw.workspace_id,
     userId: raw.user_id,
     role: raw.role,
+    email: raw.email,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -79,4 +85,34 @@ export const getWorkspaceMembers = async (
     `/workspaces/${workspaceId}/members`,
   );
   return response.data.map(mapMember);
+};
+
+export const createMembership = async (
+  workspaceId: string,
+  data: { email: string; role: WorkspaceRole },
+): Promise<WorkspaceMember> => {
+  const response = await api.post<WorkspaceMemberApiResponse>(
+    `/workspaces/${workspaceId}/members`,
+    data,
+  );
+  return mapMember(response.data);
+};
+
+export const changeMemberRole = async (
+  workspaceId: string,
+  membershipId: string,
+  role: WorkspaceRole,
+): Promise<WorkspaceMember> => {
+  const response = await api.patch<WorkspaceMemberApiResponse>(
+    `/workspaces/${workspaceId}/members/${membershipId}`,
+    { role },
+  );
+  return mapMember(response.data);
+};
+
+export const removeMember = async (
+  workspaceId: string,
+  membershipId: string,
+): Promise<void> => {
+  await api.delete(`/workspaces/${workspaceId}/members/${membershipId}`);
 };

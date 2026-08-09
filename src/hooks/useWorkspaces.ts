@@ -5,8 +5,12 @@ import {
   updateWorkspace,
   deleteWorkspace,
   getWorkspaceMembers,
+  createMembership,
+  changeMemberRole,
+  removeMember,
 } from "@/lib/api/workspace.api";
-import type { Workspace } from "@/types/workspace";
+import { searchUsersByEmail } from "@/lib/api/users.api";
+import type { Workspace, WorkspaceRole } from "@/types/workspace";
 
 export function useWorkspaces() {
   const queryClient = useQueryClient();
@@ -81,5 +85,70 @@ export function useWorkspaceMembers(workspaceId: string | undefined) {
     queryKey: ["workspaces", workspaceId, "members"],
     queryFn: () => getWorkspaceMembers(workspaceId!),
     enabled: !!workspaceId,
+  });
+}
+
+/**
+ * Mutations that add, re-role, or remove members of a Workspace.
+ * Each success invalidates the member list query for the Workspace so
+ * dependent components (dialog list, access flags) stay in sync.
+ */
+export function useWorkspaceMemberActions(workspaceId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  const invalidateMembers = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["workspaces", workspaceId, "members"],
+    });
+  };
+
+  const createMembershipMutation = useMutation({
+    mutationFn: ({ email, role }: { email: string; role: WorkspaceRole }) =>
+      createMembership(workspaceId!, { email, role }),
+    onSuccess: invalidateMembers,
+  });
+
+  const changeRoleMutation = useMutation({
+    mutationFn: ({
+      membershipId,
+      role,
+    }: {
+      membershipId: string;
+      role: WorkspaceRole;
+    }) => changeMemberRole(workspaceId!, membershipId, role),
+    onSuccess: invalidateMembers,
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: (membershipId: string) =>
+      removeMember(workspaceId!, membershipId),
+    onSuccess: invalidateMembers,
+  });
+
+  return {
+    /** Add a single member by email. */
+    addMember: createMembershipMutation.mutateAsync,
+    isAdding: createMembershipMutation.isPending,
+    /** Change a member's role. */
+    changeRole: changeRoleMutation.mutateAsync,
+    isChangingRole: changeRoleMutation.isPending,
+    /** Remove a member by membership id. */
+    removeMember: removeMemberMutation.mutateAsync,
+    isRemoving: removeMemberMutation.isPending,
+  };
+}
+
+/**
+ * Debounce search-by-email against `GET /users/search`. Only runs once the
+ * query has at least 2 characters, mirroring how backend search is debounced
+ * at the UI layer without issuing requests for empty/too-short input.
+ */
+export function useSearchUsers(query: string) {
+  const trimmed = query.trim();
+
+  return useQuery({
+    queryKey: ["users", "search", trimmed],
+    queryFn: () => searchUsersByEmail(trimmed),
+    enabled: trimmed.length >= 2,
   });
 }
