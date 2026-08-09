@@ -37,7 +37,7 @@ export function LabelPicker({ boardId, task }: LabelPickerProps) {
 
   if (!canAssignLabels) return null;
 
-  const assignedIds = new Set(task.labels.map((label) => label.id));
+  const assignedIds = new Set((task.labels ?? []).map((label) => label.id));
 
   async function handleToggle(labelId: string) {
     const isAssigned = assignedIds.has(labelId);

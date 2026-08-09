@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import type { Column } from "@/types/board";
@@ -8,7 +8,12 @@ import { EditColumnDialog } from "@/components/board/EditColumnDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { CreateTaskDialog } from "@/components/board/CreateTaskDialog";
 import { TaskCard } from "@/components/board/TaskCard";
-import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useBoard } from "@/hooks/useBoard";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useDroppable } from "@dnd-kit/react";
@@ -56,35 +61,8 @@ export function ColumnCard({
   const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
   const { tasks, isLoadingTasks } = useColumnTasks(column.boardId, column.id);
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const showMenu = canEdit || canDelete;
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [menuOpen]);
 
   return (
     <div
@@ -105,56 +83,37 @@ export function ColumnCard({
           {tasks.length}
         </span>
 
-        {showMenu && (
-          <div className="relative" ref={menuRef}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Column actions"
-              aria-expanded={menuOpen}
-              aria-haspopup="menu"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
+        {(canEdit || canDelete) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger>
               <MoreHorizontal className="size-3.5" />
-            </Button>
-
-            {menuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-20 mt-1 min-w-36 overflow-hidden rounded-lg border border-border bg-popover py-1 shadow-md"
-              >
-                {canEdit && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex cursor-pointer hover:opacity-75 w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-foreground hover:bg-muted"
-                    onClick={() => {
-                      setIsEditDialogOpen(true);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    <Pencil className="size-3.5" />
-                    Rename
-                  </button>
-                )}
-                {canDelete && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex cursor-pointer hover:opacity-75 w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-destructive hover:bg-muted"
-                    onClick={() => {
-                      setIsDeleteDialogOpen(true);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                    Delete
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {canEdit && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsEditDialogOpen(true);
+                  }}
+                >
+                  <Pencil className="size-3.5" />
+                  Rename
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  variant="destructive"
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 

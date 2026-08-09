@@ -247,8 +247,8 @@ export function useColumnTasks(
           columnTasksQueryKey(boardId, columnId),
           (old) =>
             old?.map((task) =>
-              task.id === taskId && !task.labels.some((l) => l.id === labelId)
-                ? { ...task, labels: [...task.labels, label] }
+              task.id === taskId && !(task.labels ?? []).some((l) => l.id === labelId)
+                ? { ...task, labels: [...(task.labels ?? []), label] }
                 : task,
             ) ?? [],
         );
@@ -275,7 +275,7 @@ export function useColumnTasks(
         (old) =>
           old?.map((task) =>
             task.id === taskId
-              ? { ...task, labels: task.labels.filter((l) => l.id !== labelId) }
+              ? { ...task, labels: (task.labels ?? []).filter((l) => l.id !== labelId) }
               : task,
           ) ?? [],
       );

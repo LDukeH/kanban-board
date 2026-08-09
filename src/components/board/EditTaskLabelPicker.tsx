@@ -1,7 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useBoard } from "@/hooks/useBoard";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
@@ -24,25 +28,14 @@ export function EditTaskLabelPicker({
   boardId,
   task,
 }: EditTaskLabelPickerProps) {
-  const [open, setOpen] = useState(false);
   const [togglingLabelId, setTogglingLabelId] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { labels, isLoadingLabels } = useBoard(boardId);
-  const { addLabelToTask, removeLabelFromTask } = useColumnTasks(boardId, task.columnId);
-  const { canAssignLabels } = useWorkspaceAccess(task.labels?.[0]?.boardId ?? boardId);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [open]);
+  const { labels, board, isLoadingLabels } = useBoard(boardId);
+  const { addLabelToTask, removeLabelFromTask } = useColumnTasks(
+    boardId,
+    task.columnId,
+  );
+  const { canAssignLabels } = useWorkspaceAccess(board?.workspaceId);
 
   if (!canAssignLabels) return null;
 
@@ -66,72 +59,55 @@ export function EditTaskLabelPicker({
   }
 
   return (
-    <div className="relative" ref={containerRef}>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 gap-1.5"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-        aria-haspopup="true"
-      >
-        <span className="text-xs text-muted-foreground">Labels</span>
-        {selectedCount > 0 && (
-          <span className="rounded-full bg-primary/10 px-1.5 text-xs text-primary">
-            {selectedCount}
-          </span>
-        )}
-      </Button>
-
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-border bg-card shadow-lg">
-          <div className="max-h-72 overflow-y-auto px-1.5 py-1">
-            {isLoadingLabels ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : labels.length === 0 ? (
-              <p className="px-1 py-2 text-xs text-muted-foreground">
-                This board has no labels yet.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-0.5">
-                {labels.map((label) => {
-                  const isAssigned = assignedIds.has(label.id);
-                  const isBusy = togglingLabelId === label.id;
-                  return (
-                    <button
-                      key={label.id}
-                      type="button"
-                      disabled={isBusy}
-                      onClick={() => handleToggle(label.id)}
-                      className={cn(
-                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                        isAssigned ? "bg-primary/5" : "hover:bg-muted",
-                        isBusy && "opacity-60",
-                      )}
-                    >
-                      <span
-                        className="size-3 shrink-0 rounded-full"
-                        style={
-                          label.color ? { backgroundColor: label.color } : undefined
-                        }
-                      />
-                      <span className="min-w-0 flex-1 truncate">{label.name}</span>
-                      {isBusy ? (
-                        <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
-                      ) : isAssigned ? (
-                        <Check className="size-4 shrink-0 text-primary" />
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+    <DropdownMenu>
+      <DropdownMenuTrigger>
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted">
+          Labels
+          {selectedCount > 0 && (
+            <span className="rounded-full bg-primary/10 px-1.5 text-xs text-primary">
+              {selectedCount}
+            </span>
+          )}
+        </span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        {isLoadingLabels ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
           </div>
-        </div>
-      )}
-    </div>
+        ) : labels.length === 0 ? (
+          <p className="px-2 py-2 text-xs text-muted-foreground">
+            This board has no labels yet.
+          </p>
+        ) : (
+          labels.map((label) => {
+            const isAssigned = assignedIds.has(label.id);
+            const isBusy = togglingLabelId === label.id;
+            return (
+              <DropdownMenuItem
+                key={label.id}
+                disabled={isBusy}
+                onClick={() => handleToggle(label.id)}
+                closeOnClick={false}
+                className="gap-2"
+              >
+                <span
+                  className="size-3 shrink-0 rounded-full"
+                  style={
+                    label.color ? { backgroundColor: label.color } : undefined
+                  }
+                />
+                <span className="min-w-0 flex-1 truncate">{label.name}</span>
+                {isBusy ? (
+                  <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+                ) : isAssigned ? (
+                  <Check className="size-4 shrink-0 text-primary" />
+                ) : null}
+              </DropdownMenuItem>
+            );
+          })
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -68,7 +68,7 @@ export function useBoard(boardId: string | undefined) {
       .forEach((query) => {
         queryClient.setQueryData<Task[]>(query.queryKey, (old) =>
           old
-            ? old.map((task) => ({ ...task, labels: transform(task.labels) }))
+            ? old.map((task) => ({ ...task, labels: transform(task.labels ?? []) }))
             : old,
         );
       });
@@ -116,6 +116,12 @@ export function useBoard(boardId: string | undefined) {
             ? old.map((c) => (c.id === updatedColumn.id ? updatedColumn : c))
             : [updatedColumn],
       );
+    },
+    onSettled: () => {
+      if (!boardId) return;
+      queryClient.invalidateQueries({
+        queryKey: ["boards", boardId, "columns"],
+      });
     },
   });
 
