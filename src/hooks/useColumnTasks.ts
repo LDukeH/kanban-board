@@ -6,7 +6,9 @@ import {
   updateTask,
   updateTaskPosition,
 } from "@/lib/api/task.api";
-import type { Task } from "@/types/board";
+import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
+import { boardLabelsQueryKey } from "@/hooks/useBoard";
+import type { Label, Task } from "@/types/board";
 
 // Using queue so that multiple position updates are applied in order, to avoid race conditions.
 let positionUpdateQueue: Promise<unknown> = Promise.resolve();
@@ -225,6 +227,64 @@ export function useColumnTasks(
     },
   });
 
+  const addLabelToTaskMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      labelId,
+    }: {
+      taskId: string;
+      labelId: string;
+    }) => addLabelToTask(taskId, labelId),
+    onSuccess: (_void, { taskId, labelId }) => {
+      if (!boardId || !columnId) return;
+      // Attach the resolved label object (read from the board-labels cache) to
+      // the task so the UI updates immediately without a refetch.
+      const label = queryClient.getQueryData<Label[]>(
+        boardLabelsQueryKey(boardId),
+      )?.find((l) => l.id === labelId);
+      if (label) {
+        queryClient.setQueryData<Task[]>(
+          columnTasksQueryKey(boardId, columnId),
+          (old) =>
+            old?.map((task) =>
+              task.id === taskId && !task.labels.some((l) => l.id === labelId)
+                ? { ...task, labels: [...task.labels, label] }
+                : task,
+            ) ?? [],
+        );
+      }
+      // Refetch to guarantee server-side truth (matches createTask pattern).
+      queryClient.invalidateQueries({
+        queryKey: columnTasksQueryKey(boardId, columnId),
+      });
+    },
+  });
+
+  const removeLabelFromTaskMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      labelId,
+    }: {
+      taskId: string;
+      labelId: string;
+    }) => removeLabelFromTask(taskId, labelId),
+    onSuccess: (_void, { taskId, labelId }) => {
+      if (!boardId || !columnId) return;
+      queryClient.setQueryData<Task[]>(
+        columnTasksQueryKey(boardId, columnId),
+        (old) =>
+          old?.map((task) =>
+            task.id === taskId
+              ? { ...task, labels: task.labels.filter((l) => l.id !== labelId) }
+              : task,
+          ) ?? [],
+      );
+      queryClient.invalidateQueries({
+        queryKey: columnTasksQueryKey(boardId, columnId),
+      });
+    },
+  });
+
   const tasks = [...(tasksQuery.data ?? [])].sort(
     (a, b) => a.position - b.position,
   );
@@ -242,5 +302,9 @@ export function useColumnTasks(
     isUpdatingTaskPosition: updateTaskPositionMutation.isPending,
     deleteTask: deleteTaskMutation.mutateAsync,
     isDeletingTask: deleteTaskMutation.isPending,
+    addLabelToTask: addLabelToTaskMutation.mutateAsync,
+    isAssigningLabel: addLabelToTaskMutation.isPending,
+    removeLabelFromTask: removeLabelFromTaskMutation.mutateAsync,
+    isRemovingLabel: removeLabelFromTaskMutation.isPending,
   };
 }

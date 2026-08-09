@@ -79,6 +79,21 @@ export function TaskCard({
             {task.description}
           </p>
         ) : null}
+
+        {(task.labels ?? []).length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {(task.labels ?? []).map((label) => (
+              <span
+                key={label.id}
+                className="h-1.5 w-7 shrink-0 rounded-full"
+                style={
+                  label.color ? { backgroundColor: label.color } : undefined
+                }
+                title={label.name}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {canDelete && !isOverlay && (

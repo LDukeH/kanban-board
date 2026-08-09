@@ -1,9 +1,14 @@
 import { api } from "./axios";
+import { mapLabel, type LabelApiResponse } from "./label.api";
 import type { Task } from "@/types/board";
 
 /**
  * Raw task shape returned by the Go API (snake_case).
  * The frontend uses camelCase, so we map at this API boundary.
+ *
+ * Note: the backend's `GetTasksByColumnID` already joins and embeds each
+ * task's board labels (same shape as `LabelApiResponse`), so we map them
+ * here instead of issuing per-task label requests.
  */
 interface TaskApiResponse {
   id: string;
@@ -13,6 +18,7 @@ interface TaskApiResponse {
   position: number;
   created_at: string;
   updated_at: string;
+  labels?: LabelApiResponse[] | null;
 }
 
 function mapTask(raw: TaskApiResponse): Task {
@@ -24,6 +30,7 @@ function mapTask(raw: TaskApiResponse): Task {
     position: raw.position,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    labels: (raw.labels ?? []).map(mapLabel),
   };
 }
 

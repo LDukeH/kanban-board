@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
+import { EditTaskLabelPicker } from "@/components/board/EditTaskLabelPicker";
 import type { Task } from "@/types/board";
 
 interface EditTaskDialogProps {
@@ -91,6 +92,10 @@ export function EditTaskDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Labels</Label>
+            <EditTaskLabelPicker boardId={boardId} task={task} />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2">

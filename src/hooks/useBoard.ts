@@ -7,7 +7,22 @@ import {
   updateColumnPosition,
   deleteColumn,
 } from "@/lib/api/column.api";
-import type { Column } from "@/types/board";
+import {
+  getBoardLabels,
+  createLabel,
+  updateLabel,
+  deleteLabel,
+} from "@/lib/api/label.api";
+import type { Column, Label, Task } from "@/types/board";
+
+/** Query key for a board's label list. Board-scoped so each board caches independently. */
+export function boardLabelsQueryKey(boardId: string): readonly [
+  "boards",
+  string,
+  "labels",
+] {
+  return ["boards", boardId, "labels"];
+}
 
 export function useBoard(boardId: string | undefined) {
   const queryClient = useQueryClient();
@@ -27,6 +42,53 @@ export function useBoard(boardId: string | undefined) {
     },
     enabled: !!boardId,
   });
+
+  const labelsQuery = useQuery({
+    queryKey: ["boards", boardId, "labels"],
+    queryFn: () => {
+      return getBoardLabels(boardId!);
+    },
+    enabled: !!boardId,
+  });
+
+  /**
+   * Walks every cached column-tasks list for this board and transforms the
+   * embedded label references within each task. This keeps TaskCards in sync
+   * when a label is renamed or deleted (the task-list endpoint embeds labels)
+   * without needing to refetch every column.
+   */
+  function updateBoardTaskLabels(transform: (labels: Label[]) => Label[]) {
+    if (!boardId) return;
+    queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["boards", boardId, "columns"] })
+      .filter(
+        (query) => query.queryKey.length === 5 && query.queryKey[4] === "tasks",
+      )
+      .forEach((query) => {
+        queryClient.setQueryData<Task[]>(query.queryKey, (old) =>
+          old
+            ? old.map((task) => ({ ...task, labels: transform(task.labels) }))
+            : old,
+        );
+      });
+  }
+
+  /**
+   * Refetches the board's column-task caches. Used on label mutation errors so
+   * embedded label data returns to server truth instead of staying stuck on
+   * the optimistic value.
+   */
+  function invalidateBoardTasks() {
+    if (!boardId) return;
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey.length === 5 &&
+        query.queryKey[0] === "boards" &&
+        query.queryKey[1] === boardId &&
+        query.queryKey[4] === "tasks",
+    });
+  }
 
   const createColumnMutation = useMutation({
     mutationFn: (data: { name: string }) => createColumn(boardId!, data),
@@ -119,9 +181,109 @@ export function useBoard(boardId: string | undefined) {
         );
       }
     },
-    onSettled: () => {
+        onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["boards", boardId, "columns"],
+      });
+    },
+  });
+
+  const createLabelMutation = useMutation({
+    mutationFn: (data: { name: string; color: string }) =>
+      createLabel(boardId!, data),
+    onSuccess: (newLabel) => {
+      queryClient.setQueryData<Label[]>(
+        ["boards", boardId, "labels"],
+        (old) => (old ? [...old, newLabel] : [newLabel]),
+      );
+    },
+  });
+
+  const updateLabelMutation = useMutation({
+    mutationFn: ({
+      labelId,
+      data,
+    }: {
+      labelId: string;
+      data: { name: string; color: string };
+    }) => updateLabel(labelId, data),
+    onMutate: async ({ labelId, data }) => {
+      await queryClient.cancelQueries({
+        queryKey: ["boards", boardId, "labels"],
+      });
+
+      const previousLabels =
+        queryClient.getQueryData<Label[]>(["boards", boardId, "labels"]) ?? [];
+
+      // Optimistically update the board's label list.
+      queryClient.setQueryData<Label[]>(
+        ["boards", boardId, "labels"],
+        (old) =>
+          old?.map((label) =>
+            label.id === labelId ? { ...label, ...data } : label,
+          ) ?? [],
+      );
+
+      // Propagate the rename to embedded labels on every cached task.
+      updateBoardTaskLabels((labels) =>
+        labels.map((label) =>
+          label.id === labelId ? { ...label, ...data } : label,
+        ),
+      );
+
+      return { previousLabels };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousLabels) {
+        queryClient.setQueryData<Label[]>(
+          ["boards", boardId, "labels"],
+          context.previousLabels,
+        );
+      }
+      invalidateBoardTasks();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["boards", boardId, "labels"],
+      });
+    },
+  });
+
+  const deleteLabelMutation = useMutation({
+    mutationFn: (labelId: string) => deleteLabel(labelId),
+    onMutate: async (labelId) => {
+      await queryClient.cancelQueries({
+        queryKey: ["boards", boardId, "labels"],
+      });
+
+      const previousLabels =
+        queryClient.getQueryData<Label[]>(["boards", boardId, "labels"]) ?? [];
+
+      // Optimistically remove the label from the board's label list.
+      queryClient.setQueryData<Label[]>(
+        ["boards", boardId, "labels"],
+        (old) => (old ? old.filter((label) => label.id !== labelId) : []),
+      );
+
+      // Remove the deleted label from embedded labels on every cached task.
+      updateBoardTaskLabels((labels) =>
+        labels.filter((label) => label.id !== labelId),
+      );
+
+      return { previousLabels };
+    },
+    onError: (_err, _labelId, context) => {
+      if (context?.previousLabels) {
+        queryClient.setQueryData<Label[]>(
+          ["boards", boardId, "labels"],
+          context.previousLabels,
+        );
+      }
+      invalidateBoardTasks();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["boards", boardId, "labels"],
       });
     },
   });
@@ -141,7 +303,17 @@ export function useBoard(boardId: string | undefined) {
     isUpdatingColumn: updateColumnMutation.isPending,
     deleteColumn: deleteColumnMutation.mutateAsync,
     isDeletingColumn: deleteColumnMutation.isPending,
-    updateColumnPosition: updateColumnPositionMutation.mutateAsync,
+        updateColumnPosition: updateColumnPositionMutation.mutateAsync,
     isUpdatingColumnPosition: updateColumnPositionMutation.isPending,
+    labels: labelsQuery.data ?? [],
+    isLoadingLabels: labelsQuery.isLoading,
+    isLabelsError: labelsQuery.isError,
+    labelsError: labelsQuery.error,
+    createLabel: createLabelMutation.mutateAsync,
+    isCreatingLabel: createLabelMutation.isPending,
+    updateLabel: updateLabelMutation.mutateAsync,
+    isUpdatingLabel: updateLabelMutation.isPending,
+    deleteLabel: deleteLabelMutation.mutateAsync,
+    isDeletingLabel: deleteLabelMutation.isPending,
   };
 }

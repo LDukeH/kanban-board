@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ColumnCard } from "@/components/board/ColumnCard";
 import { CreateColumnDialog } from "@/components/board/CreateColumnDialog";
+import { BoardLabelsPopover } from "@/components/board/BoardLabelsPopover";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
@@ -219,7 +220,7 @@ export default function BoardPage() {
 
   return (
     <DashboardLayout className="overflow-hidden">
-      <header className="flex shrink-0 items-center bg-background px-6 py-4">
+      <header className="flex shrink-0 items-center justify-between bg-background px-6 py-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() =>
@@ -251,6 +252,8 @@ export default function BoardPage() {
             </p>
           </div>
         </div>
+
+        <BoardLabelsPopover boardId={boardId} />
       </header>
 
       <div
