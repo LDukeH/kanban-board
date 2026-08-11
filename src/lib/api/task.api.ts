@@ -45,7 +45,6 @@ export const getColumnTasks = async (columnId: string): Promise<Task[]> => {
   const response = await api.get<TaskApiResponse[]>(
     `/columns/${columnId}/tasks`,
   );
-  console.log(response.data);
   return response.data.map(mapTask);
 };
 

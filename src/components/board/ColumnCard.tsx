@@ -17,6 +17,11 @@ import {
 import { useBoard } from "@/hooks/useBoard";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useDroppable } from "@dnd-kit/react";
+import {
+  isTaskFilterActive,
+  matchesTaskFilter,
+  type TaskFilter,
+} from "@/lib/taskFilter";
 
 interface ColumnCardProps {
   column: Column;
@@ -27,6 +32,8 @@ interface ColumnCardProps {
   canCreateTask?: boolean;
   canEditTask?: boolean;
   canDeleteTask?: boolean;
+  /** Active board-level task filter; when set only matching tasks render. */
+  filter?: TaskFilter;
 }
 
 export function ColumnCard({
@@ -38,6 +45,7 @@ export function ColumnCard({
   canCreateTask = false,
   canEditTask = false,
   canDeleteTask = false,
+  filter,
 }: ColumnCardProps) {
   const { ref, isDragging } = useSortable({
     id: column.id,
@@ -61,6 +69,11 @@ export function ColumnCard({
   const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
   const { tasks, isLoadingTasks } = useColumnTasks(column.boardId, column.id);
 
+  const filterActive = !!filter && isTaskFilterActive(filter);
+  const visibleTasks = filterActive
+    ? tasks.filter((task) => matchesTaskFilter(task, filter))
+    : tasks;
+
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -80,7 +93,7 @@ export function ColumnCard({
           {column.name}
         </h3>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-          {tasks.length}
+          {filterActive ? `${visibleTasks.length} / ${tasks.length}` : tasks.length}
         </span>
 
         {(canEdit || canDelete) && (
@@ -131,12 +144,12 @@ export function ColumnCard({
           <div className="flex items-center justify-center py-6 text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
           </div>
-        ) : tasks.length === 0 ? (
+        ) : visibleTasks.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            No tasks yet
+            {filterActive ? "No matching tasks" : "No tasks yet"}
           </p>
         ) : (
-          tasks.map((task, index) => (
+          visibleTasks.map((task, index) => (
             <TaskCard
               key={task.id}
               task={task}

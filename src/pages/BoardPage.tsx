@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ColumnCard } from "@/components/board/ColumnCard";
 import { CreateColumnDialog } from "@/components/board/CreateColumnDialog";
@@ -17,8 +17,17 @@ import { isSortable } from "@dnd-kit/react/sortable";
 import { useQueryClient } from "@tanstack/react-query";
 import { columnTasksQueryKey, useColumnTasks } from "@/hooks/useColumnTasks";
 import type { Task } from "@/types/board";
-import { useState, useRef, type WheelEvent } from "react";
+import { useState, useRef, useCallback, type WheelEvent } from "react";
 import { TaskCard } from "@/components/board/TaskCard";
+import { TaskFilterPopover } from "@/components/board/TaskFilterPopover";
+import {
+  filterFromSearchParams,
+  filterToSearchParams,
+  isTaskFilterActive,
+  loadBoardTaskFilter,
+  saveBoardTaskFilter,
+  type TaskFilter,
+} from "@/lib/taskFilter";
 
 function BoardLoading() {
   return (
@@ -87,11 +96,44 @@ function handleBoardWheel(e: WheelEvent<HTMLDivElement>) {
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
+  // Key the inner content by boardId so switching boards fully remounts it and
+  // resets board-scoped state (including the task filter / URL).
+  return <BoardContent key={boardId} boardId={boardId ?? ""} />;
+}
+
+function BoardContent({ boardId }: { boardId: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { workspaces } = useWorkspaces();
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>(() => {
+    // Prefer the URL filter (shareable / deep-link), otherwise fall back to the
+    // board's remembered filter so returning here restores the previous one.
+    const urlFilter = filterFromSearchParams(searchParams);
+    return isTaskFilterActive(urlFilter)
+      ? urlFilter
+      : loadBoardTaskFilter(boardId);
+  });
+
+  /** Update the filter, remember it for this board, and mirror it into the URL. */
+  const updateTaskFilter = useCallback(
+    (next: TaskFilter) => {
+      setTaskFilter(next);
+      saveBoardTaskFilter(boardId, next);
+      const merged = new URLSearchParams(searchParams);
+      // Remove all filter keys, then set the new ones (keeps unrelated params).
+      ["q", "no_assignees", "assignees", "no_labels", "labels"].forEach((key) =>
+        merged.delete(key),
+      );
+      Object.entries(filterToSearchParams(next)).forEach(([key, value]) =>
+        merged.set(key, value),
+      );
+      setSearchParams(merged, { replace: true });
+    },
+    [searchParams, setSearchParams, boardId],
+  );
 
   // Track original parent DOM node to fix removeChild crash cleanly
   const sourceParentRef = useRef<HTMLElement | null>(null);
@@ -219,7 +261,7 @@ export default function BoardPage() {
 
   return (
     <DashboardLayout className="overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between bg-background px-6 py-4">
+      <header className="flex shrink-0 items-center justify- bg-background px-6 py-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() =>
@@ -251,6 +293,13 @@ export default function BoardPage() {
             </p>
           </div>
         </div>
+
+        <TaskFilterPopover
+          filter={taskFilter}
+          onChange={updateTaskFilter}
+          boardId={boardId}
+          workspaceId={board?.workspaceId}
+        />
 
         <BoardLabelsPopover boardId={boardId} />
       </header>
@@ -288,6 +337,7 @@ export default function BoardPage() {
                   key={column.id}
                   column={column}
                   index={index}
+                  filter={taskFilter}
                   canEdit={canManageColumns}
                   canDelete={canManageColumns}
                   canCreateTask={canUseTasks}
