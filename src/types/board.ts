@@ -26,6 +26,16 @@ export interface Label {
   updatedAt: string;
 }
 
+/**
+ * A User assigned to a Task. Matches the wire shape of the backend's
+ * `UsersTaskResponse` (`GET /tasks/{taskID}/users`). Comparison against the
+ * assign/remove endpoints is keyed by `user_id`.
+ */
+export interface TaskAssignee {
+  user_id: string;
+  email: string;
+}
+
 export interface Task {
   id: string;
   columnId: string;

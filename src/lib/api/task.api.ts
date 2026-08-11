@@ -1,6 +1,6 @@
 import { api } from "./axios";
 import { mapLabel, type LabelApiResponse } from "./label.api";
-import type { Task } from "@/types/board";
+import type { Task, TaskAssignee } from "@/types/board";
 
 /**
  * Raw task shape returned by the Go API (snake_case).
@@ -74,4 +74,31 @@ export const updateTaskPosition = async (
 /** Backend returns 204 No Content — no response body. */
 export const deleteTask = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}`);
+};
+
+/**
+ * Lists the users currently assigned to a task.
+ * `GET /tasks/{taskID}/users` → UsersTaskResponse[] (`{ email, user_id }`).
+ */
+export const getTaskAssignees = async (
+  taskId: string,
+): Promise<TaskAssignee[]> => {
+  const response = await api.get<TaskAssignee[]>(`/tasks/${taskId}/users`);
+  return response.data;
+};
+
+/** Assigns a workspace member to a task by their user id. Body: `{ user_id }`. */
+export const assignUserToTask = async (
+  taskId: string,
+  userId: string,
+): Promise<void> => {
+  await api.post(`/tasks/${taskId}/users`, { user_id: userId });
+};
+
+/** Removes a user from a task by their user id. Body: `{ user_id }`. */
+export const unassignUserFromTask = async (
+  taskId: string,
+  userId: string,
+): Promise<void> => {
+  await api.delete(`/tasks/${taskId}/users`, { data: { user_id: userId } });
 };

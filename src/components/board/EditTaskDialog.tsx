@@ -23,6 +23,7 @@ import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { CreateLabelDialog } from "@/components/board/CreateLabelDialog";
+import { EditTaskAssigneePicker } from "@/components/board/EditTaskAssigneePicker";
 import type { Task } from "@/types/board";
 
 interface EditTaskDialogProps {
@@ -127,6 +128,17 @@ export function EditTaskDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Assignees</Label>
+            <div className="flex flex-wrap items-center gap-1">
+              {canAssignLabels && board && (
+                <EditTaskAssigneePicker
+                  taskId={task.id}
+                  workspaceId={board.workspaceId}
+                />
+              )}
+            </div>
           </div>
           <div className="flex flex-col gap-2">
             <Label>Labels</Label>

@@ -83,7 +83,6 @@ function handleBoardWheel(e: WheelEvent<HTMLDivElement>) {
   }
 
   board.scrollLeft += e.deltaY;
-  e.preventDefault();
 }
 
 export default function BoardPage() {
