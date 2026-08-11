@@ -1,12 +1,9 @@
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types/board";
 import { EditTaskDialog } from "@/components/board/EditTaskDialog";
-import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
-import { Button } from "@/components/ui/button";
-import { useColumnTasks } from "@/hooks/useColumnTasks";
-import { Trash2 } from "lucide-react";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
+import { TaskAssigneeAvatars } from "@/components/board/TaskAssigneeAvatars";
 
 interface TaskCardProps {
   task: Task;
@@ -27,8 +24,6 @@ export function TaskCard({
   index,
   isOverlay = false,
 }: TaskCardProps) {
-  const { deleteTask, isDeletingTask } = useColumnTasks(boardId, task.columnId);
-
   const { ref, isDragging } = useSortable({
     id: task.id,
     index,
@@ -50,30 +45,32 @@ export function TaskCard({
         isOverlay && "shadow-lg border-primary/40 rotate-1",
       )}
     >
-      <span
-        className="mt-0.5 size-4 shrink-0 rounded-full border-2 border-muted-foreground/40"
-        aria-hidden
-      />
-
       <div className="min-w-0 flex-1">
-        {canEdit && !isOverlay ? (
-          <EditTaskDialog
-            task={task}
-            boardId={boardId}
-            trigger={
-              <button
-                type="button"
-                className="w-full truncate text-left text-sm font-medium text-foreground hover:text-primary"
-              >
-                {task.title}
-              </button>
-            }
+        <div className="flex items-center gap-2">
+          <span
+            className="mt-0.5 size-4 shrink-0 rounded-full border-2 border-muted-foreground/40"
+            aria-hidden
           />
-        ) : (
-          <p className="truncate text-sm font-medium text-foreground">
-            {task.title}
-          </p>
-        )}
+          {canEdit && !isOverlay ? (
+            <EditTaskDialog
+              task={task}
+              boardId={boardId}
+              canDelete={canDelete}
+              trigger={
+                <button
+                  type="button"
+                  className="min-w-0 flex-1  truncate text-left text-sm font-medium text-foreground hover:text-primary"
+                >
+                  {task.title}
+                </button>
+              }
+            />
+          ) : (
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+              {task.title}
+            </p>
+          )}
+        </div>
         {task.description ? (
           <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
             {task.description}
@@ -96,24 +93,7 @@ export function TaskCard({
         )}
       </div>
 
-      {canDelete && !isOverlay && (
-        <ConfirmDeleteDialog
-          title="Delete Task"
-          description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
-          onConfirm={() => deleteTask(task.id)}
-          isLoading={isDeletingTask}
-          trigger={
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-              aria-label={`Delete ${task.title}`}
-            >
-              <Trash2 className="size-3" />
-            </Button>
-          }
-        />
-      )}
+      {!isOverlay && <TaskAssigneeAvatars assignees={task.assignees ?? []} />}
     </div>
   );
 }

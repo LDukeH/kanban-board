@@ -228,26 +228,22 @@ export function useColumnTasks(
   });
 
   const addLabelToTaskMutation = useMutation({
-    mutationFn: ({
-      taskId,
-      labelId,
-    }: {
-      taskId: string;
-      labelId: string;
-    }) => addLabelToTask(taskId, labelId),
+    mutationFn: ({ taskId, labelId }: { taskId: string; labelId: string }) =>
+      addLabelToTask(taskId, labelId),
     onSuccess: (_void, { taskId, labelId }) => {
       if (!boardId || !columnId) return;
       // Attach the resolved label object (read from the board-labels cache) to
       // the task so the UI updates immediately without a refetch.
-      const label = queryClient.getQueryData<Label[]>(
-        boardLabelsQueryKey(boardId),
-      )?.find((l) => l.id === labelId);
+      const label = queryClient
+        .getQueryData<Label[]>(boardLabelsQueryKey(boardId))
+        ?.find((l) => l.id === labelId);
       if (label) {
         queryClient.setQueryData<Task[]>(
           columnTasksQueryKey(boardId, columnId),
           (old) =>
             old?.map((task) =>
-              task.id === taskId && !(task.labels ?? []).some((l) => l.id === labelId)
+              task.id === taskId &&
+              !(task.labels ?? []).some((l) => l.id === labelId)
                 ? { ...task, labels: [...(task.labels ?? []), label] }
                 : task,
             ) ?? [],
@@ -261,13 +257,8 @@ export function useColumnTasks(
   });
 
   const removeLabelFromTaskMutation = useMutation({
-    mutationFn: ({
-      taskId,
-      labelId,
-    }: {
-      taskId: string;
-      labelId: string;
-    }) => removeLabelFromTask(taskId, labelId),
+    mutationFn: ({ taskId, labelId }: { taskId: string; labelId: string }) =>
+      removeLabelFromTask(taskId, labelId),
     onSuccess: (_void, { taskId, labelId }) => {
       if (!boardId || !columnId) return;
       queryClient.setQueryData<Task[]>(
@@ -275,7 +266,10 @@ export function useColumnTasks(
         (old) =>
           old?.map((task) =>
             task.id === taskId
-              ? { ...task, labels: (task.labels ?? []).filter((l) => l.id !== labelId) }
+              ? {
+                  ...task,
+                  labels: (task.labels ?? []).filter((l) => l.id !== labelId),
+                }
               : task,
           ) ?? [],
       );
@@ -288,6 +282,8 @@ export function useColumnTasks(
   const tasks = [...(tasksQuery.data ?? [])].sort(
     (a, b) => a.position - b.position,
   );
+
+  console.log(tasks);
 
   return {
     tasks,

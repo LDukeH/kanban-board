@@ -20,6 +20,8 @@ import {
 interface EditTaskAssigneePickerProps {
   taskId: string;
   workspaceId: string;
+  boardId: string;
+  columnId: string;
 }
 
 /**
@@ -34,6 +36,8 @@ interface EditTaskAssigneePickerProps {
 export function EditTaskAssigneePicker({
   taskId,
   workspaceId,
+  boardId,
+  columnId,
 }: EditTaskAssigneePickerProps) {
   const { user } = useAuth();
   const {
@@ -41,7 +45,7 @@ export function EditTaskAssigneePicker({
     isLoadingAssignees,
     assignUser,
     unassignUser,
-  } = useTaskAssignees(taskId);
+  } = useTaskAssignees(taskId, { boardId, columnId });
   const membersQuery = useWorkspaceMembers(workspaceId);
 
   const [search, setSearch] = useState("");

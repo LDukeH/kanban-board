@@ -1,5 +1,5 @@
 import { api } from "./axios";
-import type { Label } from "@/types/board";
+import type { Label, TaskAssignee } from "@/types/board";
 
 /**
  * Raw label shape returned by the Go API (snake_case).
@@ -18,6 +18,11 @@ export interface LabelApiResponse {
   updated_at: string;
 }
 
+export interface AssigneeApiResponse {
+  user_id: string;
+  email: string;
+}
+
 export function mapLabel(raw: LabelApiResponse): Label {
   return {
     id: raw.id,
@@ -26,6 +31,13 @@ export function mapLabel(raw: LabelApiResponse): Label {
     color: raw.color,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+  };
+}
+
+export function mapAssignee(raw: AssigneeApiResponse): TaskAssignee {
+  return {
+    user_id: raw.user_id,
+    email: raw.email,
   };
 }
 
@@ -41,7 +53,9 @@ export interface LabelUpdateData {
 
 /** Board-scoped label collection. */
 export const getBoardLabels = async (boardId: string): Promise<Label[]> => {
-  const response = await api.get<LabelApiResponse[]>(`/boards/${boardId}/labels`);
+  const response = await api.get<LabelApiResponse[]>(
+    `/boards/${boardId}/labels`,
+  );
   return response.data.map(mapLabel);
 };
 

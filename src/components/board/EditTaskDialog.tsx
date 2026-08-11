@@ -18,10 +18,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Check } from "lucide-react";
+import { Loader2, Plus, Check, Trash2 } from "lucide-react";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { CreateLabelDialog } from "@/components/board/CreateLabelDialog";
 import { EditTaskAssigneePicker } from "@/components/board/EditTaskAssigneePicker";
 import type { Task } from "@/types/board";
@@ -29,22 +30,31 @@ import type { Task } from "@/types/board";
 interface EditTaskDialogProps {
   task: Task;
   boardId: string;
+  canDelete?: boolean;
   trigger: React.ReactElement;
 }
 
 export function EditTaskDialog({
   task,
   boardId,
+  canDelete = false,
   trigger,
 }: EditTaskDialogProps) {
-  const { updateTask, isUpdatingTask, addLabelToTask, removeLabelFromTask } =
-    useColumnTasks(boardId, task.columnId);
+  const {
+    updateTask,
+    isUpdatingTask,
+    addLabelToTask,
+    removeLabelFromTask,
+    deleteTask,
+    isDeletingTask,
+  } = useColumnTasks(boardId, task.columnId);
   const { board, labels, isLoadingLabels } = useBoard(boardId);
   const { canAssignLabels } = useWorkspaceAccess(board?.workspaceId);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
   const [isCreateLabelOpen, setIsCreateLabelOpen] = useState(false);
   const [togglingLabelId, setTogglingLabelId] = useState<string | null>(null);
@@ -100,6 +110,12 @@ export function EditTaskDialog({
     }
   }
 
+  async function handleDelete() {
+    await deleteTask(task.id);
+    setOpen(false);
+    setIsDeleteOpen(false);
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={trigger} />
@@ -136,6 +152,8 @@ export function EditTaskDialog({
                 <EditTaskAssigneePicker
                   taskId={task.id}
                   workspaceId={board.workspaceId}
+                  boardId={boardId}
+                  columnId={task.columnId}
                 />
               )}
             </div>
@@ -219,14 +237,32 @@ export function EditTaskDialog({
             </div>
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <DialogClose render={<Button variant="ghost" />}>
-              Cancel
-            </DialogClose>
-            <Button type="submit" disabled={isUpdatingTask}>
-              {isUpdatingTask && <Loader2 className="size-4 animate-spin" />}
-              Save
-            </Button>
+          <div className="flex items-center justify-between gap-2">
+            {canDelete && (
+              <ConfirmDeleteDialog
+                open={isDeleteOpen}
+                onOpenChange={setIsDeleteOpen}
+                title="Delete Task"
+                description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+                onConfirm={handleDelete}
+                isLoading={isDeletingTask}
+                trigger={
+                  <Button type="button" variant="destructive">
+                    <Trash2 className="size-4" />
+                    Delete
+                  </Button>
+                }
+              />
+            )}
+            <div className="ml-auto flex justify-end gap-2">
+              <DialogClose render={<Button variant="ghost" />}>
+                Cancel
+              </DialogClose>
+              <Button type="submit" disabled={isUpdatingTask}>
+                {isUpdatingTask && <Loader2 className="size-4 animate-spin" />}
+                Save
+              </Button>
+            </div>
           </div>
         </form>
       </DialogPopup>

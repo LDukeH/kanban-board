@@ -1,5 +1,10 @@
 import { api } from "./axios";
-import { mapLabel, type LabelApiResponse } from "./label.api";
+import {
+  mapAssignee,
+  mapLabel,
+  type AssigneeApiResponse,
+  type LabelApiResponse,
+} from "./label.api";
 import type { Task, TaskAssignee } from "@/types/board";
 
 /**
@@ -19,6 +24,7 @@ interface TaskApiResponse {
   created_at: string;
   updated_at: string;
   labels?: LabelApiResponse[] | null;
+  assignees?: AssigneeApiResponse[] | null;
 }
 
 function mapTask(raw: TaskApiResponse): Task {
@@ -31,6 +37,7 @@ function mapTask(raw: TaskApiResponse): Task {
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
     labels: (raw.labels ?? []).map(mapLabel),
+    assignees: (raw.assignees ?? []).map(mapAssignee),
   };
 }
 
@@ -38,6 +45,7 @@ export const getColumnTasks = async (columnId: string): Promise<Task[]> => {
   const response = await api.get<TaskApiResponse[]>(
     `/columns/${columnId}/tasks`,
   );
+  console.log(response.data);
   return response.data.map(mapTask);
 };
 

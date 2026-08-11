@@ -50,4 +50,5 @@ export interface Task {
    * additional per-task requests.
    */
   labels?: Label[];
+  assignees?: TaskAssignee[];
 }
