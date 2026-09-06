@@ -261,7 +261,7 @@ function BoardContent({ boardId }: { boardId: string }) {
 
   return (
     <DashboardLayout className="overflow-hidden">
-      <header className="flex shrink-0 items-center justify- bg-background px-6 py-4">
+      <header className="flex shrink-0 items-center justify-between bg-background px-6 py-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() =>
@@ -294,14 +294,16 @@ function BoardContent({ boardId }: { boardId: string }) {
           </div>
         </div>
 
-        <TaskFilterPopover
-          filter={taskFilter}
-          onChange={updateTaskFilter}
-          boardId={boardId}
-          workspaceId={board?.workspaceId}
-        />
-
-        <BoardLabelsPopover boardId={boardId} />
+        <div className="flex items-center gap-2">
+          <TaskFilterPopover
+            filter={taskFilter}
+            onChange={updateTaskFilter}
+            boardId={boardId}
+            workspaceId={board?.workspaceId}
+          />
+          
+          <BoardLabelsPopover boardId={boardId} />
+        </div>
       </header>
 
       <div
