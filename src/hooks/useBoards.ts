@@ -6,6 +6,7 @@ import {
   deleteBoard,
 } from "@/lib/api/board.api";
 import type { Board } from "@/types/board";
+import { useRecentStore } from "@/stores/recentStore";
 
 export function useBoards(workspaceId: string | undefined) {
   const queryClient = useQueryClient();
@@ -67,6 +68,8 @@ export function useBoards(workspaceId: string | undefined) {
       );
       // Remove the single board cache and its columns
       queryClient.removeQueries({ queryKey: ["boards", deletedBoardId] });
+      // Drop the board from the recent sidebar list
+      useRecentStore.getState().forgetBoard(deletedBoardId);
     },
   });
 

@@ -18,17 +18,32 @@ import type { Workspace } from "@/types/workspace";
 interface EditWorkspaceDialogProps {
   workspace: Workspace;
   trigger?: React.ReactElement;
+  /** Controlled open state (optional). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function EditWorkspaceDialog({
   workspace,
   trigger,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
 }: EditWorkspaceDialogProps) {
   const { updateWorkspace, isUpdating } = useWorkspaces();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(workspace.name);
   const [description, setDescription] = useState(workspace.description ?? "");
   const [error, setError] = useState<string | null>(null);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (nextOpen: boolean) => {
+    if (isControlled) {
+      setControlledOpen?.(nextOpen);
+    } else {
+      setInternalOpen(nextOpen);
+    }
+  };
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {

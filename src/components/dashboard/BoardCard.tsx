@@ -1,12 +1,19 @@
 import { cn } from "@/lib/utils";
 import { getGradient } from "@/lib/colors";
 import { Link } from "react-router-dom";
-import { Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Board } from "@/types/board";
 import { EditBoardDialog } from "@/components/workspace/EditBoardDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
-import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useBoards } from "@/hooks/useBoards";
+import { useState } from "react";
 
 interface BoardCardProps {
   board: Board;
@@ -23,52 +30,101 @@ export function BoardCard({
 }: BoardCardProps) {
   const gradient = getGradient(board.id);
   const { deleteBoard, isDeletingBoard } = useBoards(board.workspaceId);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const showActions = canEdit || canDelete;
 
   return (
     <div className="relative">
       <Link
         to={`/boards/${board.id}`}
         className={cn(
-          "group relative block overflow-hidden rounded-xl bg-gradient-to-br shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
-          gradient,
+          "group block overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md",
           className,
         )}
       >
-        {/* Decorative top area */}
-        <div className="h-24" />
+        {/* Identity band — a slim gradient strip keeps per-board color identity
+            without the old two-tone color blocking. */}
+        <div
+          className={cn(
+            "flex h-16 items-center bg-gradient-to-br px-4",
+            gradient,
+          )}
+        >
+          <span className="flex size-9 items-center justify-center rounded-lg bg-white/25 text-base font-bold text-white backdrop-blur-sm">
+            {board.name.charAt(0).toUpperCase()}
+          </span>
+        </div>
 
-        {/* Footer with board name */}
-        <div className="bg-black/25 px-4 py-3 backdrop-blur-sm">
-          <h3 className="truncate text-sm font-semibold text-white">
+        {/* Content */}
+        <div className="px-4 py-5">
+          <h3 className="truncate text-sm font-semibold text-foreground">
             {board.name}
           </h3>
           {board.description && (
-            <p className="mt-0.5 line-clamp-1 text-xs text-white/80">
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
               {board.description}
             </p>
           )}
         </div>
       </Link>
 
-      {/* Action buttons — positioned absolutely outside the Link to avoid
+      {/* Actions dropdown — positioned absolutely outside the Link to avoid
           nested interactive elements (<button> inside <a> is invalid HTML) */}
-      {(canEdit || canDelete) && (
-        <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
-          {canEdit && <EditBoardDialog board={board} />}
-          {canDelete && (
-            <ConfirmDeleteDialog
-              title="Delete Board"
-              description={`Are you sure you want to delete "${board.name}"? This will permanently delete all columns and tasks within this board.`}
-              onConfirm={() => deleteBoard(board.id)}
-              isLoading={isDeletingBoard}
-              trigger={
-                <Button variant="ghost" size="icon-xs" className="text-white">
-                  <Trash2 className="size-3" />
-                </Button>
-              }
-            />
-          )}
+      {showActions && (
+        <div className="absolute right-2 top-2 z-10">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`Actions for ${board.name}`}
+              className="flex size-8 cursor-pointer items-center justify-center rounded-lg bg-black/20 text-white transition-colors hover:bg-black/30"
+            >
+              <MoreHorizontal className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canEdit && (
+                <DropdownMenuItem
+                  onClick={() => setEditOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <Pencil />
+                  Edit board
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <>
+                  {canEdit && <DropdownMenuSeparator />}
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setDeleteOpen(true)}
+                    className="cursor-pointer"
+                  >
+                    <Trash2 />
+                    Delete board
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+      )}
+
+      {canEdit && (
+        <EditBoardDialog
+          board={board}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      )}
+      {canDelete && (
+        <ConfirmDeleteDialog
+          title="Delete Board"
+          description={`Are you sure you want to delete "${board.name}"? This will permanently delete all columns and tasks within this board.`}
+          onConfirm={() => deleteBoard(board.id)}
+          isLoading={isDeletingBoard}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+        />
       )}
     </div>
   );

@@ -50,63 +50,64 @@
 
 :root {
   /* Base Background & Text */
-  --background: #f4f5f7;
-  --foreground: #111827;
+  --background: #f8fafc;
+  --foreground: #020617;
 
   /* Elevated Surfaces */
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #020617;
   --popover: #ffffff;
-  --popover-foreground: #111827;
+  --popover-foreground: #020617;
 
   /* Primary Actions */
   --primary: #4f46e5;
   --primary-foreground: #ffffff;
 
   /* Secondary Actions */
-  --secondary: #e0e7ff;
-  --secondary-foreground: #111827;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
 
   /* Muted & Accent Backgrounds */
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --accent: #e5e7eb;
-  --accent-foreground: #111827;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
 
   /* Error States */
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
   /* Borders & Inputs */
-  --border: #e5e7eb;
-  --input: #e5e7eb;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
   --ring: #4f46e5;
 
   /* Sidebar Tokens */
   --sidebar: #ffffff;
-  --sidebar-foreground: #111827;
+  --sidebar-foreground: #020617;
   --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f4f6;
-  --sidebar-accent-foreground: #111827;
-  --sidebar-border: #e5e7eb;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
   --sidebar-ring: #4f46e5;
 
   /* Radii & Charts */
   --radius: 0.5rem;
-  --chart-1: #4f46e5; /* Indigo */
-  --chart-2: #3b82f6; /* Blue */
-  --chart-3: #0ea5e9; /* Sky */
-  --chart-4: #10b981; /* Emerald */
-  --chart-5: #8b5cf6; /* Violet */
+  --chart-1: #4f46e5;
+  --chart-2: #3b82f6;
+  --chart-3: #0ea5e9;
+  --chart-4: #10b981;
+  --chart-5: #8b5cf6;
 
+  /* Typography & Rendering */
   --sans: system-ui, "Segoe UI", Roboto, sans-serif;
   --heading: system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: light; /* Ensure light mode forces system scrollbars to light */
   color: var(--foreground);
   background: var(--background);
   font-synthesis: none;

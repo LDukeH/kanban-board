@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/workspace.api";
 import { searchUsersByEmail } from "@/lib/api/users.api";
 import type { Workspace, WorkspaceRole } from "@/types/workspace";
+import { useRecentStore } from "@/stores/recentStore";
 
 export function useWorkspaces() {
   const queryClient = useQueryClient();
@@ -63,6 +64,8 @@ export function useWorkspaces() {
       queryClient.removeQueries({
         queryKey: ["workspaces", deletedWorkspaceId],
       });
+      // Drop the workspace (and its boards) from the recent sidebar list
+      useRecentStore.getState().forgetWorkspace(deletedWorkspaceId);
     },
   });
 

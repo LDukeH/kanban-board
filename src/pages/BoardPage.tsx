@@ -17,9 +17,11 @@ import { isSortable } from "@dnd-kit/react/sortable";
 import { useQueryClient } from "@tanstack/react-query";
 import { columnTasksQueryKey, useColumnTasks } from "@/hooks/useColumnTasks";
 import type { Task } from "@/types/board";
-import { useState, useRef, useCallback, type WheelEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type WheelEvent } from "react";
 import { TaskCard } from "@/components/board/TaskCard";
 import { TaskFilterPopover } from "@/components/board/TaskFilterPopover";
+import { useRecentStore } from "@/stores/recentStore";
+import { useWorkspaceStore } from "@/stores/workspaceStore";
 import {
   filterFromSearchParams,
   filterToSearchParams,
@@ -152,6 +154,28 @@ function BoardContent({ boardId }: { boardId: string }) {
 
   const { updateTaskPosition } = useColumnTasks(boardId, undefined);
   const workspace = workspaces.find((w) => w.id === board?.workspaceId);
+
+  const { recordBoard, recordWorkspace } = useRecentStore();
+  const { setSelectedWorkspaceId } = useWorkspaceStore();
+
+  // Remember this board (and its workspace) as recently accessed for the
+  // sidebar. Fires once the board loads, then again once its workspace has a
+  // name to record.
+  useEffect(() => {
+    if (!board) return;
+    recordBoard({
+      id: board.id,
+      name: board.name,
+      workspaceId: board.workspaceId,
+    });
+    if (workspace) {
+      recordWorkspace({ id: workspace.id, name: workspace.name });
+    }
+    // Keep the sidebar's Boards section pointed at this board's workspace.
+
+    setSelectedWorkspaceId(board.workspaceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [board?.id, workspace?.id]);
 
   const {
     canManageWorkspaceContent,

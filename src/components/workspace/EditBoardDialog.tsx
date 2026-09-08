@@ -18,14 +18,32 @@ import type { Board } from "@/types/board";
 interface EditBoardDialogProps {
   board: Board;
   trigger?: React.ReactElement;
+  /** Controlled open state (optional). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function EditBoardDialog({ board, trigger }: EditBoardDialogProps) {
+export function EditBoardDialog({
+  board,
+  trigger,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+}: EditBoardDialogProps) {
   const { updateBoard, isUpdatingBoard } = useBoards(board.workspaceId);
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description ?? "");
   const [error, setError] = useState<string | null>(null);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (nextOpen: boolean) => {
+    if (isControlled) {
+      setControlledOpen?.(nextOpen);
+    } else {
+      setInternalOpen(nextOpen);
+    }
+  };
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {

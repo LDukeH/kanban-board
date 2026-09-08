@@ -2,14 +2,21 @@ import { useParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { BoardGrid } from "@/components/dashboard/BoardGrid";
 import { FeaturedSection } from "@/components/dashboard/FeaturedSection";
-import { CreateBoardDialog } from "@/components/workspace/CreateBoardDialog";
-import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { WorkspaceMembersDialog } from "@/components/workspace/WorkspaceMembersDialog";
+import { useWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspaces";
 import { useBoards } from "@/hooks/useBoards";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
-import { useEffect } from "react";
-import { Loader2, LayoutGrid } from "lucide-react";
+import { useRecentStore } from "@/stores/recentStore";
+import { useEffect, useState } from "react";
+import { Loader2, LayoutGrid, Users } from "lucide-react";
 import { describeLoadError } from "@/lib/httpStatus";
+import { cn } from "@/lib/utils";
+import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { Button } from "@/components/ui/button";
+
+/** How many member avatars render before collapsing into "+N". */
+const MAX_AVATARS = 5;
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -22,8 +29,13 @@ export default function WorkspacePage() {
     error: boardsError,
   } = useBoards(workspaceId);
   const { canManageBoards, isLoadingRole } = useWorkspaceAccess(workspaceId);
+  const { recordWorkspace } = useRecentStore();
+  const membersQuery = useWorkspaceMembers(workspaceId);
+  const [membersOpen, setMembersOpen] = useState(false);
 
   const workspace = workspaces.find((w) => w.id === workspaceId);
+  const members = membersQuery.data ?? [];
+  const visibleMembers = members.slice(0, MAX_AVATARS);
 
   // Keep the selected workspace in sync with the URL
   useEffect(() => {
@@ -31,6 +43,13 @@ export default function WorkspacePage() {
       setSelectedWorkspaceId(workspaceId);
     }
   }, [workspaceId, setSelectedWorkspaceId]);
+
+  // Remember this workspace as recently accessed for the sidebar.
+  useEffect(() => {
+    if (workspace) {
+      recordWorkspace({ id: workspace.id, name: workspace.name });
+    }
+  }, [workspace, recordWorkspace]);
 
   return (
     <DashboardLayout>
@@ -50,9 +69,47 @@ export default function WorkspacePage() {
             </p>
           </div>
         </div>
-        {workspaceId && canManageBoards && !isLoadingRole && (
-          <CreateBoardDialog workspaceId={workspaceId} />
-        )}
+
+        {/* Member management lives in the dashboard header (opposite the title),
+            not buried in the sidebar. */}
+        <div className="flex items-center gap-3">
+          {workspaceId && (
+            <>
+              <button
+                onClick={() => setMembersOpen(true)}
+                className="flex cursor-pointer items-center -space-x-2"
+                aria-label={`${members.length} members`}
+                title="View members"
+              >
+                {visibleMembers.map((member) => (
+                  <span
+                    key={member.id}
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-full bg-linear-to-br text-[11px] font-semibold text-white ring-2 ring-background transition-transform hover:-translate-y-0.5",
+                      avatarGradient(member.userId || member.email),
+                    )}
+                  >
+                    {emailInitial(member.email)}
+                  </span>
+                ))}
+                {members.length > MAX_AVATARS && (
+                  <span className="flex size-7 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground ring-2 ring-background">
+                    +{members.length - MAX_AVATARS}
+                  </span>
+                )}
+              </button>
+              <Button variant="outline" onClick={() => setMembersOpen(true)}>
+                <Users className="size-4" />
+                Members
+                {members.length > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 text-xs font-semibold text-muted-foreground">
+                    {members.length}
+                  </span>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
       </header>
 
       <div className="flex-1 p-6">
@@ -79,7 +136,9 @@ export default function WorkspacePage() {
               </p>
             </div>
             {workspaceId && canManageBoards && !isLoadingRole && (
-              <CreateBoardDialog workspaceId={workspaceId} />
+              <div className="w-full max-w-72">
+                <BoardGrid boards={[]} workspaceId={workspaceId} canCreate />
+              </div>
             )}
           </div>
         ) : (
@@ -91,10 +150,20 @@ export default function WorkspacePage() {
               boards={boards}
               canEdit={canManageBoards && !isLoadingRole}
               canDelete={canManageBoards && !isLoadingRole}
+              workspaceId={workspaceId}
+              canCreate={canManageBoards && !isLoadingRole}
             />
           </>
         )}
       </div>
+
+      {workspaceId && (
+        <WorkspaceMembersDialog
+          workspaceId={workspaceId}
+          open={membersOpen}
+          onOpenChange={setMembersOpen}
+        />
+      )}
     </DashboardLayout>
   );
 }
