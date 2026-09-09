@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTask,
   deleteTask,
@@ -10,8 +10,15 @@ import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
 import { boardLabelsQueryKey } from "@/hooks/useBoard";
 import type { Label, Task } from "@/types/board";
 
-// Using queue so that multiple position updates are applied in order, to avoid race conditions.
-let positionUpdateQueue: Promise<unknown> = Promise.resolve();
+type PendingTaskMove = {
+  boardId: string;
+  task: Task;
+  sourceColumnId: string;
+  targetColumnId: string;
+  position: number;
+};
+
+const pendingTaskMoves = new Map<string, PendingTaskMove>();
 
 export function columnTasksQueryKey(boardId: string, columnId: string) {
   return ["boards", boardId, "columns", columnId, "tasks"] as const;
@@ -30,7 +37,41 @@ export function useColumnTasks(
 
   const tasksQuery = useQuery({
     queryKey,
-    queryFn: () => getColumnTasks(columnId!),
+    queryFn: async () => {
+      const serverTasks = await getColumnTasks(columnId!);
+      const moves = [...pendingTaskMoves.entries()].filter(
+        ([, move]) => move.boardId === boardId,
+      );
+      let tasks = serverTasks;
+
+      for (const [taskId, move] of moves) {
+        const destinationConfirmed =
+          move.targetColumnId === columnId &&
+          serverTasks.some((task) => task.id === taskId);
+
+        if (move.sourceColumnId === columnId) {
+          tasks = tasks.filter((task) => task.id !== taskId);
+        }
+        if (move.targetColumnId === columnId) {
+          const withoutTask = tasks.filter((task) => task.id !== taskId);
+          withoutTask.splice(Math.min(move.position, withoutTask.length), 0, {
+            ...move.task,
+            columnId: columnId!,
+            position: move.position,
+          });
+          tasks = withoutTask.map((task, index) => ({
+            ...task,
+            position: index,
+          }));
+        }
+
+        if (destinationConfirmed) {
+          pendingTaskMoves.delete(taskId);
+        }
+      }
+
+      return tasks;
+    },
     enabled,
   });
 
@@ -96,14 +137,12 @@ export function useColumnTasks(
       columnId: string;
       position: number;
     }) => {
-      // Append request to queue so backend handles updates sequentially
-      const nextRequest = () =>
-        updateTaskPosition(taskId, { columnId: targetColumnId, position });
-
-      positionUpdateQueue = positionUpdateQueue.then(nextRequest, nextRequest);
-      return positionUpdateQueue as Promise<
-        ReturnType<typeof updateTaskPosition>
-      >;
+      // Start the PATCH immediately. Optimistic cache updates happen in
+      // onMutate and do not need to block this request.
+      return updateTaskPosition(taskId, {
+        columnId: targetColumnId,
+        position,
+      });
     },
 
     onMutate: async ({
@@ -117,10 +156,10 @@ export function useColumnTasks(
       const sourceColumnId = paramSourceId ?? columnId;
       if (!sourceColumnId) return;
 
-      await queryClient.cancelQueries({
+      void queryClient.cancelQueries({
         queryKey: columnTasksQueryKey(boardId, sourceColumnId),
       });
-      await queryClient.cancelQueries({
+      void queryClient.cancelQueries({
         queryKey: columnTasksQueryKey(boardId, targetColumnId),
       });
 
@@ -144,6 +183,16 @@ export function useColumnTasks(
 
       const movingTask = previousSource.find((task) => task.id === taskId);
       if (!movingTask) return;
+
+      if (sourceColumnId !== targetColumnId) {
+        pendingTaskMoves.set(taskId, {
+          boardId,
+          task: movingTask,
+          sourceColumnId,
+          targetColumnId,
+          position,
+        });
+      }
 
       if (sourceColumnId === targetColumnId) {
         const updated = previousSource.filter((t) => t.id !== taskId);
@@ -177,8 +226,68 @@ export function useColumnTasks(
       return { previousSource, previousTarget, sourceColumnId, targetColumnId };
     },
 
+    onSuccess: (_data, variables, context) => {
+      if (!boardId) return;
+
+      const sourceColumnId =
+        variables.sourceColumnId ?? context?.sourceColumnId ?? columnId;
+      const targetColumnId = variables.columnId;
+
+      // The position endpoint returns 204, so keep the successful optimistic
+      // task in the destination cache. In particular, do not let a GET that
+      // started before the PATCH completed replace an empty destination list.
+      if (
+        targetColumnId &&
+        sourceColumnId &&
+        targetColumnId !== sourceColumnId &&
+        context
+      ) {
+        const movedTask = context.previousSource.find(
+          (task) => task.id === variables.taskId,
+        );
+
+        if (movedTask) {
+          queryClient.setQueryData<Task[]>(
+            columnTasksQueryKey(boardId, targetColumnId),
+            (current = []) => {
+              const withoutMovedTask = current.filter(
+                (task) => task.id !== movedTask.id,
+              );
+              withoutMovedTask.splice(
+                Math.min(variables.position, withoutMovedTask.length),
+                0,
+                {
+                  ...movedTask,
+                  columnId: targetColumnId,
+                  position: variables.position,
+                },
+              );
+              return withoutMovedTask.map((task, index) => ({
+                ...task,
+                position: index,
+              }));
+            },
+          );
+        }
+      }
+
+      if (sourceColumnId) {
+        queryClient.invalidateQueries({
+          queryKey: columnTasksQueryKey(boardId, sourceColumnId),
+          refetchType: "none",
+        });
+      }
+      if (targetColumnId && targetColumnId !== sourceColumnId) {
+        queryClient.invalidateQueries({
+          queryKey: columnTasksQueryKey(boardId, targetColumnId),
+          refetchType: "none",
+        });
+      }
+    },
+
     onError: (_err, _vars, context) => {
       if (!boardId || !context) return;
+      pendingTaskMoves.delete(_vars.taskId);
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, context.sourceColumnId),
         context.previousSource,
@@ -187,32 +296,6 @@ export function useColumnTasks(
         columnTasksQueryKey(boardId, context.targetColumnId),
         context.previousTarget,
       );
-    },
-
-    onSettled: (_data, _error, variables, context) => {
-      if (!boardId) return;
-
-      const activeMutations = queryClient.isMutating({
-        mutationKey: ["updateTaskPosition", boardId],
-      });
-
-      // Refetch from server only when all queued moves have completed
-      if (activeMutations > 1) return;
-
-      const sourceColumnId =
-        variables.sourceColumnId ?? context?.sourceColumnId ?? columnId;
-      const targetColumnId = variables.columnId;
-
-      if (sourceColumnId) {
-        queryClient.invalidateQueries({
-          queryKey: columnTasksQueryKey(boardId, sourceColumnId),
-        });
-      }
-      if (targetColumnId && targetColumnId !== sourceColumnId) {
-        queryClient.invalidateQueries({
-          queryKey: columnTasksQueryKey(boardId, targetColumnId),
-        });
-      }
     },
   });
 
@@ -282,8 +365,6 @@ export function useColumnTasks(
   const tasks = [...(tasksQuery.data ?? [])].sort(
     (a, b) => a.position - b.position,
   );
-
-  console.log(tasks);
 
   return {
     tasks,

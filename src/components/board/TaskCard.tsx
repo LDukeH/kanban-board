@@ -1,7 +1,10 @@
+import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types/board";
-import { EditTaskDialog } from "@/components/board/EditTaskDialog";
+import { EditTaskDialog } from "@/components/dialog/EditTaskDialog";
 import { useSortable } from "@dnd-kit/react/sortable";
+import { SortableKeyboardPlugin } from "@dnd-kit/dom/sortable";
+import { Feedback } from "@dnd-kit/dom";
 import { closestCenter } from "@dnd-kit/collision";
 import { TaskAssigneeAvatars } from "@/components/board/TaskAssigneeAvatars";
 
@@ -13,6 +16,7 @@ interface TaskCardProps {
   className?: string;
   index: number;
   isOverlay?: boolean;
+  dragPointerY?: number | null;
 }
 
 export function TaskCard({
@@ -23,28 +27,62 @@ export function TaskCard({
   className,
   index,
   isOverlay = false,
+  dragPointerY = null,
 }: TaskCardProps) {
-  const { ref, isDragging } = useSortable({
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const { ref, isDragging, isDropTarget } = useSortable({
     id: task.id,
     index,
     type: "task",
     accept: "task",
     group: task.columnId,
     collisionDetector: closestCenter,
+    plugins: [
+      SortableKeyboardPlugin,
+      Feedback.configure({ feedback: "clone" }),
+    ],
     disabled: isOverlay, // Prevents overlay from registering as a active sortable node
     data: { type: "task", task: task, columnId: task.columnId },
   });
 
+  const setElementRefs = useCallback(
+    (element: HTMLDivElement | null) => {
+      setTargetRect(element?.getBoundingClientRect() ?? null);
+      if (!isOverlay) ref(element);
+    },
+    [isOverlay, ref],
+  );
+  const targetMidpoint = targetRect
+    ? targetRect.top + targetRect.height / 2
+    : null;
+
+  const isDropBelow =
+    !isOverlay &&
+    isDropTarget &&
+    dragPointerY !== null &&
+    targetMidpoint !== null &&
+    dragPointerY >= targetMidpoint;
+
   return (
     <div
-      ref={isOverlay ? undefined : ref}
+      ref={setElementRefs}
       className={cn(
-        "group flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-primary/30",
+        "group relative flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-primary/30",
         className,
         isDragging && "opacity-40",
         isOverlay && "shadow-lg border-primary/40 rotate-1",
       )}
     >
+      {!isOverlay && isDropTarget && (
+        <span
+          aria-label={`Task will be inserted ${isDropBelow ? "after" : "before"} this task`}
+          className={cn(
+            "pointer-events-none absolute right-1.5 left-1.5 z-10 h-1 rounded-full bg-primary shadow-[0_0_0_2px_hsl(var(--background))]",
+            isDropBelow ? "-bottom-1.5" : "-top-1.5",
+          )}
+        />
+      )}
+
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span

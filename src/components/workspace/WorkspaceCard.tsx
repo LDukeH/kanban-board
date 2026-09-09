@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { getGradient } from "@/lib/colors";
 import { Users, LayoutGrid, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Workspace } from "@/types/workspace";
-import { EditWorkspaceDialog } from "@/components/workspace/EditWorkspaceDialog";
+import { EditWorkspaceDialog } from "@/components/dialog/EditWorkspaceDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import {
   DropdownMenu,

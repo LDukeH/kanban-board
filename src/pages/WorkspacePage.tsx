@@ -2,7 +2,7 @@ import { useParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { BoardGrid } from "@/components/dashboard/BoardGrid";
 import { FeaturedSection } from "@/components/dashboard/FeaturedSection";
-import { WorkspaceMembersDialog } from "@/components/workspace/WorkspaceMembersDialog";
+import { WorkspaceMembersDialog } from "@/components/dialog/WorkspaceMembersDialog";
 import { useWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspaces";
 import { useBoards } from "@/hooks/useBoards";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";

@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { WorkspaceCard } from "@/components/workspace/WorkspaceCard";
-import { CreateWorkspaceDialog } from "@/components/workspace/CreateWorkspaceDialog";
+import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useNavigate } from "react-router-dom";

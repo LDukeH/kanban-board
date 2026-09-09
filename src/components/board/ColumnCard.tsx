@@ -4,9 +4,11 @@ import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import type { Column } from "@/types/board";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
-import { EditColumnDialog } from "@/components/board/EditColumnDialog";
+import { Feedback } from "@dnd-kit/dom";
+import { SortableKeyboardPlugin } from "@dnd-kit/dom/sortable";
+import { EditColumnDialog } from "@/components/dialog/EditColumnDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
-import { CreateTaskDialog } from "@/components/board/CreateTaskDialog";
+import { CreateTaskDialog } from "@/components/dialog/CreateTaskDialog";
 import { TaskCard } from "@/components/board/TaskCard";
 import {
   DropdownMenu,
@@ -34,6 +36,7 @@ interface ColumnCardProps {
   canDeleteTask?: boolean;
   /** Active board-level task filter; when set only matching tasks render. */
   filter?: TaskFilter;
+  dragPointerY?: number | null;
 }
 
 export function ColumnCard({
@@ -46,14 +49,27 @@ export function ColumnCard({
   canEditTask = false,
   canDeleteTask = false,
   filter,
+  dragPointerY = null,
 }: ColumnCardProps) {
+  const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
+  const { tasks, isLoadingTasks } = useColumnTasks(column.boardId, column.id);
+
   const { ref, isDragging } = useSortable({
     id: column.id,
     index,
     type: "column",
     accept: "column",
     collisionDetector: closestCenter,
-    data: { type: "column", columnId: column.id },
+    plugins: [
+      SortableKeyboardPlugin,
+      Feedback.configure({ feedback: "clone" }),
+    ],
+    data: {
+      type: "column",
+      columnId: column.id,
+      columnName: column.name,
+      taskCount: tasks.length,
+    },
   });
 
   const { ref: taskDropRef, isDropTarget } = useDroppable({
@@ -65,9 +81,6 @@ export function ColumnCard({
       columnId: column.id,
     },
   });
-
-  const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
-  const { tasks, isLoadingTasks } = useColumnTasks(column.boardId, column.id);
 
   const filterActive = !!filter && isTaskFilterActive(filter);
   const visibleTasks = filterActive
@@ -93,7 +106,9 @@ export function ColumnCard({
           {column.name}
         </h3>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-          {filterActive ? `${visibleTasks.length} / ${tasks.length}` : tasks.length}
+          {filterActive
+            ? `${visibleTasks.length} / ${tasks.length}`
+            : tasks.length}
         </span>
 
         {(canEdit || canDelete) && (
@@ -157,6 +172,7 @@ export function ColumnCard({
               canEdit={canEditTask}
               canDelete={canDeleteTask}
               index={index}
+              dragPointerY={dragPointerY}
             />
           ))
         )}

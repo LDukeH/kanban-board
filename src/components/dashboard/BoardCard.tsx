@@ -3,7 +3,7 @@ import { getGradient } from "@/lib/colors";
 import { Link } from "react-router-dom";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Board } from "@/types/board";
-import { EditBoardDialog } from "@/components/workspace/EditBoardDialog";
+import { EditBoardDialog } from "@/components/dialog/EditBoardDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import {
   DropdownMenu,

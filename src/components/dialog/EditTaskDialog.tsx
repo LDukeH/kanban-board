@@ -23,8 +23,8 @@ import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
-import { CreateLabelDialog } from "@/components/board/CreateLabelDialog";
-import { EditTaskAssigneePicker } from "@/components/board/EditTaskAssigneePicker";
+import { CreateLabelDialog } from "@/components/dialog/CreateLabelDialog";
+import { EditTaskAssigneePicker } from "@/components/picker/EditTaskAssigneePicker";
 import type { Task } from "@/types/board";
 
 interface EditTaskDialogProps {

@@ -1,7 +1,7 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+﻿import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ColumnCard } from "@/components/board/ColumnCard";
-import { CreateColumnDialog } from "@/components/board/CreateColumnDialog";
+import { CreateColumnDialog } from "@/components/dialog/CreateColumnDialog";
 import { BoardLabelsPopover } from "@/components/board/BoardLabelsPopover";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
@@ -11,13 +11,15 @@ import { Loader2, ArrowLeft, Columns3, Kanban } from "lucide-react";
 import {
   DragDropProvider,
   type DragEndEvent,
+  type DragMoveEvent,
   DragOverlay,
+  useDragOperation,
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import { useQueryClient } from "@tanstack/react-query";
 import { columnTasksQueryKey, useColumnTasks } from "@/hooks/useColumnTasks";
 import type { Task } from "@/types/board";
-import { useState, useRef, useCallback, useEffect, type WheelEvent } from "react";
+import { useState, useCallback, useEffect, type WheelEvent } from "react";
 import { TaskCard } from "@/components/board/TaskCard";
 import { TaskFilterPopover } from "@/components/board/TaskFilterPopover";
 import { useRecentStore } from "@/stores/recentStore";
@@ -67,6 +69,43 @@ function EmptyColumns() {
   );
 }
 
+function BoardDragOverlay({ boardId }: { boardId: string }) {
+  const { source } = useDragOperation();
+  const isTaskDrag = source?.data?.type === "task";
+
+  return (
+    <DragOverlay dropAnimation={isTaskDrag ? null : undefined}>
+      <div className="pointer-events-none">
+        {source?.data?.type === "column" ? (
+          <div className="flex h-full w-72 shrink-0 rotate-1 flex-col rounded-xl border border-primary/40 bg-card shadow-xl">
+            <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
+              <span className="size-2 shrink-0 rounded-full bg-primary" />
+              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                {String(source.data.columnName ?? "Column")}
+              </h3>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {String(source.data.taskCount ?? 0)}
+              </span>
+            </div>
+            <div className="flex flex-1 items-center justify-center p-3 text-xs text-muted-foreground">
+              Moving column
+            </div>
+          </div>
+        ) : source?.data?.type === "task" && source.data.task ? (
+          <TaskCard
+            task={source.data.task}
+            boardId={boardId}
+            canEdit={false}
+            canDelete={false}
+            index={0}
+            isOverlay
+          />
+        ) : null}
+      </div>
+    </DragOverlay>
+  );
+}
+
 function handleBoardWheel(e: WheelEvent<HTMLDivElement>) {
   if (e.deltaY === 0) return;
 
@@ -108,7 +147,6 @@ function BoardContent({ boardId }: { boardId: string }) {
   const queryClient = useQueryClient();
   const { workspaces } = useWorkspaces();
 
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [taskFilter, setTaskFilter] = useState<TaskFilter>(() => {
     // Prefer the URL filter (shareable / deep-link), otherwise fall back to the
@@ -118,6 +156,7 @@ function BoardContent({ boardId }: { boardId: string }) {
       ? urlFilter
       : loadBoardTaskFilter(boardId);
   });
+  const [dragPointerY, setDragPointerY] = useState<number | null>(null);
 
   /** Update the filter, remember it for this board, and mirror it into the URL. */
   const updateTaskFilter = useCallback(
@@ -136,9 +175,6 @@ function BoardContent({ boardId }: { boardId: string }) {
     },
     [searchParams, setSearchParams, boardId],
   );
-
-  // Track original parent DOM node to fix removeChild crash cleanly
-  const sourceParentRef = useRef<HTMLElement | null>(null);
 
   const {
     board,
@@ -190,23 +226,17 @@ function BoardContent({ boardId }: { boardId: string }) {
   const canUseTasks = canWorkOnTasks && !isLoadingRole;
   const canRemoveTasks = canDeleteTask && !isLoadingRole;
 
+  function handleDragMove(event: DragMoveEvent) {
+    setDragPointerY(event.operation.position.current.y);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
-    // Put the DOM node back into its original container so React can unmount/move it safely
-    const sourceEl = event.operation.source?.element;
-    const originalParent = sourceParentRef.current;
-    if (
-      sourceEl &&
-      originalParent &&
-      sourceEl.parentElement !== originalParent
-    ) {
-      originalParent.appendChild(sourceEl);
-    }
-    sourceParentRef.current = null;
-    setActiveTask(null);
+    setDragPointerY(null);
+
+    const source = event.operation.source;
 
     if (event.canceled) return;
 
-    const source = event.operation.source;
     const target = event.operation.target;
 
     if (!source || !target) return;
@@ -229,17 +259,57 @@ function BoardContent({ boardId }: { boardId: string }) {
       const targetId = String(target.id);
       const { initialIndex, index, group, initialGroup } = source.sortable;
 
-      const sourceColumnId = String(initialGroup ?? "");
-      const targetColumnId = String(group ?? sourceColumnId);
+      const sourceColumnId = String(
+        source.data?.columnId ?? initialGroup ?? "",
+      );
+      const targetColumnId = String(
+        target.data?.columnId ??
+          target.data?.task?.columnId ??
+          (isSortable(target) ? target.sortable.group : group) ??
+          sourceColumnId,
+      );
+      const targetRect = isSortable(target)
+        ? target.element?.getBoundingClientRect()
+        : undefined;
+      const dropBelowTarget =
+        targetRect !== undefined &&
+        event.operation.position.current.y >=
+          targetRect.top + targetRect.height / 2;
+      const rawDestinationPosition = isSortable(target)
+        ? target.sortable.index + (dropBelowTarget ? 1 : 0)
+        : index;
+      const sourceIndexAdjustment =
+        isSortable(target) &&
+        sourceColumnId === targetColumnId &&
+        initialIndex < rawDestinationPosition
+          ? 1
+          : 0;
+      const destinationPosition = Number.isFinite(rawDestinationPosition)
+        ? Math.max(
+            0,
+            Math.floor(rawDestinationPosition - sourceIndexAdjustment),
+          )
+        : 0;
+
+      if (
+        !sourceColumnId ||
+        sourceColumnId === "undefined" ||
+        !targetColumnId ||
+        targetColumnId === "undefined"
+      ) {
+        return;
+      }
 
       // Dropped onto empty container area
       if (target.data?.type === "task-container" && targetId !== taskId) {
         const containerColumnId = String(target.data.columnId ?? target.id);
         if (!sourceColumnId || !containerColumnId) return;
 
+        if (!boardId) return;
+
         const targetTasks = (
           queryClient.getQueryData<Task[]>(
-            columnTasksQueryKey(boardId!, containerColumnId),
+            columnTasksQueryKey(boardId, containerColumnId),
           ) ?? []
         ).filter((t) => String(t.id) !== taskId);
 
@@ -262,17 +332,15 @@ function BoardContent({ boardId }: { boardId: string }) {
       }
 
       // Normal drop on or between tasks
-      if (!sourceColumnId || !targetColumnId) return;
-
       const isSameColumn = sourceColumnId === targetColumnId;
 
-      if (isSameColumn && initialIndex === index) return;
+      if (isSameColumn && initialIndex === destinationPosition) return;
 
       updateTaskPosition({
         taskId,
         sourceColumnId,
         columnId: targetColumnId,
-        position: index,
+        position: destinationPosition,
       });
 
       return;
@@ -325,38 +393,32 @@ function BoardContent({ boardId }: { boardId: string }) {
             boardId={boardId}
             workspaceId={board?.workspaceId}
           />
-          
+
           <BoardLabelsPopover boardId={boardId} />
         </div>
       </header>
 
-      <div
-        className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-8 py-6"
-        onWheel={handleBoardWheel}
+      <DragDropProvider
+        onDragMove={handleDragMove}
+        onDragEnd={canManageColumns || canUseTasks ? handleDragEnd : undefined}
       >
-        {isLoadingBoard || isLoadingColumns ? (
-          <BoardLoading />
-        ) : isBoardError || isColumnsError ? (
-          <BoardError message={describeLoadError(boardError ?? columnsError)} />
-        ) : sortedColumns.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-4">
-            <EmptyColumns />
+        <div
+          className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-8 py-6"
+          onWheel={handleBoardWheel}
+        >
+          {isLoadingBoard || isLoadingColumns ? (
+            <BoardLoading />
+          ) : isBoardError || isColumnsError ? (
+            <BoardError
+              message={describeLoadError(boardError ?? columnsError)}
+            />
+          ) : sortedColumns.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-4">
+              <EmptyColumns />
 
-            {canManageColumns && <CreateColumnDialog boardId={boardId} />}
-          </div>
-        ) : (
-          <DragDropProvider
-            onDragStart={(e) => {
-              const sourceEl = e.operation.source?.element;
-              if (sourceEl) {
-                sourceParentRef.current = sourceEl.parentElement;
-              }
-              setActiveTask(e.operation.source?.data?.task ?? null);
-            }}
-            onDragEnd={
-              canManageColumns || canUseTasks ? handleDragEnd : undefined
-            }
-          >
+              {canManageColumns && <CreateColumnDialog boardId={boardId} />}
+            </div>
+          ) : (
             <div className="flex h-full items-stretch gap-4">
               {sortedColumns.map((column, index) => (
                 <ColumnCard
@@ -369,6 +431,7 @@ function BoardContent({ boardId }: { boardId: string }) {
                   canCreateTask={canUseTasks}
                   canEditTask={canUseTasks}
                   canDeleteTask={canRemoveTasks}
+                  dragPointerY={dragPointerY}
                 />
               ))}
 
@@ -378,22 +441,12 @@ function BoardContent({ boardId }: { boardId: string }) {
                 </div>
               )}
             </div>
+          )}
+        </div>
 
-            <DragOverlay>
-              {activeTask ? (
-                <TaskCard
-                  task={activeTask}
-                  boardId={boardId}
-                  canEdit={false}
-                  canDelete={false}
-                  index={0}
-                  isOverlay
-                />
-              ) : null}
-            </DragOverlay>
-          </DragDropProvider>
-        )}
-      </div>
+        {/* Keep the overlay outside the horizontally scrolling board. */}
+        <BoardDragOverlay boardId={boardId} />
+      </DragDropProvider>
     </DashboardLayout>
   );
 }

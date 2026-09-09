@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LabelBadge } from "@/components/board/LabelBadge";
-import { CreateLabelDialog } from "@/components/board/CreateLabelDialog";
-import { EditLabelDialog } from "@/components/board/EditLabelDialog";
+import { CreateLabelDialog } from "@/components/dialog/CreateLabelDialog";
+import { EditLabelDialog } from "@/components/dialog/EditLabelDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import {
   DropdownMenu,

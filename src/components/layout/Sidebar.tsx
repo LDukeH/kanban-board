@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRecentStore } from "@/stores/recentStore";
 import { useBoards } from "@/hooks/useBoards";
-import { CreateWorkspaceDialog } from "@/components/workspace/CreateWorkspaceDialog";
+import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
 import { useNavigate, useLocation } from "react-router-dom";
 import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
 

@@ -1,5 +1,5 @@
 import { BoardCard } from "@/components/dashboard/BoardCard";
-import { CreateBoardDialog } from "@/components/workspace/CreateBoardDialog";
+import { CreateBoardDialog } from "@/components/dialog/CreateBoardDialog";
 import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 import type { Board } from "@/types/board";

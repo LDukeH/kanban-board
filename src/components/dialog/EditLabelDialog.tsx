@@ -10,45 +10,42 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Pencil, Loader2 } from "lucide-react";
 import { useBoard } from "@/hooks/useBoard";
-import { LabelColorPicker } from "@/components/board/LabelColorPicker";
-import { LABEL_NO_COLOR } from "@/lib/colors";
+import { LabelColorPicker } from "@/components/picker/LabelColorPicker";
+import type { Label as LabelModel } from "@/types/board";
 
-interface CreateLabelDialogProps {
-  boardId: string;
-  trigger?: React.ReactElement;
+interface EditLabelDialogProps {
+  label: LabelModel;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactElement;
 }
 
-export function CreateLabelDialog({
-  boardId,
-  trigger,
+export function EditLabelDialog({
+  label,
   open: controlledOpen,
   onOpenChange: setControlledOpen,
-}: CreateLabelDialogProps) {
-  const { createLabel, isCreatingLabel } = useBoard(boardId);
+  trigger,
+}: EditLabelDialogProps) {
+  const { updateLabel, isUpdatingLabel } = useBoard(label.boardId);
   const [internalOpen, setInternalOpen] = useState(false);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = (nextOpen: boolean) => {
-    if (isControlled) {
-      setControlledOpen?.(nextOpen);
-    } else {
-      setInternalOpen(nextOpen);
-    }
+    if (isControlled) setControlledOpen?.(nextOpen);
+    else setInternalOpen(nextOpen);
   };
 
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(LABEL_NO_COLOR);
+  const [name, setName] = useState(label.name);
+  const [color, setColor] = useState(label.color);
   const [error, setError] = useState<string | null>(null);
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
-      setName("");
-      setColor(LABEL_NO_COLOR);
+      setName(label.name);
+      setColor(label.color);
       setError(null);
     }
     setOpen(nextOpen);
@@ -62,52 +59,53 @@ export function CreateLabelDialog({
     }
     setError(null);
     try {
-      await createLabel({ name: name.trim(), color });
-      setName("");
-      setColor(LABEL_NO_COLOR);
+      await updateLabel({ labelId: label.id, data: { name: name.trim(), color } });
       setOpen(false);
     } catch (err) {
-      setError("Failed to create label. Please try again.");
-      console.error("Create label failed:", err);
+      setError("Failed to update label. Please try again.");
+      console.error("Update label failed:", err);
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      {trigger && <DialogTrigger render={trigger} />}
+      {trigger ? (
+        <DialogTrigger render={trigger} />
+      ) : (
+        !isControlled && (
+          <DialogTrigger
+            render={
+              <Button variant="ghost" size="icon-xs">
+                <Pencil className="size-3" />
+              </Button>
+            }
+          />
+        )
+      )}
       <DialogPopup>
-        <DialogTitle>Create Label</DialogTitle>
-        <DialogDescription>
-          Labels are board-wide tags that can be attached to tasks.
-        </DialogDescription>
+        <DialogTitle>Edit Label</DialogTitle>
+        <DialogDescription>Update the name or color of this label.</DialogDescription>
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="label-name">Name</Label>
+            <Label htmlFor={`edit-label-name-${label.id}`}>Name</Label>
             <Input
-              id="label-name"
-              placeholder="e.g. Bug, Feature..."
+              id={`edit-label-name-${label.id}`}
+              placeholder="e.g. Bug"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              autoFocus
             />
           </div>
           <div className="flex flex-col gap-2">
             <Label>Color</Label>
-            <LabelColorPicker
-              value={color}
-              onChange={setColor}
-              disabled={isCreatingLabel}
-            />
+            <LabelColorPicker value={color} onChange={setColor} disabled={isUpdatingLabel} />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2">
-            <DialogClose render={<Button variant="ghost" />}>
-              Cancel
-            </DialogClose>
-            <Button type="submit" disabled={isCreatingLabel}>
-              {isCreatingLabel && <Loader2 className="size-4 animate-spin" />}
-              Create
+            <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+            <Button type="submit" disabled={isUpdatingLabel}>
+              {isUpdatingLabel && <Loader2 className="size-4 animate-spin" />}
+              Save
             </Button>
           </div>
         </form>

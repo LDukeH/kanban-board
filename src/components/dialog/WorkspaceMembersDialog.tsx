@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { InviteWorkspaceMembersDialog } from "@/components/workspace/InviteWorkspaceMembersDialog";
+import { InviteWorkspaceMembersDialog } from "@/components/dialog/InviteWorkspaceMembersDialog";
 import {
   useWorkspaceMembers,
   useWorkspaceMemberActions,
@@ -16,7 +16,15 @@ import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { describeLoadError } from "@/lib/httpStatus";
-import { Loader2, Info, UserPlus, Users, UserMinus } from "lucide-react";
+import {
+  Loader2,
+  Info,
+  UserPlus,
+  Users,
+  UserMinus,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import type { WorkspaceMember, WorkspaceRole } from "@/types/workspace";
 import {
   roleLabel,
@@ -46,22 +54,35 @@ function MemberRow({
   canRemove,
   onRemove,
   isRemoving,
+  onChangeRole,
+  isRoleChanging,
+  isSoleOwner,
 }: {
   member: WorkspaceMember;
   isCurrentUser: boolean;
   canRemove: boolean;
   onRemove: (member: WorkspaceMember) => void;
   isRemoving: boolean;
+  onChangeRole: (member: WorkspaceMember, role: WorkspaceRole) => void;
+  isRoleChanging: boolean;
+  isSoleOwner: boolean;
 }) {
   const isOwner = member.role === "owner";
+  const isAdmin = member.role === "admin";
 
   // The action shown for the current user's own row: leave the workspace,
   // disabled (and relabelled) when they are the owner.
   const ownActionDisabled = isOwner;
   const ownActionLabel = isOwner ? "Remove from Workspace" : "Leave";
 
+  // Owner/Admin can promote/demote other non-owner members and remove anyone —
+  // except the sole owner, who can never be removed or re-roled.
+  const busy = isRoleChanging || isRemoving;
   const showOwnAction = isCurrentUser;
-  const showManagedRemove = !isCurrentUser && canRemove;
+  const showRoleAction = !isCurrentUser && canRemove && !isOwner && !isSoleOwner;
+  const showManagedRemove = !isCurrentUser && canRemove && !isSoleOwner;
+  const nextRole: WorkspaceRole = isAdmin ? "member" : "admin";
+  const roleActionLabel = isAdmin ? "Demote" : "Promote";
 
   return (
     <li className="flex items-center gap-4 py-3">
@@ -105,12 +126,31 @@ function MemberRow({
         </Button>
       )}
 
+      {showRoleAction && (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => onChangeRole(member, nextRole)}
+          title={`${roleActionLabel} ${member.email}`}
+        >
+          {isRoleChanging ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : isAdmin ? (
+            <ArrowDown className="size-3.5" />
+          ) : (
+            <ArrowUp className="size-3.5" />
+          )}
+          {roleActionLabel}
+        </Button>
+      )}
+
       {showManagedRemove && (
         <Button
           size="sm"
           variant="ghost"
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-          disabled={isRemoving}
+          disabled={busy}
           onClick={() => onRemove(member)}
         >
           <UserMinus className="size-3.5" />
@@ -128,6 +168,7 @@ export function WorkspaceMembersDialog({
 }: WorkspaceMembersDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -136,13 +177,26 @@ export function WorkspaceMembersDialog({
   const { user } = useAuth();
   const { canManageMembers } = useWorkspaceAccess(workspaceId);
   const membersQuery = useWorkspaceMembers(workspaceId);
-  const { removeMember, isRemoving } = useWorkspaceMemberActions(workspaceId);
+  const { removeMember, isRemoving, changeRole } =
+    useWorkspaceMemberActions(workspaceId);
 
   const members = membersQuery.data ?? [];
+  const ownerCount = members.filter((m) => m.role === "owner").length;
 
   function handleRemove(member: WorkspaceMember) {
     // Remove self (leave) or remove another member; the backend authorizes.
     void removeMember(member.id).catch(() => undefined);
+  }
+
+  function handleChangeRole(member: WorkspaceMember, role: WorkspaceRole) {
+    // Owners are outside the member ↔ admin toggle entirely, so they can
+    // never be demoted (the sole owner is additionally protected from
+    // removal). The backend authorizes regardless.
+    if (member.role === "owner") return;
+    setChangingRoleId(member.id);
+    void changeRole({ membershipId: member.id, role })
+      .catch((err) => console.error("Role change failed:", err))
+      .finally(() => setChangingRoleId(null));
   }
 
   return (
@@ -200,6 +254,9 @@ export function WorkspaceMembersDialog({
                     canRemove={canManageMembers}
                     onRemove={handleRemove}
                     isRemoving={isRemoving}
+                    onChangeRole={handleChangeRole}
+                    isRoleChanging={changingRoleId === member.id}
+                    isSoleOwner={member.role === "owner" && ownerCount === 1}
                   />
                 ))}
               </ul>
