@@ -35,11 +35,6 @@ export const FEATURED_GRADIENTS: readonly string[] = [
   "from-rose-600 via-rose-500 to-orange-400",
 ];
 
-/**
- * Fixed palette of label colors (hex) offered when creating/editing a label,
- * mirroring the Trello-style color assignment the backend accepts. The
- * backend also accepts an empty string ("") to mean "no color".
- */
 export const LABEL_COLORS: readonly string[] = [
   "#e11941", // red
   "#f4881f", // orange (Trello orange ~#f4881f)

@@ -8,13 +8,7 @@ import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { Plus, Loader2, LayoutGrid } from "lucide-react";
 import type { Workspace } from "@/types/workspace";
 
-/**
- * Wrapper that checks the current user's role for a single workspace and
- * passes the `canEdit` and `canDelete` flags to the WorkspaceCard.
- *
- * `useWorkspaceAccess` is per-workspace, so it cannot be called inside a
- * `.map()` loop. This wrapper component isolates the hook call.
- */
+
 function WorkspaceCardWithAccess({
   workspace,
   onClick,

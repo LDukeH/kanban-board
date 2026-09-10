@@ -7,19 +7,15 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { emailInitial, emailToHandle, avatarGradient } from "@/lib/memberDisplay";
+import {
+  emailInitial,
+  emailToHandle,
+  avatarGradient,
+} from "@/lib/memberDisplay";
 
 /** How many avatar circles are shown before collapsing into "+N". */
 const MAX_VISIBLE = 2;
 
-/**
- * Compact assignee preview shown on the right side of a TaskCard without
- * opening the edit dialog. The assignees come straight from the task-list
- * endpoint (embedded in the task record). Renders stacked avatar circles
- * (max 2) — one per assigned user — plus an overflow "+N" circle when more
- * than 2 users are assigned. Clicking the stack opens a dropdown to the
- * right listing every assigned user.
- */
 export function TaskAssigneeAvatars({
   assignees,
 }: {

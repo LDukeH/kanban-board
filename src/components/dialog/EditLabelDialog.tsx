@@ -87,7 +87,9 @@ export function EditLabelDialog({
       )}
       <DialogPopup>
         <DialogTitle>Edit Label</DialogTitle>
-        <DialogDescription>Update the name or color of this label.</DialogDescription>
+        <DialogDescription>
+          Update the name or color of this label.
+        </DialogDescription>
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor={`edit-label-name-${label.id}`}>Name</Label>
@@ -101,11 +103,17 @@ export function EditLabelDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label>Color</Label>
-            <LabelColorPicker value={color} onChange={setColor} disabled={isUpdatingLabel} />
+            <LabelColorPicker
+              value={color}
+              onChange={setColor}
+              disabled={isUpdatingLabel}
+            />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2">
-            <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
+            <DialogClose render={<Button variant="ghost" />}>
+              Cancel
+            </DialogClose>
             <Button type="submit" disabled={isUpdatingLabel}>
               {isUpdatingLabel && <Loader2 className="size-4 animate-spin" />}
               Save

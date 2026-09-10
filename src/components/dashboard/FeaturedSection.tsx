@@ -5,7 +5,6 @@ interface FeaturedItem {
   title: string;
   description: string;
   icon: typeof Workflow;
-  /** Soft tint for the icon chip — keeps the card quiet so "Your boards" stays the focus. */
   iconClass: string;
 }
 

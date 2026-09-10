@@ -16,7 +16,6 @@ interface ConfirmDeleteDialogProps {
   description: string;
   confirmText?: string;
   cancelText?: string;
-  /** Compact toast shown when the deletion succeeds (flow end). */
   successMessage?: string;
   onConfirm: () => Promise<void>;
   isLoading?: boolean;

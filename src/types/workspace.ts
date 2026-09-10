@@ -18,7 +18,6 @@ export interface WorkspaceMember {
   updatedAt: string;
 }
 
-/** A user returned by the `GET /users/search` endpoint. */
 export interface SearchedUser {
   id: string;
   email: string;

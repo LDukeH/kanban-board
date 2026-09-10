@@ -21,13 +21,6 @@ interface LeaveWorkspaceDialogProps {
   onLeft?: () => void;
 }
 
-/**
- * Confirmation step before a member leaves a workspace
- * (`DELETE /workspaces/{workspaceID}/memberships`). The owner cannot leave
- * this way — the Leave button that opens this dialog is disabled for owners,
- * and the backend enforces it regardless. Success/error feedback is delivered
- * as toasts rather than an inline message inside the dialog.
- */
 export function LeaveWorkspaceDialog({
   workspace,
   open,

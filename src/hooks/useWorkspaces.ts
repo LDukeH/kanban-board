@@ -93,11 +93,6 @@ export function useWorkspaceMembers(workspaceId: string | undefined) {
   });
 }
 
-/**
- * Mutations that add, re-role, or remove members of a Workspace.
- * Each success invalidates the member list query for the Workspace so
- * dependent components (dialog list, access flags) stay in sync.
- */
 export function useWorkspaceMemberActions(workspaceId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -131,28 +126,15 @@ export function useWorkspaceMemberActions(workspaceId: string | undefined) {
   });
 
   return {
-    /** Add a single member by email. */
     addMember: createMembershipMutation.mutateAsync,
     isAdding: createMembershipMutation.isPending,
-    /** Change a member's role. */
     changeRole: changeRoleMutation.mutateAsync,
     isChangingRole: changeRoleMutation.isPending,
-    /** Remove a member by membership id. */
     removeMember: removeMemberMutation.mutateAsync,
     isRemoving: removeMemberMutation.isPending,
   };
 }
 
-/**
- * Remove the current user from a Workspace via the dedicated
- * `DELETE /workspaces/{workspaceID}/memberships` endpoint. Unlike removing
- * another member, the owner cannot leave this way — the backend blocks it (the
- * UI additionally disables the Leave action for owners).
- *
- * On success the workspace list is invalidated (the left workspace disappears
- * from the dashboard), all cached queries for the workspace are dropped, and
- * the recent sidebar entry is forgotten.
- */
 export function useLeaveWorkspace(workspaceId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -169,23 +151,12 @@ export function useLeaveWorkspace(workspaceId: string | undefined) {
   });
 
   return {
-    /** Leave the workspace (removes the current user's membership). */
     leaveWorkspace: leaveWorkspaceMutation.mutateAsync,
     isLeaving: leaveWorkspaceMutation.isPending,
   };
 }
 
-/**
- * Transfer workspace ownership to another member of the Workspace.
- *
- * The backend performs the demote/promote atomically in one request. On success
- * the workspace list and the member list are invalidated so the UI immediately
- * reflects the new owner/member roles (no optimistic role changes before the
- * request returns).
- */
-export function useTransferWorkspaceOwnership(
-  workspaceId: string | undefined,
-) {
+export function useTransferWorkspaceOwnership(workspaceId: string | undefined) {
   const queryClient = useQueryClient();
 
   const transferOwnershipMutation = useMutation({
@@ -203,17 +174,11 @@ export function useTransferWorkspaceOwnership(
   });
 
   return {
-    /** Transfer ownership to another member by user id. */
     transferOwnership: transferOwnershipMutation.mutateAsync,
     isTransferring: transferOwnershipMutation.isPending,
   };
 }
 
-/**
- * Debounce search-by-email against `GET /users/search`. Only runs once the
- * query has at least 2 characters, mirroring how backend search is debounced
- * at the UI layer without issuing requests for empty/too-short input.
- */
 export function useSearchUsers(query: string) {
   const trimmed = query.trim();
 

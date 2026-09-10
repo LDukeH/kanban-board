@@ -1,6 +1,5 @@
 import type { WorkspaceRole } from "@/types/workspace";
 
-/** Human-readable (English) label for a workspace role. */
 export const WORKSPACE_ROLE_LABELS: Record<WorkspaceRole, string> = {
   owner: "Owner",
   admin: "Admin",
@@ -11,24 +10,15 @@ export function roleLabel(role: WorkspaceRole): string {
   return WORKSPACE_ROLE_LABELS[role];
 }
 
-/**
- * The part of an email before the "@". Used as the display "handle",
- * e.g. `lelele1029@gmail.com` → `@lelele1029`.
- */
 export function emailToHandle(email: string): string {
   const localPart = email.split("@")[0] ?? email;
   return `@${localPart}`;
 }
 
-/** First character of the email, uppercased — used for the member avatar. */
 export function emailInitial(email: string): string {
   return (email.charAt(0) || "?").toUpperCase();
 }
 
-/**
- * Deterministic gradient for a member avatar based on their user id/email.
- * Keeps an individual's avatar color stable across renders.
- */
 export function avatarGradient(seed: string): string {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) {

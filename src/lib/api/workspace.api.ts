@@ -5,11 +5,6 @@ import type {
   WorkspaceRole,
 } from "@/types/workspace";
 
-/**
- * The backend returns entities with snake_case fields
- * (e.g. `user_id`, `workspace_id`, `created_at`). Normalize them to the
- * camelCase shape the frontend types expect, at this API boundary.
- */
 interface WorkspaceApiResponse {
   id: string;
   name: string;
@@ -117,23 +112,10 @@ export const removeMember = async (
   await api.delete(`/workspaces/${workspaceId}/members/${membershipId}`);
 };
 
-/**
- * Remove the current user's membership via the dedicated
- * `DELETE /workspaces/{workspaceID}/memberships` route. Unlike removing
- * another member (`removeMember`), this only ever targets the authenticated
- * user, so no membership id is needed. The backend rejects owners — they must
- * transfer ownership or delete the workspace before they can leave.
- */
 export const leaveWorkspace = async (workspaceId: string): Promise<void> => {
   await api.delete(`/workspaces/${workspaceId}/memberships`);
 };
 
-/**
- * Transfer workspace ownership to another member. The backend performs the
- * demote (old owner → member) / promote (target → owner) transactionally in a
- * single request and returns `204 No Content`. Only `204` is treated as
- * success — any other status means the transfer did not happen.
- */
 export const transferWorkspaceOwnership = async (
   workspaceId: string,
   newOwnerId: string,

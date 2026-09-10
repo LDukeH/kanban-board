@@ -14,13 +14,6 @@ export interface RecentBoardEntry {
 interface RecentState {
   recentWorkspaces: RecentWorkspaceEntry[];
   recentBoards: RecentBoardEntry[];
-  /**
-   * Bind the recents to a signed-in account. Switching to a new user id flushes
-   * the previous account's recents to localStorage and loads the new account's.
-   * Passing `null` (logged out) clears the in-memory lists. Calling with the
-   * already-active scope is a cheap no-op, so it is safe to call on every
-   * `user?.id` change.
-   */
   setScope: (userId: string | null) => void;
   recordWorkspace: (workspace: RecentWorkspaceEntry) => void;
   recordBoard: (board: RecentBoardEntry) => void;
@@ -34,11 +27,6 @@ interface RecentState {
  */
 export const RECENT_LIMIT = 4;
 
-/**
- * Recents are persisted per account under `kanban-recent:<userId>` so one
- * account's history never leaks into another account's sidebar. The legacy
- * pre-scoping global key is removed once we bind a scope for the first time.
- */
 const LEGACY_STORAGE_KEY = "kanban-recent";
 const STORAGE_PREFIX = "kanban-recent:";
 
@@ -47,7 +35,6 @@ interface RecentData {
   recentBoards: RecentBoardEntry[];
 }
 
-/** Read the persisted recents for an account (empty when none/logged out). */
 function loadScope(userId: string | null): RecentData {
   if (!userId) return { recentWorkspaces: [], recentBoards: [] };
   try {
@@ -67,7 +54,6 @@ function loadScope(userId: string | null): RecentData {
   }
 }
 
-/** Persist the in-memory recents under an account (best effort). */
 function saveScope(userId: string | null, data: RecentData): void {
   if (!userId) return;
   try {
@@ -129,7 +115,6 @@ export const useRecentStore = create<RecentState>((set, get) => {
       set({ recentWorkspaces, recentBoards });
     },
 
-    /** Remember a workspace as just accessed (keeps the latest 4). */
     recordWorkspace: (workspace) => {
       const recentWorkspaces = pushRecent(
         get().recentWorkspaces,
@@ -143,7 +128,6 @@ export const useRecentStore = create<RecentState>((set, get) => {
       });
     },
 
-    /** Remember a board as just accessed (keeps the latest 4). */
     recordBoard: (board) => {
       const recentBoards = pushRecent(
         get().recentBoards,
@@ -157,7 +141,6 @@ export const useRecentStore = create<RecentState>((set, get) => {
       });
     },
 
-    /** Drop a workspace and any of its boards from the recents. */
     forgetWorkspace: (workspaceId) => {
       const recentWorkspaces = get().recentWorkspaces.filter(
         (workspace) => workspace.id !== workspaceId,
@@ -169,7 +152,6 @@ export const useRecentStore = create<RecentState>((set, get) => {
       saveScope(scopeUserId, { recentWorkspaces, recentBoards });
     },
 
-    /** Drop a single board from the recents. */
     forgetBoard: (boardId) => {
       const recentBoards = get().recentBoards.filter(
         (board) => board.id !== boardId,

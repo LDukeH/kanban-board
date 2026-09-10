@@ -26,11 +26,6 @@ export interface Label {
   updatedAt: string;
 }
 
-/**
- * A User assigned to a Task. Matches the wire shape of the backend's
- * `UsersTaskResponse` (`GET /tasks/{taskID}/users`). Comparison against the
- * assign/remove endpoints is keyed by `user_id`.
- */
 export interface TaskAssignee {
   user_id: string;
   email: string;
@@ -43,12 +38,6 @@ export interface Task {
   description?: string;
   position: number;
   createdAt: string;
-  updatedAt: string;
-  /**
-   * Labels attached to this task. The board's task-list endpoint already
-   * embeds these (board-scoped), so we display them directly without
-   * additional per-task requests.
-   */
   labels?: Label[];
   assignees?: TaskAssignee[];
 }

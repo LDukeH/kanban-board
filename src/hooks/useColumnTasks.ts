@@ -116,7 +116,6 @@ export function useColumnTasks(
                       ...(data.description !== undefined
                         ? { description: data.description }
                         : {}),
-                      updatedAt: new Date().toISOString(),
                     }
                   : task,
               )

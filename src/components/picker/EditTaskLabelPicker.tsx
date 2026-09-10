@@ -22,7 +22,6 @@ interface EditTaskLabelPickerProps {
 
 /**
  * Multi-select label picker used inside EditTaskDialog.
- * Lets the user toggle labels on/off for the current task.
  */
 export function EditTaskLabelPicker({
   boardId,

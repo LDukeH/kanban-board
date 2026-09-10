@@ -158,7 +158,6 @@ function BoardContent({ boardId }: { boardId: string }) {
   });
   const [dragPointerY, setDragPointerY] = useState<number | null>(null);
 
-  /** Update the filter, remember it for this board, and mirror it into the URL. */
   const updateTaskFilter = useCallback(
     (next: TaskFilter) => {
       setTaskFilter(next);

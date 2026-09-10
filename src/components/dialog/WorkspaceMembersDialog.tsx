@@ -44,7 +44,6 @@ interface WorkspaceMembersDialogProps {
   workspaceId: string;
   /** Optional pre-rendered trigger. Defaults to a "Members" button. */
   trigger?: ReactElement;
-  /** Controlled open state (optional). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -69,7 +68,6 @@ function MemberRow({
   member: WorkspaceMember;
   isCurrentUser: boolean;
   canRemove: boolean;
-  /** Open the leave-workspace confirmation (current user's own row). */
   onLeave: (member: WorkspaceMember) => void;
   onRemove: (member: WorkspaceMember) => void;
   isRemoving: boolean;
@@ -215,15 +213,11 @@ export function WorkspaceMembersDialog({
       .catch(() => undefined);
   }
 
-  /** Own row: open the leave-workspace confirmation dialog. */
   function handleLeave() {
     setLeaveOpen(true);
   }
 
   function handleChangeRole(member: WorkspaceMember, role: WorkspaceRole) {
-    // Owners are outside the member ↔ admin toggle entirely, so they can
-    // never be demoted (the sole owner is additionally protected from
-    // removal). The backend authorizes regardless.
     if (member.role === "owner") return;
     setChangingRoleId(member.id);
     void changeRole({ membershipId: member.id, role })

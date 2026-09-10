@@ -14,9 +14,7 @@ const NAVIGATION_DELAY_MS = 150;
 
 /**
  * Briefly holds route switches before rendering the destination page.
- * Keeps the app from feeling "fake" when the local API responds instantly: every
- * navigation shows a short loading moment (the same skeleton loader the pages
- * already use) before the next route is mounted.
+ * Keeps the app from feeling "fake" when the local API responds instantly.
  */
 function PageTransition({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -29,7 +27,7 @@ function PageTransition({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   // Skip the brief loader when the path doesn't actually change (e.g. the
-    // initial render already consumed it, or a same-path re-render fires).
+  // initial render already consumed it, or a same-path re-render fires).
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;

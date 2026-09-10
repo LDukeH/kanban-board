@@ -33,19 +33,11 @@ interface TransferWorkspaceOwnershipDialogProps {
   workspaceId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called only after the backend returned 204. */
   onSuccess?: (member: WorkspaceMember) => void;
 }
 
 /**
  * Transfer ownership of the workspace to another member.
- *
- * The owner picks a target member from the dropdown, sees the consequence, and
- * explicitly confirms. The actual POST is only ever sent on confirm. The
- * request runs through `useTransferWorkspaceOwnership`, which invalidates the
- * workspace and member queries on success (no optimistic role changes). The
- * confirm action is disabled (with a hard submit lock) while the request is
- * pending so duplicate transfers can never be sent.
  */
 export function TransferWorkspaceOwnershipDialog({
   workspaceId,

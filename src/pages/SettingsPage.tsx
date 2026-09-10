@@ -5,10 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Settings, Sun, Moon, LogOut, Mail } from "lucide-react";
 
-/**
- * Small settings page: shows the signed-in account, the appearance (theme)
- * toggle, and a session sign-out action. The sidebar nav links here.
- */
 export default function SettingsPage() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useThemeStore();

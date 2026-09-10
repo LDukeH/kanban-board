@@ -11,22 +11,10 @@ export function taskAssigneesQueryKey(taskId: string) {
 }
 
 interface UseTaskAssigneesOptions {
-  /** Board that owns the task — used to invalidate the embedded task list. */
   boardId?: string;
-  /** Column that owns the task — used to invalidate the embedded task list. */
   columnId?: string;
 }
 
-/**
- * Task assignee state (the users assigned to a single task) plus mutations to
- * assign/unassign them. The candidate pool of assignable members is provided
- * separately by `useWorkspaceMembers`; this hook only tracks who is currently
- * assigned to the task via `GET /tasks/{taskID}/users`.
- *
- * When `boardId`/`columnId` are provided, assigning/unassigning also
- * invalidates the column's task list so task cards (which read `task.assignees`
- * embedded in that list) stay in sync.
- */
 export function useTaskAssignees(
   taskId: string | undefined,
   options?: UseTaskAssigneesOptions,

@@ -8,10 +8,6 @@ interface LabelColorPickerProps {
   disabled?: boolean;
 }
 
-/**
- * Swatch grid for choosing a label color. Includes a "no color" option.
- * Mirrors the Trello-style hex colors the backend accepts.
- */
 export function LabelColorPicker({
   value,
   onChange,

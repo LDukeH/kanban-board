@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { ListFilter, Search, X, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ListFilter, Search, X, Loader2, ArrowLeft } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -25,12 +24,8 @@ import {
   clearTaskFilter,
   isTaskFilterActive,
   taskFilterCount,
-  topLabelsByUsage,
   type TaskFilter,
 } from "@/lib/taskFilter";
-import type { Task } from "@/types/board";
-
-const QUICK_LABEL_LIMIT = 4;
 
 interface TaskFilterPopoverProps {
   filter: TaskFilter;
@@ -39,11 +34,29 @@ interface TaskFilterPopoverProps {
   workspaceId?: string;
 }
 
+function assigneeStateLabel(filter: TaskFilter): string {
+  const n = filter.assigneeEmails.length;
+  if (filter.hasNoAssignees) return "Unassigned";
+  if (n === 1) return "1 assignee";
+  if (n > 1) return `${n} assignees`;
+  return "All assignees";
+}
+
+function labelStateLabel(filter: TaskFilter): string {
+  const n = filter.labelNames.length;
+  if (filter.hasNoLabels) return "No labels";
+  if (n === 1) return "1 label";
+  if (n > 1) return `${n} labels`;
+  return "All labels";
+}
+
 /**
- * Board-level task filter, rendered as a single popover triggered by a filter
- * icon. Contains a top search bar (title / assignee email / label name) plus
- * Assignees and Labels sections, all inside a vertically scrollable panel.
- * The nested "pick assignees" / "all labels" menus are submenus.
+ * Board-level task filter, rendered as a single popover triggered from the
+ * header's "Filters" button. A top search bar searches tasks globally; the two
+ * rows below — Assignee and Label — expand into lightweight multi-select
+ * submenus. Each row doubles as the live filter state ("All assignees" →
+ * "2 assignees" / "Unassigned"), so there is no separate "0 assigned" status
+ * row to interpret.
  */
 export function TaskFilterPopover({
   filter,
@@ -55,34 +68,64 @@ export function TaskFilterPopover({
 
   const { labels } = useBoard(boardId);
   const membersQuery = useWorkspaceMembers(workspaceId);
-  const queryClient = useQueryClient();
-
-  // Gather every cached column task for this board to compute quick-label usage.
-  const boardTasks = useMemo(() => {
-    const tasks: Task[] = [];
-    queryClient
-      .getQueryCache()
-      .findAll({ queryKey: ["boards", boardId, "columns"] })
-      .filter(
-        (query) => query.queryKey.length === 5 && query.queryKey[4] === "tasks",
-      )
-      .forEach((query) => {
-        const data = queryClient.getQueryData<Task[]>(query.queryKey);
-        if (data) tasks.push(...data);
-      });
-    return tasks;
-  }, [queryClient, boardId]);
-
-  const quickLabels = useMemo(
-    () => topLabelsByUsage(boardTasks, QUICK_LABEL_LIMIT),
-    [boardTasks],
-  );
 
   const members = membersQuery.data ?? [];
   const isLoadingMembers =
     !!workspaceId && (membersQuery.isLoading || membersQuery.isFetching);
   const activeCount = taskFilterCount(filter);
   const filterActive = isTaskFilterActive(filter);
+
+  const assigneeActive =
+    filter.hasNoAssignees || filter.assigneeEmails.length > 0;
+  const labelActive = filter.hasNoLabels || filter.labelNames.length > 0;
+
+  const assigneeSummary = assigneeStateLabel(filter);
+  const labelSummary = labelStateLabel(filter);
+
+  const sortedLabels = useMemo(
+    () => [...labels].sort((a, b) => a.name.localeCompare(b.name)),
+    [labels],
+  );
+
+  // Trello-style search: while the query is non-empty it narrows the visible
+  // label/member options (case-insensitive substring match). It never mutates
+  // existing selections — it only controls visibility.
+  const query = filter.query.trim().toLowerCase();
+  const isSearching = query.length > 0;
+  const visibleLabels = useMemo(
+    () =>
+      isSearching
+        ? sortedLabels.filter((l) => l.name.toLowerCase().includes(query))
+        : sortedLabels,
+    [sortedLabels, isSearching, query],
+  );
+  const visibleMembers = useMemo(
+    () => {
+      const all = membersQuery.data ?? [];
+      return isSearching
+        ? all.filter((m) => m.email.toLowerCase().includes(query))
+        : all;
+    },
+    [membersQuery.data, isSearching, query],
+  );
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Autofocus the search input each time the popover opens (only on open —
+  // never steal focus back while the user interacts with filter controls).
+  useEffect(() => {
+    if (open) {
+      // Defer so the menu's own focus handling settles first.
+      const id = window.setTimeout(() => searchInputRef.current?.focus(), 0);
+      return () => window.clearTimeout(id);
+    }
+  }, [open]);
+
+  function clearSearch() {
+    onChange({ ...filter, query: "" });
+    // Keep the input focused so the user can immediately type again.
+    searchInputRef.current?.focus();
+  }
 
   function update(patch: Partial<TaskFilter>) {
     onChange({ ...filter, ...patch });
@@ -127,6 +170,7 @@ export function TaskFilterPopover({
           title="Filter tasks"
         >
           <ListFilter className="size-4" />
+          <span>Filters</span>
           {activeCount > 0 && (
             <span className="rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
               {activeCount}
@@ -140,11 +184,12 @@ export function TaskFilterPopover({
         className="w-72"
         style={{ maxHeight: "min(70vh, 480px)" }}
       >
-        {/* Search bar */}
+        {/* Global task search — also narrows the assignee/label options */}
         <div className="relative px-1 pb-1 pt-1.5">
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-8 pl-8"
+            ref={searchInputRef}
+            className="h-8 pl-8 pr-7"
             placeholder="Search title, assignee, label..."
             value={filter.query}
             onChange={(e) => onChange({ ...filter, query: e.target.value })}
@@ -152,30 +197,54 @@ export function TaskFilterPopover({
               e.stopPropagation();
             }}
           />
+          {filter.query.length > 0 && (
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              onMouseDown={(e) => {
+                // Prevent the input from losing focus before clearing.
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                clearSearch();
+              }}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
 
-        {/* Assignees */}
+        {/* Assignee */}
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Assignees</DropdownMenuLabel>
-          <DropdownMenuCheckboxItem
-            checked={filter.hasNoAssignees}
-            onCheckedChange={toggleNoAssignees}
-            closeOnClick={false}
-          >
-            <span className="text-sm">0 assigned</span>
-          </DropdownMenuCheckboxItem>
+          <DropdownMenuLabel>Assignee</DropdownMenuLabel>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span>Pick assignees…</span>
-                {filter.assigneeEmails.length > 0 && (
-                  <span className="rounded-full bg-primary/10 px-1.5 text-xs font-medium text-primary">
-                    {filter.assigneeEmails.length}
-                  </span>
-                )}
+                <span
+                  className={cn(assigneeActive && "font-medium text-primary")}
+                >
+                  {assigneeSummary}
+                </span>
               </span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-64">
+              <DropdownMenuLabel className="flex items-center gap-1.5">
+                <ArrowLeft className="size-3.5 text-muted-foreground" />
+                Assignee
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={filter.hasNoAssignees}
+                onCheckedChange={toggleNoAssignees}
+                closeOnClick={false}
+              >
+                <span className="text-sm">Unassigned</span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
               {isLoadingMembers ? (
                 <div className="flex justify-center py-4">
                   <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -214,45 +283,37 @@ export function TaskFilterPopover({
           </DropdownMenuSub>
         </DropdownMenuGroup>
 
-        {/* Labels */}
+        {/* Label */}
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Labels</DropdownMenuLabel>
-          <DropdownMenuCheckboxItem
-            checked={filter.hasNoLabels}
-            onCheckedChange={toggleNoLabels}
-            closeOnClick={false}
-          >
-            <span className="text-sm">0 labels</span>
-          </DropdownMenuCheckboxItem>
-          {quickLabels.map((label) => (
-            <DropdownMenuCheckboxItem
-              key={label.id}
-              checked={filter.labelNames.includes(label.name)}
-              onCheckedChange={() => toggleLabel(label.name)}
-              closeOnClick={false}
-              className="gap-2"
-            >
-              <LabelBadge label={label} className="flex-1 text-[11px]" />
-            </DropdownMenuCheckboxItem>
-          ))}
+          <DropdownMenuLabel>Label</DropdownMenuLabel>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span>All labels…</span>
-                {filter.labelNames.length > 0 && (
-                  <span className="rounded-full bg-primary/10 px-1.5 text-xs font-medium text-primary">
-                    {filter.labelNames.length}
-                  </span>
-                )}
+                <span className={cn(labelActive && "font-medium text-primary")}>
+                  {labelSummary}
+                </span>
               </span>
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="w-64">
-              {labels.length === 0 ? (
+              <DropdownMenuLabel className="flex items-center gap-1.5">
+                <ArrowLeft className="size-3.5 text-muted-foreground" />
+                Label
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={filter.hasNoLabels}
+                onCheckedChange={toggleNoLabels}
+                closeOnClick={false}
+              >
+                <span className="text-sm">No labels</span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              {sortedLabels.length === 0 ? (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">
                   No labels on this board yet.
                 </p>
               ) : (
-                labels.map((label) => (
+                sortedLabels.map((label) => (
                   <DropdownMenuCheckboxItem
                     key={label.id}
                     checked={filter.labelNames.includes(label.name)}
@@ -268,15 +329,82 @@ export function TaskFilterPopover({
           </DropdownMenuSub>
         </DropdownMenuGroup>
 
-        {filterActive && (
+        {/* Trello-style inline results: while the main keyword query is
+            non-empty, matching members/labels are shown directly in the main
+            popover body. The query only controls visibility — existing
+            selections are never mutated. */}
+        {isSearching && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onChange(clearTaskFilter())}>
-              <X className="size-3.5" />
-              Clear filters
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Members</DropdownMenuLabel>
+              {isLoadingMembers ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : visibleMembers.length === 0 ? (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                  No matching members.
+                </p>
+              ) : (
+                visibleMembers.map((member) => {
+                  const checked = filter.assigneeEmails.includes(member.email);
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={member.userId}
+                      checked={checked}
+                      onCheckedChange={() => toggleAssignee(member.email)}
+                      closeOnClick={false}
+                      className="gap-2"
+                    >
+                      <span
+                        className={cn(
+                          "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
+                          avatarGradient(member.userId || member.email),
+                        )}
+                      >
+                        {emailInitial(member.email)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {member.email}
+                      </span>
+                    </DropdownMenuCheckboxItem>
+                  );
+                })
+              )}
+            </DropdownMenuGroup>
+
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Labels</DropdownMenuLabel>
+              {visibleLabels.length === 0 ? (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                  No matching labels.
+                </p>
+              ) : (
+                visibleLabels.map((label) => (
+                  <DropdownMenuCheckboxItem
+                    key={label.id}
+                    checked={filter.labelNames.includes(label.name)}
+                    onCheckedChange={() => toggleLabel(label.name)}
+                    closeOnClick={false}
+                    className="gap-2"
+                  >
+                    <LabelBadge label={label} className="flex-1 text-[11px]" />
+                  </DropdownMenuCheckboxItem>
+                ))
+              )}
+            </DropdownMenuGroup>
           </>
         )}
+
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={!filterActive}
+          onClick={() => onChange(clearTaskFilter())}
+        >
+          <X className="size-3.5" />
+          Clear filters
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -22,11 +22,7 @@ interface BoardLabelsPopoverProps {
   boardId: string;
 }
 
-/**
- * Compact header button that opens a dropdown-menu for managing
- * board labels (view / create / edit / delete). Only visible to users
- * with label-management permission.
- */
+
 export function BoardLabelsPopover({ boardId }: BoardLabelsPopoverProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);

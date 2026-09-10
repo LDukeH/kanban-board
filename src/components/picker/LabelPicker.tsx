@@ -21,14 +21,13 @@ interface LabelPickerProps {
   task: Task;
 }
 
-/**
- * Reusable task-label picker. Only uses Labels belonging to the task's Board,
- * lets the user add/remove labels, and prevents duplicate assignment. Hidden
- * for users who cannot assign labels (backend remains authoritative).
- */
 export function LabelPicker({ boardId, task }: LabelPickerProps) {
-  const { board, labels, isLoadingLabels, isLabelsError, labelsError } = useBoard(boardId);
-  const { addLabelToTask, removeLabelFromTask } = useColumnTasks(boardId, task.columnId);
+  const { board, labels, isLoadingLabels, isLabelsError, labelsError } =
+    useBoard(boardId);
+  const { addLabelToTask, removeLabelFromTask } = useColumnTasks(
+    boardId,
+    task.columnId,
+  );
   const { canAssignLabels } = useWorkspaceAccess(board?.workspaceId);
 
   const [open, setOpen] = useState(false);
@@ -82,7 +81,9 @@ export function LabelPicker({ boardId, task }: LabelPickerProps) {
             <Loader2 className="size-4 animate-spin" />
           </div>
         ) : isLabelsError ? (
-          <p className="mt-4 text-xs text-destructive">{describeLoadError(labelsError)}</p>
+          <p className="mt-4 text-xs text-destructive">
+            {describeLoadError(labelsError)}
+          </p>
         ) : labels.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
             This board has no labels yet.
@@ -100,15 +101,21 @@ export function LabelPicker({ boardId, task }: LabelPickerProps) {
                   disabled={busy}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors",
-                    assigned ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted",
+                    assigned
+                      ? "border-primary/40 bg-primary/5"
+                      : "border-border hover:bg-muted",
                     busy && "opacity-60",
                   )}
                 >
                   <span
                     className="size-3 shrink-0 rounded-full"
-                    style={label.color ? { backgroundColor: label.color } : undefined}
+                    style={
+                      label.color ? { backgroundColor: label.color } : undefined
+                    }
                   />
-                  <span className="min-w-0 flex-1 truncate text-foreground">{label.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-foreground">
+                    {label.name}
+                  </span>
                   {busy ? (
                     <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
                   ) : assigned ? (

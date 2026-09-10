@@ -12,11 +12,7 @@ interface BoardLabelsProps {
   boardId: string;
 }
 
-/**
- * Board-scoped Label management strip (view / create / edit / delete).
- * Only shown to users who can manage Labels (Owner/Admin); the backend
- * remains authoritative.
- */
+
 export function BoardLabels({ boardId }: BoardLabelsProps) {
   const {
     board,

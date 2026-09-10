@@ -6,10 +6,6 @@ interface LabelBadgeProps {
   className?: string;
 }
 
-/**
- * Compact colored badge used to display a Label (board list + task cards).
- * Falls back to a muted outlined pill when the label has no color.
- */
 export function LabelBadge({ label, className }: LabelBadgeProps) {
   const hasColor = !!label.color;
   return (

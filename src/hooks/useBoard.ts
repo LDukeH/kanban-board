@@ -15,7 +15,6 @@ import {
 } from "@/lib/api/label.api";
 import type { Column, Label, Task } from "@/types/board";
 
-/** Query key for a board's label list. Board-scoped so each board caches independently. */
 export function boardLabelsQueryKey(boardId: string): readonly [
   "boards",
   string,
@@ -51,12 +50,7 @@ export function useBoard(boardId: string | undefined) {
     enabled: !!boardId,
   });
 
-  /**
-   * Walks every cached column-tasks list for this board and transforms the
-   * embedded label references within each task. This keeps TaskCards in sync
-   * when a label is renamed or deleted (the task-list endpoint embeds labels)
-   * without needing to refetch every column.
-   */
+ 
   function updateBoardTaskLabels(transform: (labels: Label[]) => Label[]) {
     if (!boardId) return;
     queryClient
@@ -74,11 +68,6 @@ export function useBoard(boardId: string | undefined) {
       });
   }
 
-  /**
-   * Refetches the board's column-task caches. Used on label mutation errors so
-   * embedded label data returns to server truth instead of staying stuck on
-   * the optimistic value.
-   */
   function invalidateBoardTasks() {
     if (!boardId) return;
     queryClient.invalidateQueries({

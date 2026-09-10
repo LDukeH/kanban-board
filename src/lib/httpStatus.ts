@@ -1,9 +1,5 @@
 import type { AxiosError } from "axios";
 
-/**
- * Returns the HTTP status code of a backend error, or undefined when the
- * error is not an HTTP response (e.g. network failure).
- */
 export function getHttpStatus(error: unknown): number | undefined {
   if (typeof error === "object" && error !== null && "isAxiosError" in error) {
     return (error as AxiosError).response?.status;
@@ -11,10 +7,6 @@ export function getHttpStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-/**
- * Returns a user-facing message for common backend authorization failures.
- * This is UX only; the backend remains the authority.
- */
 export function describeLoadError(error: unknown): string {
   const status = getHttpStatus(error);
   switch (status) {
@@ -29,13 +21,10 @@ export function describeLoadError(error: unknown): string {
   }
 }
 
-/**
- * Returns a user-facing message for a failed mutation. Backend errors are
- * plain-text `http.Error` bodies (not JSON), so prefer `response.data` when it
- * is a non-empty string. Network/server-unreachable failures get a dedicated
- * message. `fallback` is used when no backend message is available.
- */
-export function describeMutationError(error: unknown, fallback: string): string {
+export function describeMutationError(
+  error: unknown,
+  fallback: string,
+): string {
   if (typeof error === "object" && error !== null && "isAxiosError" in error) {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;

@@ -22,9 +22,6 @@ interface SidebarProps {
   className?: string;
 }
 
-/** Nav button used by the top nav, the recent lists, and the settings row.
- *  The currently viewed page gets an accent-colored left border; the root
- *  "Workspaces" entry is always bold so it reads as the clickable root. */
 function NavButton({
   label,
   icon,
@@ -68,7 +65,6 @@ function NavButton({
   );
 }
 
-/** The boards of the currently open workspace, shown under its name. */
 function WorkspaceBoardsNav({ workspaceId }: { workspaceId: string }) {
   const { boards, isLoading } = useBoards(workspaceId);
   const navigate = useNavigate();
@@ -272,7 +268,6 @@ export function Sidebar({ className }: SidebarProps) {
           onClick={() => navigate("/settings")}
         />
       </div>
-
-      </aside>
+    </aside>
   );
 }

@@ -6,10 +6,6 @@ import type {
   LoginFormSchema,
 } from "../validations/auth.schema";
 
-/**
- * Raw user shape returned by the Go API (snake_case).
- * The frontend uses camelCase, so we map at this API boundary.
- */
 interface UserApiResponse {
   id: string;
   email: string;

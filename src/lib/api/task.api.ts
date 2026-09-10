@@ -7,14 +7,6 @@ import {
 } from "./label.api";
 import type { Task, TaskAssignee } from "@/types/board";
 
-/**
- * Raw task shape returned by the Go API (snake_case).
- * The frontend uses camelCase, so we map at this API boundary.
- *
- * Note: the backend's `GetTasksByColumnID` already joins and embeds each
- * task's board labels (same shape as `LabelApiResponse`), so we map them
- * here instead of issuing per-task label requests.
- */
 interface TaskApiResponse {
   id: string;
   column_id: string;
@@ -35,7 +27,6 @@ function mapTask(raw: TaskApiResponse): Task {
     description: raw.description ?? undefined,
     position: raw.position,
     createdAt: raw.created_at,
-    updatedAt: raw.updated_at,
     labels: (raw.labels ?? []).map(mapLabel),
     assignees: (raw.assignees ?? []).map(mapAssignee),
   };
@@ -59,7 +50,6 @@ export const createTask = async (
   return mapTask(response.data);
 };
 
-/** Backend returns 204 No Content — no response body. */
 export const updateTask = async (
   taskId: string,
   data: { title?: string; description?: string },
@@ -67,7 +57,6 @@ export const updateTask = async (
   await api.patch(`/tasks/${taskId}`, data);
 };
 
-/** Backend returns 204 No Content — no response body. */
 export const updateTaskPosition = async (
   taskId: string,
   data: { columnId: string; position: number },
@@ -78,31 +67,22 @@ export const updateTaskPosition = async (
   });
 };
 
-/** Backend returns 204 No Content — no response body. */
 export const deleteTask = async (taskId: string): Promise<void> => {
   await api.delete(`/tasks/${taskId}`);
 };
 
-/**
- * Lists the users currently assigned to a task.
- * `GET /tasks/{taskID}/users` → UsersTaskResponse[] (`{ email, user_id }`).
- */
 export const getTaskAssignees = async (
   taskId: string,
 ): Promise<TaskAssignee[]> => {
   const response = await api.get<TaskAssignee[]>(`/tasks/${taskId}/users`);
   return response.data;
 };
-
-/** Assigns a workspace member to a task by their user id. Body: `{ user_id }`. */
 export const assignUserToTask = async (
   taskId: string,
   userId: string,
 ): Promise<void> => {
   await api.post(`/tasks/${taskId}/users`, { user_id: userId });
 };
-
-/** Removes a user from a task by their user id. Body: `{ user_id }`. */
 export const unassignUserFromTask = async (
   taskId: string,
   userId: string,

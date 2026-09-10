@@ -8,7 +8,6 @@ interface BoardGridProps {
   boards: Board[];
   canEdit?: boolean;
   canDelete?: boolean;
-  /** When set (with `canCreate`), a dashed "Create New Board" tile is appended. */
   workspaceId?: string;
   canCreate?: boolean;
   className?: string;

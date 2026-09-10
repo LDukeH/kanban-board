@@ -1,10 +1,6 @@
 import { api } from "./axios";
 import type { Column } from "@/types/board";
 
-/**
- * Raw column shape returned by the Go API (snake_case).
- * The frontend uses camelCase, so we map at this API boundary.
- */
 interface ColumnApiResponse {
   id: string;
   board_id: string;

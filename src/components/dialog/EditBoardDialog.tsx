@@ -19,7 +19,6 @@ import type { Board } from "@/types/board";
 interface EditBoardDialogProps {
   board: Board;
   trigger?: React.ReactElement;
-  /** Controlled open state (optional). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }

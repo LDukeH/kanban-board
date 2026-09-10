@@ -1,10 +1,6 @@
 import { api } from "./axios";
 import type { Board } from "@/types/board";
 
-/**
- * Raw board shape returned by the Go API (snake_case).
- * The frontend uses camelCase, so we map at this API boundary.
- */
 interface BoardApiResponse {
   id: string;
   workspace_id: string;
