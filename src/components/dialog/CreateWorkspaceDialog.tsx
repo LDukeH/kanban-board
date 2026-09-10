@@ -12,6 +12,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
+import { toast } from "react-toastify";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 
 interface CreateWorkspaceDialogProps {
@@ -33,13 +34,14 @@ export function CreateWorkspaceDialog({ trigger }: CreateWorkspaceDialogProps) {
     }
     setError(null);
     try {
-      await createWorkspace({
+      const created = await createWorkspace({
         name: name.trim(),
         description: description.trim() || undefined,
       });
       setName("");
       setDescription("");
       setOpen(false);
+      toast.success(`“${created.name}” created`);
     } catch (err) {
       setError("Failed to create workspace. Please try again.");
       console.error("Create workspace failed:", err);

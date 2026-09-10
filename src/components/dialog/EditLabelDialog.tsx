@@ -59,7 +59,10 @@ export function EditLabelDialog({
     }
     setError(null);
     try {
-      await updateLabel({ labelId: label.id, data: { name: name.trim(), color } });
+      await updateLabel({
+        labelId: label.id,
+        data: { name: name.trim(), color },
+      });
       setOpen(false);
     } catch (err) {
       setError("Failed to update label. Please try again.");

@@ -48,7 +48,7 @@ export function BoardCard({
             without the old two-tone color blocking. */}
         <div
           className={cn(
-            "flex h-16 items-center bg-gradient-to-br px-4",
+            "flex h-16 items-center bg-linear-to-br px-4",
             gradient,
           )}
         >
@@ -120,6 +120,7 @@ export function BoardCard({
         <ConfirmDeleteDialog
           title="Delete Board"
           description={`Are you sure you want to delete "${board.name}"? This will permanently delete all columns and tasks within this board.`}
+          successMessage={`Board “${board.name}” deleted`}
           onConfirm={() => deleteBoard(board.id)}
           isLoading={isDeletingBoard}
           open={deleteOpen}

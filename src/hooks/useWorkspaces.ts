@@ -8,6 +8,8 @@ import {
   createMembership,
   changeMemberRole,
   removeMember,
+  leaveWorkspace,
+  transferWorkspaceOwnership,
 } from "@/lib/api/workspace.api";
 import { searchUsersByEmail } from "@/lib/api/users.api";
 import type { Workspace, WorkspaceRole } from "@/types/workspace";
@@ -138,6 +140,72 @@ export function useWorkspaceMemberActions(workspaceId: string | undefined) {
     /** Remove a member by membership id. */
     removeMember: removeMemberMutation.mutateAsync,
     isRemoving: removeMemberMutation.isPending,
+  };
+}
+
+/**
+ * Remove the current user from a Workspace via the dedicated
+ * `DELETE /workspaces/{workspaceID}/memberships` endpoint. Unlike removing
+ * another member, the owner cannot leave this way — the backend blocks it (the
+ * UI additionally disables the Leave action for owners).
+ *
+ * On success the workspace list is invalidated (the left workspace disappears
+ * from the dashboard), all cached queries for the workspace are dropped, and
+ * the recent sidebar entry is forgotten.
+ */
+export function useLeaveWorkspace(workspaceId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  const leaveWorkspaceMutation = useMutation({
+    mutationFn: () => leaveWorkspace(workspaceId!),
+    onSuccess: () => {
+      // The workspace is no longer in this user's list; refetch it.
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      // Drop cached members/boards/columns/tasks for the left workspace.
+      queryClient.removeQueries({ queryKey: ["workspaces", workspaceId] });
+      // Drop the workspace (and its boards) from the recent sidebar list.
+      useRecentStore.getState().forgetWorkspace(workspaceId!);
+    },
+  });
+
+  return {
+    /** Leave the workspace (removes the current user's membership). */
+    leaveWorkspace: leaveWorkspaceMutation.mutateAsync,
+    isLeaving: leaveWorkspaceMutation.isPending,
+  };
+}
+
+/**
+ * Transfer workspace ownership to another member of the Workspace.
+ *
+ * The backend performs the demote/promote atomically in one request. On success
+ * the workspace list and the member list are invalidated so the UI immediately
+ * reflects the new owner/member roles (no optimistic role changes before the
+ * request returns).
+ */
+export function useTransferWorkspaceOwnership(
+  workspaceId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+
+  const transferOwnershipMutation = useMutation({
+    mutationFn: (newOwnerId: string) =>
+      transferWorkspaceOwnership(workspaceId!, newOwnerId),
+    onSuccess: () => {
+      // Refresh the workspace summary list, the current user's membership info
+      // (members query drives useWorkspaceAccess), and the workspace's members
+      // so the new owner badge and demoted current-user role appear.
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      queryClient.invalidateQueries({
+        queryKey: ["workspaces", workspaceId, "members"],
+      });
+    },
+  });
+
+  return {
+    /** Transfer ownership to another member by user id. */
+    transferOwnership: transferOwnershipMutation.mutateAsync,
+    isTransferring: transferOwnershipMutation.isPending,
   };
 }
 

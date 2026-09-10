@@ -5,7 +5,6 @@ import type { Column } from "@/types/board";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
 import { Feedback } from "@dnd-kit/dom";
-import { SortableKeyboardPlugin } from "@dnd-kit/dom/sortable";
 import { EditColumnDialog } from "@/components/dialog/EditColumnDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { CreateTaskDialog } from "@/components/dialog/CreateTaskDialog";
@@ -57,11 +56,12 @@ export function ColumnCard({
   const { ref, isDragging } = useSortable({
     id: column.id,
     index,
+    group: "columns",
     type: "column",
     accept: "column",
     collisionDetector: closestCenter,
-    plugins: [
-      SortableKeyboardPlugin,
+    plugins: (defaults) => [
+      ...defaults,
       Feedback.configure({ feedback: "clone" }),
     ],
     data: {
@@ -200,6 +200,7 @@ export function ColumnCard({
           onOpenChange={setIsDeleteDialogOpen}
           title="Delete Column"
           description={`Are you sure you want to delete "${column.name}"? This will permanently delete all tasks within this column.`}
+          successMessage={`Column “${column.name}” deleted`}
           onConfirm={() => deleteColumn(column.id)}
           isLoading={isDeletingColumn}
         />

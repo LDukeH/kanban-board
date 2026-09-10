@@ -174,3 +174,51 @@
     @apply font-sans;
   }
 }
+
+/* -------------------------------------------------------------------
+ * React-Toastify — route the toast tokens through the app design tokens.
+ * The `.dark` class lives on <html> and custom properties cascade, so a
+ * single "light" theme adapts to both light and dark modes automatically.
+ * ------------------------------------------------------------------- */
+:root {
+  --toastify-toast-width: 18rem;
+  --toastify-toast-bd-radius: var(--radius);
+  --toastify-toast-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --toastify-toast-padding: 10px;
+  --toastify-toast-min-height: 40px;
+  --toastify-font-family: var(--font-sans);
+  --toastify-color-light: var(--popover);
+  --toastify-text-color-light: var(--popover-foreground);
+  --toastify-color-info: #0ea5e9;
+  --toastify-color-success: #10b981;
+  --toastify-color-warning: #f59e0b;
+  --toastify-color-error: var(--destructive);
+  --toastify-color-progress-info: var(--toastify-color-info);
+  --toastify-color-progress-success: var(--toastify-color-success);
+  --toastify-color-progress-warning: var(--toastify-color-warning);
+  --toastify-color-progress-error: var(--toastify-color-error);
+  --toastify-color-progress-light: linear-gradient(
+    to right,
+    var(--toastify-color-info),
+    var(--toastify-color-success),
+    var(--toastify-color-warning),
+    var(--toastify-color-error)
+  );
+}
+
+/* The close glyph should follow the toast text color, not hardcoded black. */
+.Toastify__close-button--light {
+  color: currentColor;
+  opacity: 0.6;
+}
+
+/* Compact toasts: smaller body text and a slim status icon. */
+.Toastify__toast {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.Toastify__toast-icon {
+  width: 18px;
+  height: 18px;
+}

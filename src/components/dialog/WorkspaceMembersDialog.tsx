@@ -1,4 +1,6 @@
 import { useState, type ReactElement } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,7 +10,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { InviteWorkspaceMembersDialog } from "@/components/dialog/InviteWorkspaceMembersDialog";
+import { TransferWorkspaceOwnershipDialog } from "@/components/dialog/TransferWorkspaceOwnershipDialog";
+import { LeaveWorkspaceDialog } from "@/components/dialog/LeaveWorkspaceDialog";
 import {
+  useWorkspaces,
   useWorkspaceMembers,
   useWorkspaceMemberActions,
 } from "@/hooks/useWorkspaces";
@@ -24,6 +29,8 @@ import {
   UserMinus,
   ArrowUp,
   ArrowDown,
+  Crown,
+  LogOut,
 } from "lucide-react";
 import type { WorkspaceMember, WorkspaceRole } from "@/types/workspace";
 import {
@@ -52,6 +59,7 @@ function MemberRow({
   member,
   isCurrentUser,
   canRemove,
+  onLeave,
   onRemove,
   isRemoving,
   onChangeRole,
@@ -61,6 +69,8 @@ function MemberRow({
   member: WorkspaceMember;
   isCurrentUser: boolean;
   canRemove: boolean;
+  /** Open the leave-workspace confirmation (current user's own row). */
+  onLeave: (member: WorkspaceMember) => void;
   onRemove: (member: WorkspaceMember) => void;
   isRemoving: boolean;
   onChangeRole: (member: WorkspaceMember, role: WorkspaceRole) => void;
@@ -70,10 +80,15 @@ function MemberRow({
   const isOwner = member.role === "owner";
   const isAdmin = member.role === "admin";
 
-  // The action shown for the current user's own row: leave the workspace,
-  // disabled (and relabelled) when they are the owner.
+  // The action shown for the current user's own row: leave the workspace.
+  // Owners cannot use it — they must transfer ownership first (see the
+  // pinned "Transfer ownership" action) or delete the workspace. The backend
+  // enforces the same restriction.
   const ownActionDisabled = isOwner;
-  const ownActionLabel = isOwner ? "Remove from Workspace" : "Leave";
+  const ownActionLabel = "Leave";
+  const ownActionTitle = isOwner
+    ? "Owners cannot leave. Transfer ownership first."
+    : undefined;
 
   // Owner/Admin can promote/demote other non-owner members and remove anyone —
   // except the sole owner, who can never be removed or re-roled.
@@ -119,9 +134,10 @@ function MemberRow({
           size="sm"
           variant={ownActionDisabled ? "secondary" : "outline"}
           disabled={ownActionDisabled}
-          onClick={() => onRemove(member)}
+          onClick={() => onLeave(member)}
+          title={ownActionTitle}
         >
-          <UserMinus className="size-3.5" />
+          <LogOut className="size-3.5" />
           {ownActionLabel}
         </Button>
       )}
@@ -169,13 +185,22 @@ export function WorkspaceMembersDialog({
   const [internalOpen, setInternalOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? setControlledOpen : setInternalOpen;
 
   const { user } = useAuth();
-  const { canManageMembers } = useWorkspaceAccess(workspaceId);
+  const { canManageMembers, isOwner } = useWorkspaceAccess(workspaceId);
+  const navigate = useNavigate();
+  const { workspaces } = useWorkspaces();
+  const workspace = workspaces.find((w) => w.id === workspaceId);
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen?.(nextOpen);
+  }
   const membersQuery = useWorkspaceMembers(workspaceId);
   const { removeMember, isRemoving, changeRole } =
     useWorkspaceMemberActions(workspaceId);
@@ -184,8 +209,15 @@ export function WorkspaceMembersDialog({
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
   function handleRemove(member: WorkspaceMember) {
-    // Remove self (leave) or remove another member; the backend authorizes.
-    void removeMember(member.id).catch(() => undefined);
+    // Removing another member; managed by owner/admin. The backend authorizes.
+    void removeMember(member.id)
+      .then(() => toast.success(`Removed ${emailToHandle(member.email)}`))
+      .catch(() => undefined);
+  }
+
+  /** Own row: open the leave-workspace confirmation dialog. */
+  function handleLeave() {
+    setLeaveOpen(true);
   }
 
   function handleChangeRole(member: WorkspaceMember, role: WorkspaceRole) {
@@ -195,13 +227,16 @@ export function WorkspaceMembersDialog({
     if (member.role === "owner") return;
     setChangingRoleId(member.id);
     void changeRole({ membershipId: member.id, role })
+      .then(() =>
+        toast.success(`Role changed to ${roleLabel(role).toLowerCase()}`),
+      )
       .catch((err) => console.error("Role change failed:", err))
       .finally(() => setChangingRoleId(null));
   }
 
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         {trigger && <DialogTrigger render={trigger} />}
         <DialogPopup className="max-w-2xl">
           <div className="flex items-center gap-2 pr-8">
@@ -252,6 +287,7 @@ export function WorkspaceMembersDialog({
                     member={member}
                     isCurrentUser={member.userId === user?.id}
                     canRemove={canManageMembers}
+                    onLeave={handleLeave}
                     onRemove={handleRemove}
                     isRemoving={isRemoving}
                     onChangeRole={handleChangeRole}
@@ -262,6 +298,21 @@ export function WorkspaceMembersDialog({
               </ul>
             )}
           </div>
+
+          {/* Owner-only transfer action, pinned below the scrollable member
+              list so it stays visible no matter how many members there are. */}
+          {isOwner && (
+            <div className="mt-4 border-t border-border pt-3">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setTransferOpen(true)}
+              >
+                <Crown className="size-4" />
+                Transfer ownership
+              </Button>
+            </div>
+          )}
         </DialogPopup>
       </Dialog>
 
@@ -270,6 +321,27 @@ export function WorkspaceMembersDialog({
           workspaceId={workspaceId}
           open={inviteOpen}
           onOpenChange={setInviteOpen}
+        />
+      )}
+
+      {transferOpen && (
+        <TransferWorkspaceOwnershipDialog
+          workspaceId={workspaceId}
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          onSuccess={(target) => {
+            setTransferOpen(false);
+            toast.success(`Ownership transferred to ${target.email}`);
+          }}
+        />
+      )}
+
+      {leaveOpen && workspace && (
+        <LeaveWorkspaceDialog
+          workspace={workspace}
+          open={leaveOpen}
+          onOpenChange={setLeaveOpen}
+          onLeft={() => navigate("/workspaces")}
         />
       )}
     </>

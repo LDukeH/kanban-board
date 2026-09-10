@@ -11,7 +11,8 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Pencil, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { toast } from "react-toastify";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import type { Workspace } from "@/types/workspace";
 
@@ -63,7 +64,7 @@ export function EditWorkspaceDialog({
     }
     setError(null);
     try {
-      await updateWorkspace({
+      const updated = await updateWorkspace({
         workspaceId: workspace.id,
         data: {
           name: name.trim(),
@@ -71,6 +72,7 @@ export function EditWorkspaceDialog({
         },
       });
       setOpen(false);
+      toast.success(`“${updated.name}” updated`);
     } catch (err) {
       setError("Failed to update workspace. Please try again.");
       console.error("Update workspace failed:", err);
@@ -79,15 +81,7 @@ export function EditWorkspaceDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          trigger ?? (
-            <Button variant="ghost" size="icon-xs" className="text-white">
-              <Pencil className="size-3" />
-            </Button>
-          )
-        }
-      />
+      {trigger && <DialogTrigger render={trigger} />}
       <DialogPopup>
         <DialogTitle>Edit Workspace</DialogTitle>
         <DialogDescription>

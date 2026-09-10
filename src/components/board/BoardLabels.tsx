@@ -56,6 +56,7 @@ export function BoardLabels({ boardId }: BoardLabelsProps) {
                 <ConfirmDeleteDialog
                   title="Delete Label"
                   description={`Are you sure you want to delete "${label.name}"? It will be removed from every task on this board.`}
+                  successMessage={`Label “${label.name}” deleted`}
                   onConfirm={() => deleteLabel(label.id)}
                   isLoading={isDeletingLabel}
                   trigger={

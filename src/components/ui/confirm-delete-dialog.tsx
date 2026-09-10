@@ -9,12 +9,15 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
+import { toast } from "react-toastify";
 
 interface ConfirmDeleteDialogProps {
   title: string;
   description: string;
   confirmText?: string;
   cancelText?: string;
+  /** Compact toast shown when the deletion succeeds (flow end). */
+  successMessage?: string;
   onConfirm: () => Promise<void>;
   isLoading?: boolean;
   trigger?: ReactElement;
@@ -27,6 +30,7 @@ export function ConfirmDeleteDialog({
   description,
   confirmText = "Delete",
   cancelText = "Cancel",
+  successMessage,
   onConfirm,
   isLoading = false,
   trigger,
@@ -38,12 +42,7 @@ export function ConfirmDeleteDialog({
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
 
-  const [error, setError] = useState<string | null>(null);
-
   const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) {
-      setError(null);
-    }
     if (isControlled) {
       setControlledOpen?.(nextOpen);
     } else {
@@ -53,12 +52,14 @@ export function ConfirmDeleteDialog({
 
   async function handleConfirm(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     try {
       await onConfirm();
       handleOpenChange(false);
+      if (successMessage) {
+        toast.success(successMessage);
+      }
     } catch (err) {
-      setError("Failed to delete. Please try again.");
+      toast.error("Failed to delete. Please try again.");
       console.error("Delete failed:", err);
     }
   }
@@ -70,7 +71,6 @@ export function ConfirmDeleteDialog({
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{description}</DialogDescription>
         <form onSubmit={handleConfirm} className="mt-4 flex flex-col gap-4">
-          {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="ghost" />}>
               {cancelText}

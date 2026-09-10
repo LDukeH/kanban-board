@@ -11,7 +11,8 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Pencil, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { toast } from "react-toastify";
 import { useBoards } from "@/hooks/useBoards";
 import type { Board } from "@/types/board";
 
@@ -63,7 +64,7 @@ export function EditBoardDialog({
     }
     setError(null);
     try {
-      await updateBoard({
+      const updated = await updateBoard({
         boardId: board.id,
         data: {
           name: name.trim(),
@@ -71,6 +72,7 @@ export function EditBoardDialog({
         },
       });
       setOpen(false);
+      toast.success(`“${updated.name}” updated`);
     } catch (err) {
       setError("Failed to update board. Please try again.");
       console.error("Update board failed:", err);
@@ -79,15 +81,7 @@ export function EditBoardDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger
-        render={
-          trigger ?? (
-            <Button variant="ghost" size="icon-xs" className="text-white">
-              <Pencil className="size-3" />
-            </Button>
-          )
-        }
-      />
+      {trigger && <DialogTrigger render={trigger} />}
       <DialogPopup>
         <DialogTitle>Edit Board</DialogTitle>
         <DialogDescription>

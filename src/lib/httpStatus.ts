@@ -28,3 +28,30 @@ export function describeLoadError(error: unknown): string {
       return "Something went wrong while loading.";
   }
 }
+
+/**
+ * Returns a user-facing message for a failed mutation. Backend errors are
+ * plain-text `http.Error` bodies (not JSON), so prefer `response.data` when it
+ * is a non-empty string. Network/server-unreachable failures get a dedicated
+ * message. `fallback` is used when no backend message is available.
+ */
+export function describeMutationError(error: unknown, fallback: string): string {
+  if (typeof error === "object" && error !== null && "isAxiosError" in error) {
+    const axiosError = error as AxiosError;
+    const status = axiosError.response?.status;
+    if (status === 401) {
+      return axiosError.response?.data
+        ? String(axiosError.response.data)
+        : "Your session has expired. Please sign in again.";
+    }
+    const body = axiosError.response?.data;
+    if (typeof body === "string" && body.trim().length > 0) {
+      return body;
+    }
+    if (!axiosError.response) {
+      // No HTTP response received — network / server unreachable.
+      return "Could not reach the server. Check your connection and try again.";
+    }
+  }
+  return fallback;
+}

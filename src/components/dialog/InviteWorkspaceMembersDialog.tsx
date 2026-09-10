@@ -27,6 +27,7 @@ import {
   emailToHandle,
   avatarGradient,
 } from "@/lib/memberDisplay";
+import { toast } from "react-toastify";
 
 interface InviteWorkspaceMembersDialogProps {
   workspaceId: string;
@@ -43,7 +44,6 @@ export function InviteWorkspaceMembersDialog({
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<SearchedUser[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   const search = useSearchUsers(query);
   const membersQuery = useWorkspaceMembers(workspaceId);
@@ -74,7 +74,6 @@ export function InviteWorkspaceMembersDialog({
 
   async function handleAdd() {
     if (selected.length === 0) return;
-    setError(null);
     try {
       await Promise.all(
         selected.map((user) =>
@@ -82,8 +81,9 @@ export function InviteWorkspaceMembersDialog({
         ),
       );
       onOpenChange(false);
+      toast.success(`Invited ${selected.length} member${selected.length === 1 ? "" : "s"}`);
     } catch (err) {
-      setError("Failed to invite members. Please try again.");
+      toast.error("Failed to invite members. Please try again.");
       console.error("Invite members failed:", err);
     }
   }
@@ -171,10 +171,6 @@ return (
             </ul>
           )}
         </div>
-
-        {error && (
-          <p className="mt-3 text-xs text-destructive">{error}</p>
-        )}
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">

@@ -133,6 +133,7 @@ export function WorkspaceCard({
         <ConfirmDeleteDialog
           title="Delete Workspace"
           description={`Are you sure you want to delete "${workspace.name}"? This will permanently delete all boards, columns, and tasks within this workspace.`}
+          successMessage={`Workspace “${workspace.name}” deleted`}
           onConfirm={() => deleteWorkspace(workspace.id)}
           isLoading={isDeleting}
           open={deleteOpen}

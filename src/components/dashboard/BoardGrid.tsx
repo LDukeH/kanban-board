@@ -44,7 +44,7 @@ export function BoardGrid({
           trigger={
             <button
               type="button"
-              className="flex max-h-32 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-card/40 text-muted-foreground transition-all duration-200 hover:-translate-y-1 hover:border-primary/50 hover:text-primary hover:shadow-md"
+              className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-card/40 text-muted-foreground transition-all duration-200 hover:-translate-y-1 hover:border-primary/50 hover:text-primary hover:shadow-md"
             >
               <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Plus className="size-6" />

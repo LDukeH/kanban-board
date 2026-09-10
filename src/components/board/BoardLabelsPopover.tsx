@@ -132,6 +132,7 @@ export function BoardLabelsPopover({ boardId }: BoardLabelsPopoverProps) {
         <ConfirmDeleteDialog
           title="Delete Label"
           description={`Are you sure you want to delete "${labels.find((l) => l.id === deletingLabelId)?.name}"? It will be removed from every task on this board.`}
+          successMessage={`Label “${labels.find((l) => l.id === deletingLabelId)?.name}” deleted`}
           onConfirm={() => deleteLabel(deletingLabelId)}
           isLoading={isDeletingLabel}
           open={!!deletingLabelId}

@@ -116,3 +116,34 @@ export const removeMember = async (
 ): Promise<void> => {
   await api.delete(`/workspaces/${workspaceId}/members/${membershipId}`);
 };
+
+/**
+ * Remove the current user's membership via the dedicated
+ * `DELETE /workspaces/{workspaceID}/memberships` route. Unlike removing
+ * another member (`removeMember`), this only ever targets the authenticated
+ * user, so no membership id is needed. The backend rejects owners — they must
+ * transfer ownership or delete the workspace before they can leave.
+ */
+export const leaveWorkspace = async (workspaceId: string): Promise<void> => {
+  await api.delete(`/workspaces/${workspaceId}/memberships`);
+};
+
+/**
+ * Transfer workspace ownership to another member. The backend performs the
+ * demote (old owner → member) / promote (target → owner) transactionally in a
+ * single request and returns `204 No Content`. Only `204` is treated as
+ * success — any other status means the transfer did not happen.
+ */
+export const transferWorkspaceOwnership = async (
+  workspaceId: string,
+  newOwnerId: string,
+): Promise<void> => {
+  const response = await api.post(
+    `/workspaces/${workspaceId}/transfer-ownership`,
+    { new_owner_id: newOwnerId },
+  );
+  // The backend returns 204 No Content with no body. Treat only that as success.
+  if (response.status !== 204) {
+    throw new Error(`Unexpected status ${response.status}`);
+  }
+};
