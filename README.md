@@ -37,9 +37,10 @@ VITE_API_URL=http://localhost:3000
 ```
 
 `VITE_API_URL` is read by the axios client (`src/lib/api/axios.ts`) and used
-verbatim as the base URL — point it at the backend and include any `/api/v1`
-prefix the backend is mounted under. Auth is cookie-based (HTTP-only cookie),
-which is why the client sets `withCredentials: true`.
+verbatim as the base URL — the backend serves all routes from the root (there
+is no `/api/v1` prefix), so point it directly at the server root. Auth is
+cookie-based (HTTP-only cookie), which is why the client sets
+`withCredentials: true`.
 
 ## Development
 
