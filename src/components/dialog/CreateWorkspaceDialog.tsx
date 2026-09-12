@@ -14,6 +14,7 @@ import {
 import { Plus, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useRecentStore } from "@/stores/recentStore";
 
 interface CreateWorkspaceDialogProps {
   trigger?: React.ReactElement;
@@ -21,6 +22,7 @@ interface CreateWorkspaceDialogProps {
 
 export function CreateWorkspaceDialog({ trigger }: CreateWorkspaceDialogProps) {
   const { createWorkspace, isCreating } = useWorkspaces();
+  const { recordWorkspace } = useRecentStore();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -38,6 +40,9 @@ export function CreateWorkspaceDialog({ trigger }: CreateWorkspaceDialogProps) {
         name: name.trim(),
         description: description.trim() || undefined,
       });
+      // Surface the new workspace in the sidebar's Recent Workspaces right
+      // away, without waiting for the user to open it.
+      recordWorkspace({ id: created.id, name: created.name });
       setName("");
       setDescription("");
       setOpen(false);

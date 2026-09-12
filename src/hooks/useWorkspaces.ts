@@ -53,6 +53,11 @@ export function useWorkspaces() {
             )
           : [updatedWorkspace],
       );
+      // Refresh the workspace's name in the sidebar's Recent Workspaces
+      // (no-op if it is not listed).
+      useRecentStore
+        .getState()
+        .renameWorkspace(updatedWorkspace.id, updatedWorkspace.name);
     },
   });
 

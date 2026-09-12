@@ -5,6 +5,9 @@ import {
   type AssigneeApiResponse,
   type LabelApiResponse,
 } from "./label.api";
+import { getBoardColumns } from "./column.api";
+import { getBoards } from "./board.api";
+import { getWorkspaces } from "./workspace.api";
 import type { Task, TaskAssignee } from "@/types/board";
 
 interface TaskApiResponse {
@@ -88,4 +91,45 @@ export const unassignUserFromTask = async (
   userId: string,
 ): Promise<void> => {
   await api.delete(`/tasks/${taskId}/users`, { data: { user_id: userId } });
+};
+
+/** Session-scoped cache: taskId -> owning boardId (undefined = unresolvable). */
+const taskBoardCache = new Map<string, string | undefined>();
+
+/**
+ * Resolve the board that owns a task through the normal board/column/task
+ * endpoints (notification payloads carry only a task id). Session-cached.
+ */
+export const findBoardIdForTask = async (
+  taskId: string,
+): Promise<string | undefined> => {
+  if (taskBoardCache.has(taskId)) {
+    return taskBoardCache.get(taskId);
+  }
+
+  try {
+    const workspaces = await getWorkspaces();
+    for (const workspace of workspaces) {
+      const boards = await getBoards(workspace.id);
+      for (const board of boards) {
+        const columns = await getBoardColumns(board.id);
+        const taskLists = await Promise.all(
+          columns.map((column) => getColumnTasks(column.id)),
+        );
+        if (
+          taskLists.some((tasks) =>
+            tasks.some((task) => task.id === taskId),
+          )
+        ) {
+          taskBoardCache.set(taskId, board.id);
+          return board.id;
+        }
+      }
+    }
+  } catch {
+    // Treat any failure as unresolvable.
+  }
+
+  taskBoardCache.set(taskId, undefined);
+  return undefined;
 };

@@ -30,6 +30,13 @@ export function useBoards(workspaceId: string | undefined) {
         ["workspaces", workspaceId, "boards"],
         (old) => (old ? [...old, newBoard] : [newBoard]),
       );
+      // Surface the new board at the top of the sidebar's Recent Boards,
+      // the same way a visited board would be recorded.
+      useRecentStore.getState().recordBoard({
+        id: newBoard.id,
+        name: newBoard.name,
+        workspaceId: newBoard.workspaceId,
+      });
     },
   });
 
@@ -55,6 +62,9 @@ export function useBoards(workspaceId: string | undefined) {
         ["boards", updatedBoard.id],
         updatedBoard,
       );
+      // Refresh the board's name in the sidebar's Recent Boards (no-op if it
+      // is not listed).
+      useRecentStore.getState().renameBoard(updatedBoard.id, updatedBoard.name);
     },
   });
 

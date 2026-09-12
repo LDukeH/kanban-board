@@ -6,15 +6,13 @@ import {
   LayoutGrid,
   Plus,
   FolderKanban,
-  SquareKanban,
-  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRecentStore } from "@/stores/recentStore";
-import { useBoards } from "@/hooks/useBoards";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { useNavigate, useLocation } from "react-router-dom";
 import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
 
@@ -65,53 +63,6 @@ function NavButton({
   );
 }
 
-function WorkspaceBoardsNav({ workspaceId }: { workspaceId: string }) {
-  const { boards, isLoading } = useBoards(workspaceId);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { recentWorkspaces } = useRecentStore();
-  const workspace = recentWorkspaces.find((w) => w.id === workspaceId);
-
-  return (
-    <div className="mt-4">
-      <div className="mb-2 flex items-center justify-between gap-2 px-2">
-        <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          <FolderKanban className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate">{workspace?.name ?? "Workspace"}</span>
-        </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {isLoading ? "…" : boards.length}
-        </span>
-      </div>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-4 text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-        </div>
-      ) : boards.length === 0 ? (
-        <p className="px-2 py-2 text-xs text-muted-foreground">
-          No boards yet. To create one, open this workspace and use "New Board".
-        </p>
-      ) : (
-        <nav className="space-y-0.5">
-          {boards.map((board) => (
-            <NavButton
-              key={board.id}
-              label={board.name}
-              active={location.pathname === `/boards/${board.id}`}
-              onClick={() => navigate(`/boards/${board.id}`)}
-              className="pl-4"
-              leading={
-                <span className="size-2 shrink-0 rounded-full bg-primary" />
-              }
-            />
-          ))}
-        </nav>
-      )}
-    </div>
-  );
-}
-
 export function Sidebar({ className }: SidebarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -119,10 +70,10 @@ export function Sidebar({ className }: SidebarProps) {
   const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
   const { recentWorkspaces, recentBoards } = useRecentStore();
 
-  // The workspace whose boards the sidebar shows. Derived from the route so
-  // the section mirrors what the user is actually viewing: a workspace page
-  // resolves directly, a board page resolves through the board's recorded
-  // workspace (falling back to the last opened workspace while it loads).
+  // The workspace the boards section is scoped to. Derived from the route so
+  // it mirrors what the user is actually viewing: a workspace page resolves
+  // directly, a board page resolves through the board's recorded workspace
+  // (falling back to the last opened workspace while it loads).
   const activeWorkspaceId = (() => {
     if (location.pathname.startsWith("/workspaces/")) {
       return location.pathname.split("/")[2];
@@ -137,6 +88,15 @@ export function Sidebar({ className }: SidebarProps) {
     return null;
   })();
 
+  // Recent boards are tied to the workspace being viewed — never an
+  // account-wide list — so only that workspace's entries are rendered.
+  const activeWorkspaceBoards = activeWorkspaceId
+    ? recentBoards.filter((board) => board.workspaceId === activeWorkspaceId)
+    : [];
+  const activeWorkspaceName =
+    recentWorkspaces.find((w) => w.id === activeWorkspaceId)?.name ??
+    "Workspace";
+
   return (
     <aside
       className={cn(
@@ -145,13 +105,16 @@ export function Sidebar({ className }: SidebarProps) {
       )}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-5 py-4">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
-          <Kanban className="size-4" />
+      <div className="flex items-center justify-between gap-2.5 px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
+            <Kanban className="size-4" />
+          </div>
+          <span className="text-base font-semibold tracking-tight">
+            Kanban Board
+          </span>
         </div>
-        <span className="text-base font-semibold tracking-tight">
-          Kanban Board
-        </span>
+        <NotificationBell className="ml-auto" />
       </div>
 
       {/* Navigation */}
@@ -209,25 +172,29 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
         )}
 
-        {/* Boards: the open workspace's boards, or recent boards as a fallback
-            when no workspace is open (root /workspaces or /settings). */}
-        {activeWorkspaceId ? (
-          <WorkspaceBoardsNav workspaceId={activeWorkspaceId} />
-        ) : recentBoards.length > 0 ? (
+        {/* Boards: recent boards of the workspace being viewed — same recents
+            logic as Recent Workspaces, scoped to that workspace. The list is
+            capped at RECENT_LIMIT entries for the workspace: opening a board
+            that is not listed yet pushes it to the top and evicts the
+            workspace's oldest entry; already-listed boards keep their
+            position. BoardPage records each visit, deletions forget their
+            entry, renames update names in place. */}
+        {activeWorkspaceId && activeWorkspaceBoards.length > 0 && (
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between px-2">
-              <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <SquareKanban className="size-3.5 text-muted-foreground" />
-                Recent Boards
+            <div className="mb-2 flex items-center justify-between gap-2 px-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <FolderKanban className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{activeWorkspaceName}</span>
               </span>
             </div>
             <nav className="space-y-0.5">
-              {recentBoards.map((board) => (
+              {activeWorkspaceBoards.map((board) => (
                 <NavButton
                   key={board.id}
                   label={board.name}
                   active={location.pathname === `/boards/${board.id}`}
                   onClick={() => navigate(`/boards/${board.id}`)}
+                  className="pl-4"
                   leading={
                     <span className="size-2 shrink-0 rounded-full bg-primary" />
                   }
@@ -235,7 +202,7 @@ export function Sidebar({ className }: SidebarProps) {
               ))}
             </nav>
           </div>
-        ) : null}
+        )}
       </div>
 
       {/* Bottom: Account + Settings */}
