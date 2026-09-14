@@ -1,10 +1,9 @@
-import { useState } from "react";
+﻿import { Fragment, useState } from "react";
 import { cn } from "@/lib/utils";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import type { Column } from "@/types/board";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
-import { Feedback } from "@dnd-kit/dom";
 import { EditColumnDialog } from "@/components/dialog/EditColumnDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { CreateTaskDialog } from "@/components/dialog/CreateTaskDialog";
@@ -17,12 +16,30 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useBoard } from "@/hooks/useBoard";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
-import { useDroppable } from "@dnd-kit/react";
+import { useDragDropManager, useDroppable } from "@dnd-kit/react";
+import { useComputed } from "@dnd-kit/react/hooks";
+import {
+  collectColumnTaskEntries,
+  countTasksAbovePointer,
+} from "@/lib/dragDrop";
 import {
   isTaskFilterActive,
   matchesTaskFilter,
   type TaskFilter,
 } from "@/lib/taskFilter";
+
+/** Empty card-sized slot that "pushes" a column's tasks apart while a task
+ * from another column is dragged over them so the landing spot is obvious. */
+function TaskDropPlaceholder() {
+  return (
+    <div
+      aria-hidden
+      className="flex min-h-10 items-center justify-center rounded-lg border-2 border-dashed border-primary/40 bg-primary/5"
+    >
+      <span className="h-0.5 w-6 rounded-full bg-primary/40" />
+    </div>
+  );
+}
 
 interface ColumnCardProps {
   column: Column;
@@ -35,7 +52,6 @@ interface ColumnCardProps {
   canDeleteTask?: boolean;
   /** Active board-level task filter; when set only matching tasks render. */
   filter?: TaskFilter;
-  dragPointerY?: number | null;
 }
 
 export function ColumnCard({
@@ -48,7 +64,6 @@ export function ColumnCard({
   canEditTask = false,
   canDeleteTask = false,
   filter,
-  dragPointerY = null,
 }: ColumnCardProps) {
   const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
   const { tasks, isLoadingTasks } = useColumnTasks(column.boardId, column.id);
@@ -60,10 +75,10 @@ export function ColumnCard({
     type: "column",
     accept: "column",
     collisionDetector: closestCenter,
-    plugins: (defaults) => [
-      ...defaults,
-      Feedback.configure({ feedback: "clone" }),
-    ],
+    // Columns use the library defaults (keyboard support + optimistic
+    // sorting); the DragOverlay renders the drag preview, so no extra
+    // feedback config is needed. Column dragging stays gated behind canEdit.
+    disabled: !canEdit ? { draggable: true } : false,
     data: {
       type: "column",
       columnId: column.id,
@@ -89,6 +104,39 @@ export function ColumnCard({
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // While a task from ANOTHER column is dragged over this column, compute the
+  // live insertion index from the pointer so an in-list placeholder can "push"
+  // this column's tasks apart and preview exactly where the task will land.
+  // This deliberately keeps cross-column task cards as non-targets: letting
+  // dnd-kit's sortable run across columns would physically reparent the card
+  // into this column's DOM, which conflicts with React's reconciliation
+  // ("node to be removed is not a child of this node"). The placeholder only
+  // re-renders this column's list, and the index matches the one the board
+  // drop handler computes on drop.
+  const manager = useDragDropManager();
+  const { value: foreignTaskInsertionIndex } = useComputed(() => {
+    if (!manager) return -1;
+
+    const source = manager.dragOperation.source;
+    const target = manager.dragOperation.target;
+    if (
+      source?.data?.type !== "task" ||
+      target?.data?.type !== "task-container"
+    ) {
+      return -1;
+    }
+
+    const sourceColumnId = String(source.data.columnId ?? "");
+    const targetColumnId = String(target.data.columnId ?? target.id ?? "");
+    if (!sourceColumnId || sourceColumnId === column.id) return -1;
+    if (targetColumnId !== column.id) return -1;
+
+    return countTasksAbovePointer(
+      collectColumnTaskEntries(manager, column.id),
+      manager.dragOperation.position.current.y,
+    );
+  }, [manager, column.id]);
 
   return (
     <div
@@ -160,21 +208,35 @@ export function ColumnCard({
             <Loader2 className="size-4 animate-spin" />
           </div>
         ) : visibleTasks.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-            {filterActive ? "No matching tasks" : "No tasks yet"}
-          </p>
+          foreignTaskInsertionIndex >= 0 ? (
+            <TaskDropPlaceholder />
+          ) : (
+            <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+              {filterActive ? "No matching tasks" : "No tasks yet"}
+            </p>
+          )
         ) : (
-          visibleTasks.map((task, index) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              boardId={column.boardId}
-              canEdit={canEditTask}
-              canDelete={canDeleteTask}
-              index={index}
-              dragPointerY={dragPointerY}
-            />
-          ))
+          <>
+            {visibleTasks.map((task, index) => (
+              <Fragment key={task.id}>
+                {foreignTaskInsertionIndex === index && (
+                  <TaskDropPlaceholder />
+                )}
+                <TaskCard
+                  task={task}
+                  boardId={column.boardId}
+                  canEdit={canEditTask}
+                  canDelete={canDeleteTask}
+                  draggable={canEditTask}
+                  index={index}
+                />
+              </Fragment>
+            ))}
+
+            {foreignTaskInsertionIndex >= visibleTasks.length && (
+              <TaskDropPlaceholder />
+            )}
+          </>
         )}
       </div>
 

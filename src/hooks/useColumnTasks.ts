@@ -1,13 +1,21 @@
-﻿import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+﻿import { useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTask,
   deleteTask,
   getColumnTasks,
   updateTask,
   updateTaskPosition,
+  type CreateTaskData,
+  type UpdateTaskData,
 } from "@/lib/api/task.api";
 import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
 import { boardLabelsQueryKey } from "@/hooks/useBoard";
+import {
+  insertTaskIntoColumn,
+  orderTasksByPosition,
+  removeTaskFromColumn,
+} from "@/lib/dragDrop";
 import type { Label, Task } from "@/types/board";
 
 type PendingTaskMove = {
@@ -18,7 +26,89 @@ type PendingTaskMove = {
   position: number;
 };
 
+// In-memory record of position moves that are still being confirmed by the
+// server. Kept per task (a task only ever has one in-flight move) so a refetch
+// that resolves before the PATCH lands cannot clobber an optimistically placed
+// task. Used by the query functions to reconcile server responses.
 const pendingTaskMoves = new Map<string, PendingTaskMove>();
+
+// Durable copy of in-flight positions so a drop that already looked successful
+// is re-applied if the page is (re)loaded before the PATCH finishes.
+const pendingTaskMoveStorageKey = "kanban-pending-task-moves";
+const replayingBoards = new Set<string>();
+
+type StoredTaskMove = {
+  boardId: string;
+  taskId: string;
+  /** Present on saved moves; omitted when recomputing which entry to remove. */
+  sourceColumnId?: string;
+  targetColumnId: string;
+  position: number;
+  /** Full task snapshot at drop time so a reloaded page can rebuild the
+   * optimistically placed card even before any GET returns it. */
+  task?: Task;
+};
+
+function readStoredTaskMoves(): StoredTaskMove[] {
+  try {
+    const stored = sessionStorage.getItem(pendingTaskMoveStorageKey);
+    if (!stored) return [];
+    const moves = JSON.parse(stored) as unknown;
+    return Array.isArray(moves) ? (moves as StoredTaskMove[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredTaskMoves(moves: StoredTaskMove[]) {
+  try {
+    if (moves.length === 0) {
+      sessionStorage.removeItem(pendingTaskMoveStorageKey);
+    } else {
+      sessionStorage.setItem(pendingTaskMoveStorageKey, JSON.stringify(moves));
+    }
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+}
+
+function savePendingTaskMove(move: StoredTaskMove) {
+  const moves = readStoredTaskMoves().filter(
+    (storedMove) => storedMove.taskId !== move.taskId,
+  );
+  writeStoredTaskMoves([...moves, move]);
+}
+
+function removePendingTaskMove(move: StoredTaskMove) {
+  writeStoredTaskMoves(
+    readStoredTaskMoves().filter(
+      (storedMove) =>
+        storedMove.taskId !== move.taskId ||
+        storedMove.boardId !== move.boardId ||
+        storedMove.targetColumnId !== move.targetColumnId ||
+        storedMove.position !== move.position,
+    ),
+  );
+}
+
+// Rebuild the in-memory pending-move map from the durable sessionStorage copy
+// on (re)load. Without this, a page refreshed before a position PATCH lands
+// would paint the task at its old spot (while the DB ends up updated) until a
+// later refetch happened to agree with the server.
+function hydratePendingTaskMoves(): void {
+  for (const move of readStoredTaskMoves()) {
+    if (!move.task || !move.sourceColumnId || !move.targetColumnId) continue;
+    pendingTaskMoves.set(move.taskId, {
+      boardId: move.boardId,
+      task: move.task,
+      sourceColumnId: move.sourceColumnId,
+      targetColumnId: move.targetColumnId,
+      position: move.position,
+    });
+  }
+}
+
+hydratePendingTaskMoves();
 
 export function columnTasksQueryKey(boardId: string, columnId: string) {
   return ["boards", boardId, "columns", columnId, "tasks"] as const;
@@ -35,6 +125,36 @@ export function useColumnTasks(
       ? columnTasksQueryKey(boardId, columnId)
       : (["boards", "unknown", "columns", "unknown", "tasks"] as const);
 
+  // Re-apply position PATCHes that were still in flight when the page was
+  // (re)loaded. Runs once per board thanks to the replayingBoards guard.
+  useEffect(() => {
+    if (!boardId || replayingBoards.has(boardId)) return;
+
+    replayingBoards.add(boardId);
+    const moves = readStoredTaskMoves().filter(
+      (move) =>
+        move.boardId === boardId &&
+        move.sourceColumnId &&
+        move.targetColumnId,
+    );
+
+    void Promise.all(
+      moves.map(async (move) => {
+        try {
+          await updateTaskPosition(move.taskId, {
+            columnId: move.targetColumnId,
+            position: move.position,
+          });
+          removePendingTaskMove(move);
+        } catch {
+          // Keep failed moves queued for the next board load.
+        }
+      }),
+    ).finally(() => {
+      replayingBoards.delete(boardId);
+    });
+  }, [boardId]);
+
   const tasksQuery = useQuery({
     queryKey,
     queryFn: async () => {
@@ -42,7 +162,8 @@ export function useColumnTasks(
       const moves = [...pendingTaskMoves.entries()].filter(
         ([, move]) => move.boardId === boardId,
       );
-      let tasks = serverTasks;
+
+      let tasks = orderTasksByPosition(serverTasks);
 
       for (const [taskId, move] of moves) {
         const destinationConfirmed =
@@ -50,19 +171,15 @@ export function useColumnTasks(
           serverTasks.some((task) => task.id === taskId);
 
         if (move.sourceColumnId === columnId) {
-          tasks = tasks.filter((task) => task.id !== taskId);
+          tasks = removeTaskFromColumn(tasks, taskId);
         }
         if (move.targetColumnId === columnId) {
-          const withoutTask = tasks.filter((task) => task.id !== taskId);
-          withoutTask.splice(Math.min(move.position, withoutTask.length), 0, {
-            ...move.task,
-            columnId: columnId!,
-            position: move.position,
-          });
-          tasks = withoutTask.map((task, index) => ({
-            ...task,
-            position: index,
-          }));
+          tasks = insertTaskIntoColumn(
+            tasks,
+            { ...move.task, columnId: columnId! },
+            columnId!,
+            move.position,
+          );
         }
 
         if (destinationConfirmed) {
@@ -74,9 +191,8 @@ export function useColumnTasks(
     },
     enabled,
   });
-
   const createTaskMutation = useMutation({
-    mutationFn: (data: { title: string; description?: string }) =>
+    mutationFn: (data: CreateTaskData) =>
       createTask(columnId!, data),
     onSuccess: (newTask) => {
       if (!boardId || !columnId) return;
@@ -98,7 +214,7 @@ export function useColumnTasks(
       data,
     }: {
       taskId: string;
-      data: { title?: string; description?: string };
+      data: UpdateTaskData;
     }) => updateTask(taskId, data),
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
@@ -155,72 +271,81 @@ export function useColumnTasks(
       const sourceColumnId = paramSourceId ?? columnId;
       if (!sourceColumnId) return;
 
-      void queryClient.cancelQueries({
+      // Stop in-flight fetches so they cannot overwrite the optimistic lists.
+      await queryClient.cancelQueries({
         queryKey: columnTasksQueryKey(boardId, sourceColumnId),
       });
-      void queryClient.cancelQueries({
-        queryKey: columnTasksQueryKey(boardId, targetColumnId),
-      });
+      if (targetColumnId !== sourceColumnId) {
+        await queryClient.cancelQueries({
+          queryKey: columnTasksQueryKey(boardId, targetColumnId),
+        });
+      }
 
-      const previousSource = (
+      // Snapshot the currently cached lists (already ordered by position).
+      const previousSource = orderTasksByPosition(
         queryClient.getQueryData<Task[]>(
           columnTasksQueryKey(boardId, sourceColumnId),
-        ) ?? []
-      )
-        .slice()
-        .sort((a, b) => a.position - b.position);
+        ) ?? [],
+      );
       const previousTarget =
         sourceColumnId === targetColumnId
           ? previousSource
-          : (
+          : orderTasksByPosition(
               queryClient.getQueryData<Task[]>(
                 columnTasksQueryKey(boardId, targetColumnId),
-              ) ?? []
-            )
-              .slice()
-              .sort((a, b) => a.position - b.position);
+              ) ?? [],
+            );
 
       const movingTask = previousSource.find((task) => task.id === taskId);
       if (!movingTask) return;
 
-      if (sourceColumnId !== targetColumnId) {
-        pendingTaskMoves.set(taskId, {
-          boardId,
-          task: movingTask,
-          sourceColumnId,
-          targetColumnId,
-          position,
-        });
-      }
+      // Remember the move so a reload / refetch can replay or reconcile it.
+      savePendingTaskMove({
+        boardId,
+        taskId,
+        sourceColumnId,
+        targetColumnId,
+        position,
+        task: movingTask,
+      });
 
       if (sourceColumnId === targetColumnId) {
-        const updated = previousSource.filter((t) => t.id !== taskId);
-        const nextIndex = Math.min(position, updated.length);
-        updated.splice(nextIndex, 0, movingTask);
-
+        const updated = insertTaskIntoColumn(
+          previousSource,
+          movingTask,
+          targetColumnId,
+          position,
+        );
         queryClient.setQueryData<Task[]>(
           columnTasksQueryKey(boardId, sourceColumnId),
-          updated.map((task, index) => ({ ...task, position: index })),
+          updated,
         );
       } else {
-        const sourceUpdated = previousSource.filter((t) => t.id !== taskId);
         queryClient.setQueryData<Task[]>(
           columnTasksQueryKey(boardId, sourceColumnId),
-          sourceUpdated.map((task, index) => ({ ...task, position: index })),
+          removeTaskFromColumn(previousSource, taskId),
         );
-
-        const targetUpdated = previousTarget.filter((t) => t.id !== taskId);
-        const nextIndex = Math.min(position, targetUpdated.length);
-        targetUpdated.splice(nextIndex, 0, {
-          ...movingTask,
-          columnId: targetColumnId,
-        });
-
         queryClient.setQueryData<Task[]>(
           columnTasksQueryKey(boardId, targetColumnId),
-          targetUpdated.map((task, index) => ({ ...task, position: index })),
+          insertTaskIntoColumn(
+            previousTarget,
+            movingTask,
+            targetColumnId,
+            position,
+          ),
         );
       }
+
+      // Track the move for both same-column reorders and cross-column moves so
+      // any query that resolves before the PATCH lands reconciles the task to
+      // its intended position (fresh page loads included, via hydration).
+      pendingTaskMoves.set(taskId, {
+        boardId,
+        task: movingTask,
+        sourceColumnId,
+        targetColumnId,
+        position,
+      });
 
       return { previousSource, previousTarget, sourceColumnId, targetColumnId };
     },
@@ -248,24 +373,13 @@ export function useColumnTasks(
         if (movedTask) {
           queryClient.setQueryData<Task[]>(
             columnTasksQueryKey(boardId, targetColumnId),
-            (current = []) => {
-              const withoutMovedTask = current.filter(
-                (task) => task.id !== movedTask.id,
-              );
-              withoutMovedTask.splice(
-                Math.min(variables.position, withoutMovedTask.length),
-                0,
-                {
-                  ...movedTask,
-                  columnId: targetColumnId,
-                  position: variables.position,
-                },
-              );
-              return withoutMovedTask.map((task, index) => ({
-                ...task,
-                position: index,
-              }));
-            },
+            (current = []) =>
+              insertTaskIntoColumn(
+                current,
+                movedTask,
+                targetColumnId,
+                variables.position,
+              ),
           );
         }
       }
@@ -282,11 +396,24 @@ export function useColumnTasks(
           refetchType: "none",
         });
       }
+
+      removePendingTaskMove({
+        boardId,
+        taskId: variables.taskId,
+        targetColumnId,
+        position: variables.position,
+      });
     },
 
     onError: (_err, _vars, context) => {
       if (!boardId || !context) return;
       pendingTaskMoves.delete(_vars.taskId);
+      removePendingTaskMove({
+        boardId,
+        taskId: _vars.taskId,
+        targetColumnId: _vars.columnId,
+        position: _vars.position,
+      });
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, context.sourceColumnId),
         context.previousSource,

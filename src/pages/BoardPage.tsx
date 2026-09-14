@@ -10,15 +10,17 @@ import { describeLoadError } from "@/lib/httpStatus";
 import { Loader2, ArrowLeft, Columns3, Kanban } from "lucide-react";
 import {
   DragDropProvider,
+  type DragDropManager,
   type DragEndEvent,
-  type DragMoveEvent,
   DragOverlay,
   useDragOperation,
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
-import { useQueryClient } from "@tanstack/react-query";
-import { columnTasksQueryKey, useColumnTasks } from "@/hooks/useColumnTasks";
-import type { Task } from "@/types/board";
+import { useColumnTasks } from "@/hooks/useColumnTasks";
+import {
+  collectColumnTaskEntries,
+  countTasksAbovePointer,
+} from "@/lib/dragDrop";
 import { useState, useCallback, useEffect, type WheelEvent } from "react";
 import { TaskCard } from "@/components/board/TaskCard";
 import { TaskFilterPopover } from "@/components/board/TaskFilterPopover";
@@ -87,6 +89,7 @@ function BoardDragOverlay({ boardId }: { boardId: string }) {
                 {String(source.data.taskCount ?? 0)}
               </span>
             </div>
+
             <div className="flex flex-1 items-center justify-center p-3 text-xs text-muted-foreground">
               Moving column
             </div>
@@ -141,10 +144,8 @@ export default function BoardPage() {
   // resets board-scoped state (including the task filter / URL).
   return <BoardContent key={boardId} boardId={boardId ?? ""} />;
 }
-
 function BoardContent({ boardId }: { boardId: string }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { workspaces } = useWorkspaces();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -156,7 +157,6 @@ function BoardContent({ boardId }: { boardId: string }) {
       ? urlFilter
       : loadBoardTaskFilter(boardId);
   });
-  const [dragPointerY, setDragPointerY] = useState<number | null>(null);
 
   const updateTaskFilter = useCallback(
     (next: TaskFilter) => {
@@ -207,7 +207,6 @@ function BoardContent({ boardId }: { boardId: string }) {
       recordWorkspace({ id: workspace.id, name: workspace.name });
     }
     // Keep the sidebar's Boards section pointed at this board's workspace.
-
     setSelectedWorkspaceId(board.workspaceId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board?.id, workspace?.id]);
@@ -225,131 +224,93 @@ function BoardContent({ boardId }: { boardId: string }) {
   const canUseTasks = canWorkOnTasks && !isLoadingRole;
   const canRemoveTasks = canDeleteTask && !isLoadingRole;
 
-  function handleDragMove(event: DragMoveEvent) {
-    setDragPointerY(event.operation.position.current.y);
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    setDragPointerY(null);
-
-    const source = event.operation.source;
-
+  function handleDragEnd(event: DragEndEvent, manager: DragDropManager) {
     if (event.canceled) return;
 
-    const target = event.operation.target;
-
+    const { source, target, position } = event.operation;
     if (!source || !target) return;
 
+    // Column reorder: the sortable plugin keeps the dragged column index in
+    // sync with the render order, so it is already the destination position.
     if (source.data?.type === "column" && isSortable(source)) {
-      const { initialIndex, index: newIndex } = source.sortable;
+      const { initialIndex, index } = source.sortable;
 
-      if (initialIndex === newIndex) return;
+      if (initialIndex === index) return;
 
       updateColumnPosition({
         columnId: String(source.id),
-        position: newIndex,
+        position: index,
       });
 
       return;
     }
 
-    if (source.data?.type === "task" && isSortable(source)) {
-      const taskId = String(source.id);
-      const targetId = String(target.id);
-      const { initialIndex, index, group, initialGroup } = source.sortable;
+    if (source.data?.type !== "task" || !isSortable(source)) return;
 
-      const sourceColumnId = String(
-        source.data?.columnId ?? initialGroup ?? "",
+    const taskId = String(source.id);
+    const sourceColumnId = String(
+      source.data.columnId ?? source.sortable.initialGroup ?? "",
+    );
+    if (!sourceColumnId || sourceColumnId === "undefined") return;
+
+    // Dropped on a column empty task area: derive the insertion index from the
+    // pointer position relative to the tasks rendered in that column.
+    if (target.data?.type === "task-container") {
+      const targetColumnId = String(target.data.columnId ?? target.id);
+      if (!targetColumnId || targetColumnId === "undefined") return;
+
+      const insertionPosition = countTasksAbovePointer(
+        collectColumnTaskEntries(manager, targetColumnId),
+        position.current.y,
       );
-      const targetColumnId = String(
-        target.data?.columnId ??
-          target.data?.task?.columnId ??
-          (isSortable(target) ? target.sortable.group : group) ??
-          sourceColumnId,
-      );
-      const targetRect = isSortable(target)
-        ? target.element?.getBoundingClientRect()
-        : undefined;
-      const dropBelowTarget =
-        targetRect !== undefined &&
-        event.operation.position.current.y >=
-          targetRect.top + targetRect.height / 2;
-      const rawDestinationPosition = isSortable(target)
-        ? target.sortable.index + (dropBelowTarget ? 1 : 0)
-        : index;
-      const sourceIndexAdjustment =
-        isSortable(target) &&
-        sourceColumnId === targetColumnId &&
-        initialIndex < rawDestinationPosition
-          ? 1
-          : 0;
-      const destinationPosition = Number.isFinite(rawDestinationPosition)
-        ? Math.max(
-            0,
-            Math.floor(rawDestinationPosition - sourceIndexAdjustment),
-          )
-        : 0;
 
       if (
-        !sourceColumnId ||
-        sourceColumnId === "undefined" ||
-        !targetColumnId ||
-        targetColumnId === "undefined"
+        sourceColumnId === targetColumnId &&
+        source.sortable.initialIndex === insertionPosition
       ) {
         return;
       }
-
-      // Dropped onto empty container area
-      if (target.data?.type === "task-container" && targetId !== taskId) {
-        const containerColumnId = String(target.data.columnId ?? target.id);
-        if (!sourceColumnId || !containerColumnId) return;
-
-        if (!boardId) return;
-
-        const targetTasks = (
-          queryClient.getQueryData<Task[]>(
-            columnTasksQueryKey(boardId, containerColumnId),
-          ) ?? []
-        ).filter((t) => String(t.id) !== taskId);
-
-        const destinationPosition = targetTasks.length;
-
-        if (
-          sourceColumnId === containerColumnId &&
-          initialIndex === destinationPosition
-        )
-          return;
-
-        updateTaskPosition({
-          taskId,
-          sourceColumnId,
-          columnId: containerColumnId,
-          position: destinationPosition,
-        });
-
-        return;
-      }
-
-      // Normal drop on or between tasks
-      const isSameColumn = sourceColumnId === targetColumnId;
-
-      if (isSameColumn && initialIndex === destinationPosition) return;
 
       updateTaskPosition({
         taskId,
         sourceColumnId,
         columnId: targetColumnId,
-        position: destinationPosition,
+        position: insertionPosition,
       });
 
       return;
     }
+
+    // Dropped on / between tasks.
+    if (!isSortable(target)) return;
+
+    const targetColumnId = String(
+      target.sortable.group ?? target.data?.columnId ?? "",
+    );
+    if (!targetColumnId || targetColumnId === "undefined") return;
+
+    // The sortable plugin already placed the dragged task at the rendered
+    // destination slot, so its index is the destination position.
+    const destinationPosition = Math.max(0, Math.floor(source.sortable.index));
+
+    if (
+      sourceColumnId === targetColumnId &&
+      source.sortable.initialIndex === destinationPosition
+    ) {
+      return;
+    }
+
+    updateTaskPosition({
+      taskId,
+      sourceColumnId,
+      columnId: targetColumnId,
+      position: destinationPosition,
+    });
   }
 
   if (!boardId) {
     return null;
   }
-
   return (
     <DashboardLayout className="overflow-hidden">
       <header className="flex shrink-0 items-center justify-between bg-background px-6 py-4">
@@ -398,7 +359,6 @@ function BoardContent({ boardId }: { boardId: string }) {
       </header>
 
       <DragDropProvider
-        onDragMove={handleDragMove}
         onDragEnd={canManageColumns || canUseTasks ? handleDragEnd : undefined}
       >
         <div
@@ -430,7 +390,6 @@ function BoardContent({ boardId }: { boardId: string }) {
                   canCreateTask={canUseTasks}
                   canEditTask={canUseTasks}
                   canDeleteTask={canRemoveTasks}
-                  dragPointerY={dragPointerY}
                 />
               ))}
 

@@ -8,13 +8,14 @@ import {
 import { getBoardColumns } from "./column.api";
 import { getBoards } from "./board.api";
 import { getWorkspaces } from "./workspace.api";
+import { isTaskDescriptionDoc, type TaskDescription } from "@/lib/description";
 import type { Task, TaskAssignee } from "@/types/board";
 
 interface TaskApiResponse {
   id: string;
   column_id: string;
   title: string;
-  description?: string | null;
+  description?: TaskDescription | string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -22,12 +23,31 @@ interface TaskApiResponse {
   assignees?: AssigneeApiResponse[] | null;
 }
 
+export interface CreateTaskData {
+  title: string;
+  description?: TaskDescription;
+}
+
+export interface UpdateTaskData {
+  title?: string;
+  description?: TaskDescription;
+}
+
+function normalizeDescription(
+  raw: TaskDescription | string | null | undefined,
+): TaskDescription | string | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw === "string") return raw;
+  if (isTaskDescriptionDoc(raw)) return raw;
+  return undefined;
+}
+
 function mapTask(raw: TaskApiResponse): Task {
   return {
     id: raw.id,
     columnId: raw.column_id,
     title: raw.title,
-    description: raw.description ?? undefined,
+    description: normalizeDescription(raw.description),
     position: raw.position,
     createdAt: raw.created_at,
     labels: (raw.labels ?? []).map(mapLabel),
@@ -44,7 +64,7 @@ export const getColumnTasks = async (columnId: string): Promise<Task[]> => {
 
 export const createTask = async (
   columnId: string,
-  data: { title: string; description?: string },
+  data: CreateTaskData,
 ): Promise<Task> => {
   const response = await api.post<TaskApiResponse>(
     `/columns/${columnId}/tasks`,
@@ -55,7 +75,7 @@ export const createTask = async (
 
 export const updateTask = async (
   taskId: string,
-  data: { title?: string; description?: string },
+  data: UpdateTaskData,
 ): Promise<void> => {
   await api.patch(`/tasks/${taskId}`, data);
 };

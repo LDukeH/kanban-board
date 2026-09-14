@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
+import { textToTaskDescription } from "@/lib/description";
 
 interface CreateTaskDialogProps {
   boardId: string;
@@ -50,7 +51,9 @@ export function CreateTaskDialog({
     try {
       await createTask({
         title: title.trim(),
-        description: description.trim() || undefined,
+        description: description.trim()
+          ? textToTaskDescription(description)
+          : undefined,
       });
       setTitle("");
       setDescription("");

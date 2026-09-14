@@ -1,0 +1,184 @@
+import Bold from "@tiptap/extension-bold";
+import Italic from "@tiptap/extension-italic";
+import Strike from "@tiptap/extension-strike";
+import Code from "@tiptap/extension-code";
+import Heading from "@tiptap/extension-heading";
+import BulletList from "@tiptap/extension-bullet-list";
+import OrderedList from "@tiptap/extension-ordered-list";
+import ListItem from "@tiptap/extension-list-item";
+import Blockquote from "@tiptap/extension-blockquote";
+import CodeBlock from "@tiptap/extension-code-block";
+import HorizontalRule from "@tiptap/extension-horizontal-rule";
+import HardBreak from "@tiptap/extension-hard-break";
+import Document from "@tiptap/extension-document";
+import Paragraph from "@tiptap/extension-paragraph";
+import Text from "@tiptap/extension-text";
+import Dropcursor from "@tiptap/extension-dropcursor";
+import Gapcursor from "@tiptap/extension-gapcursor";
+import History from "@tiptap/extension-history";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import Underline from "@tiptap/extension-underline";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import { useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
+import type { TaskDescription } from "@/lib/description";
+import { TaskRichTextToolbar } from "@/components/task/TaskRichTextToolbar";
+
+const EMPTY_DOC: TaskDescription = { type: "doc" };
+
+function normalizeDoc(description: TaskDescription | undefined): TaskDescription {
+  if (description && description.type === "doc") return description;
+  return EMPTY_DOC;
+}
+
+interface TaskDescriptionEditorProps {
+  /** Saved description snapshot (drives the read-only render). */
+  description: TaskDescription | undefined;
+  /**
+   * Draft setter owned by the modal. Called only on explicit save/flush —
+   * never on keystroke — so typing never fires API requests.
+   */
+  draftDescription: TaskDescription | undefined;
+  onDraftChange: (doc: TaskDescription) => void;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  disabled?: boolean;
+}
+
+export function TaskDescriptionEditor({
+  description,
+  draftDescription,
+  onDraftChange,
+  editing,
+  onEditingChange,
+  disabled = false,
+}: TaskDescriptionEditorProps) {
+  const onDraftChangeRef = useRef(onDraftChange);
+  const lastSeedRef = useRef<TaskDescription | undefined>(undefined);
+  useEffect(() => {
+    onDraftChangeRef.current = onDraftChange;
+  }, [onDraftChange]);
+
+  const editor: Editor | null = useEditor(
+    {
+      extensions: [
+        // Explicit extension set (no StarterKit meta-package) so the bundle
+        // only ships what the description editor needs. Document/Paragraph/
+        // Text define the schema's structural nodes (`doc` is the required
+        // top node). Markdown shortcuts (#, ##, -, 1., >, [ ], ---) come
+        // from the heading/list/blockquote extensions' own input rules.
+        Document,
+        Paragraph,
+        Text,
+        History,
+        Heading.configure({ levels: [1, 2, 3] }),
+        BulletList,
+        OrderedList,
+        ListItem,
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        Bold,
+        Italic,
+        Strike,
+        Code,
+        Underline,
+        Link.configure({ openOnClick: false, autolink: true }),
+        Blockquote,
+        CodeBlock,
+        HorizontalRule,
+        HardBreak,
+        Image,
+        Dropcursor,
+        Gapcursor,
+      ],
+      content: normalizeDoc(draftDescription ?? description),
+      editable: editing && !disabled,
+      onUpdate: ({ editor: updated }) => {
+        onDraftChangeRef.current(updated.getJSON() as TaskDescription);
+      },
+      editorProps: {
+        attributes: {
+          class: "task-description-prose focus:outline-none",
+          "aria-label": "Task description",
+        },
+      },
+      // Markdown shortcuts (#, ##, -, 1., >, [ ], ---) come from the heading,
+      // list, and blockquote extensions' input rules. We deliberately avoid
+      // persisting onUpdate directly: the draft is captured via onUpdate into
+      // the modal's local state, and only explicit Save / close-flush sends
+      // the PATCH, so typing and toolbar clicks never trigger API requests.
+    },
+    [],
+  );
+
+  // Swap the load-bearing snapshot without disturbing an in-progress draft.
+  // Read mode follows the saved value; edit mode owns its ProseMirror state
+  // and only reports back via onUpdate/handleCaptureDraft, so re-seeding here
+  // while editing would discard keystrokes. Identity comparison is enough:
+  // the modal passes stable snapshot/draft references.
+  useEffect(() => {
+    if (!editor || editing) return;
+    const seed = normalizeDoc(description);
+    lastSeedRef.current = seed;
+    editor.commands.setContent(seed, { emitUpdate: false });
+  }, [editor, editing, description]);
+
+  // Toggle editability + focus when entering edit mode.
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(editing && !disabled);
+    if (editing && !disabled) {
+      // Focus at end so click-to-edit feels like continuing the text.
+      const t = window.setTimeout(() => editor.commands.focus("end"), 0);
+      return () => window.clearTimeout(t);
+    }
+  }, [editor, editing, disabled]);
+
+  function handleEnterEdit() {
+    if (disabled) return;
+    // Seed the draft buffer with the current saved content on entry. The
+    // modal passes `description` both as snapshot and draft initially, so
+    // this is a no-op in the common case — it only matters after Cancel.
+    if (editor) {
+      onDraftChangeRef.current(editor.getJSON() as TaskDescription);
+    }
+    onEditingChange(true);
+  }
+
+  function handleCaptureDraft() {
+    if (editor) {
+      onDraftChangeRef.current(editor.getJSON() as TaskDescription);
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg transition-colors",
+        editing
+          ? "border border-input bg-background focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
+          : "border border-transparent hover:border-input",
+      )}
+    >
+      {editing && !disabled && (
+        <TaskRichTextToolbar editor={editor} onBeforeAction={handleCaptureDraft} />
+      )}
+      {editing ? (
+        <EditorContent editor={editor} className="min-h-24 px-3 py-2" />
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={handleEnterEdit}
+          className="block w-full cursor-text px-1 py-1 text-left"
+          aria-label="Edit description"
+        >
+          <EditorContent editor={editor} className="pointer-events-none" />
+        </button>
+      )}
+    </div>
+  );
+}

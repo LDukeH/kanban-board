@@ -38,8 +38,11 @@ function DialogBackdrop({
 function DialogPopup({
   className,
   children,
+  hideClose = false,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+}: React.ComponentProps<typeof DialogPrimitive.Popup> & {
+  hideClose?: boolean;
+}) {
   return (
     <DialogPortal>
       <DialogBackdrop />
@@ -51,12 +54,14 @@ function DialogPopup({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:pointer-events-none"
-          aria-label="Close"
-        >
-          <X className="size-4" />
-        </DialogPrimitive.Close>
+        {!hideClose && (
+          <DialogPrimitive.Close
+            className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:pointer-events-none"
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Popup>
     </DialogPortal>
   );

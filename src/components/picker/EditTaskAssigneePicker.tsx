@@ -22,6 +22,10 @@ interface EditTaskAssigneePickerProps {
   workspaceId: string;
   boardId: string;
   columnId: string;
+  /** Optional controlled open state (e.g. opened from the modal's Add menu). */
+  open?: boolean;
+  /** Receives open-state changes when `open` is controlled or for read-only sync. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -38,6 +42,8 @@ export function EditTaskAssigneePicker({
   workspaceId,
   boardId,
   columnId,
+  open,
+  onOpenChange,
 }: EditTaskAssigneePickerProps) {
   const { user } = useAuth();
   const {
@@ -90,7 +96,13 @@ export function EditTaskAssigneePicker({
     }
   }
 return (
-    <DropdownMenu onOpenChange={(open) => !open && setSearch("")}>
+    <DropdownMenu
+      {...(open !== undefined ? { open } : {})}
+      onOpenChange={(nextOpen) => {
+        onOpenChange?.(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
       <DropdownMenuTrigger>
         <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted">
           Assignees

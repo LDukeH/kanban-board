@@ -1,11 +1,10 @@
-import { useCallback, useState } from "react";
-import { cn } from "@/lib/utils";
+﻿import { cn } from "@/lib/utils";
+import { getDescriptionPreview } from "@/lib/description";
 import type { Task } from "@/types/board";
 import { EditTaskDialog } from "@/components/dialog/EditTaskDialog";
-import { useSortable } from "@dnd-kit/react/sortable";
-import { SortableKeyboardPlugin } from "@dnd-kit/dom/sortable";
-import { Feedback } from "@dnd-kit/dom";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
+import { useDragOperation } from "@dnd-kit/react";
 import { TaskAssigneeAvatars } from "@/components/board/TaskAssigneeAvatars";
 
 interface TaskCardProps {
@@ -13,10 +12,10 @@ interface TaskCardProps {
   boardId: string;
   canEdit?: boolean;
   canDelete?: boolean;
+  draggable?: boolean;
   className?: string;
   index: number;
   isOverlay?: boolean;
-  dragPointerY?: number | null;
 }
 
 export function TaskCard({
@@ -24,48 +23,52 @@ export function TaskCard({
   boardId,
   canEdit = false,
   canDelete = false,
+  draggable = true,
   className,
   index,
   isOverlay = false,
-  dragPointerY = null,
 }: TaskCardProps) {
-  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
-  const { ref, isDragging, isDropTarget } = useSortable({
+  // Task-to-task drops are scoped to THIS column via the accept predicate.
+  // That keeps dnd-kit's live optimistic reordering inside a single DOM
+  // container, where React and dnd-kit agree on the tree. Cross-column drops
+  // instead route through the target column's task-container droppable, which
+  // the board drop handler resolves into a precise pointer-based insertion
+  // position. This avoids dnd-kit physically reparenting the card across
+  // containers, which would make React's reconciliation throw ("node to be
+  // removed is not a child of this node").
+  const { ref, isDragging, isDragSource, isDropTarget, sortable } = useSortable({
     id: task.id,
     index,
     type: "task",
-    accept: "task",
+    accept: (draggable) =>
+      draggable.data?.type === "task" &&
+      draggable.data?.columnId === task.columnId,
     group: task.columnId,
     collisionDetector: closestCenter,
-    plugins: [
-      SortableKeyboardPlugin,
-      Feedback.configure({ feedback: "clone" }),
-    ],
-    disabled: isOverlay, // Prevents overlay from registering as a active sortable node
+    // Overlay cards must never register as active sortable nodes.
+    disabled: isOverlay
+      ? { draggable: true, droppable: true }
+      : { draggable: !draggable },
     data: { type: "task", task: task, columnId: task.columnId },
   });
 
-  const setElementRefs = useCallback(
-    (element: HTMLDivElement | null) => {
-      setTargetRect(element?.getBoundingClientRect() ?? null);
-      if (!isOverlay) ref(element);
-    },
-    [isOverlay, ref],
-  );
-  const targetMidpoint = targetRect
-    ? targetRect.top + targetRect.height / 2
-    : null;
+  const { source } = useDragOperation();
 
-  const isDropBelow =
+  // While dragging, the sortable plugin keeps the dragged task's index in sync
+  // with the current render order, so comparing it with this card's index tells
+  // us (and matches the final drop) whether the task lands above or below.
+  const showInsertionIndicator =
     !isOverlay &&
+    !isDragSource &&
     isDropTarget &&
-    dragPointerY !== null &&
-    targetMidpoint !== null &&
-    dragPointerY >= targetMidpoint;
+    source?.data?.type === "task" &&
+    isSortable(source);
+  const isDropBelow =
+    showInsertionIndicator && source.sortable.index > sortable.index;
 
   return (
     <div
-      ref={setElementRefs}
+      ref={ref}
       className={cn(
         "group relative flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-primary/30",
         className,
@@ -73,7 +76,7 @@ export function TaskCard({
         isOverlay && "shadow-lg border-primary/40 rotate-1",
       )}
     >
-      {!isOverlay && isDropTarget && (
+      {showInsertionIndicator && (
         <span
           aria-label={`Task will be inserted ${isDropBelow ? "after" : "before"} this task`}
           className={cn(
@@ -97,7 +100,7 @@ export function TaskCard({
               trigger={
                 <button
                   type="button"
-                  className="min-w-0 flex-1  truncate text-left text-sm font-medium text-foreground hover:text-primary"
+                  className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground hover:text-primary"
                 >
                   {task.title}
                 </button>
@@ -109,11 +112,14 @@ export function TaskCard({
             </p>
           )}
         </div>
-        {task.description ? (
+        {(() => {
+          const preview = getDescriptionPreview(task.description);
+          return preview ? (
           <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-            {task.description}
+            {preview}
           </p>
-        ) : null}
+          ) : null;
+        })()}
 
         {(task.labels ?? []).length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">

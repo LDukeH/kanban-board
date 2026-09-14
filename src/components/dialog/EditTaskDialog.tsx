@@ -1,30 +1,54 @@
-import { useState, useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogTrigger,
   DialogPopup,
   DialogTitle,
   DialogDescription,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, Plus, Check, Trash2 } from "lucide-react";
+import {
+  AlignLeft,
+  Calendar,
+  Check,
+  Circle,
+  ListTodo,
+  Loader2,
+  MoreHorizontal,
+  Paperclip,
+  Pencil,
+  Plus,
+  Trash2,
+  UserPlus,
+  X,
+} from "lucide-react";
+import { toast } from "react-toastify";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
+import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { CreateLabelDialog } from "@/components/dialog/CreateLabelDialog";
 import { EditTaskAssigneePicker } from "@/components/picker/EditTaskAssigneePicker";
+import { TaskComments } from "@/components/task/TaskComments";
+import { TaskDescriptionEditor } from "@/components/task/TaskDescriptionEditor";
+import {
+  descriptionsEqual,
+  isEmptyDescription,
+  isTaskDescriptionDoc,
+  textToTaskDescription,
+  type TaskDescription,
+} from "@/lib/description";
+import { describeMutationError } from "@/lib/httpStatus";
 import type { Task } from "@/types/board";
 
 interface EditTaskDialogProps {
@@ -33,6 +57,73 @@ interface EditTaskDialogProps {
   canDelete?: boolean;
   trigger: React.ReactElement;
 }
+function normalizeSnapshotDescription(
+  description: TaskDescription | string | undefined,
+): TaskDescription | undefined {
+  if (!description) return undefined;
+  if (typeof description === "string") {
+    return description.trim() ? textToTaskDescription(description) : undefined;
+  }
+  if (isTaskDescriptionDoc(description)) return description;
+  return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Small building blocks (display-only unless noted)
+// ---------------------------------------------------------------------------
+
+function NotImplementedMenuItem({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <DropdownMenuItem
+      disabled
+      closeOnClick={false}
+      className="gap-2"
+      title={`${label} — not implemented yet`}
+    >
+      {icon}
+      <span className="flex-1">{label}</span>
+      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        Soon
+      </span>
+    </DropdownMenuItem>
+  );
+}
+
+function ActionButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      className="h-7 gap-1.5 px-2.5 text-xs font-medium"
+    >
+      {icon}
+      {label}
+    </Button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Redesigned task detail modal (Trello-like, app visual language)
+// ---------------------------------------------------------------------------
 
 export function EditTaskDialog({
   task,
@@ -48,52 +139,137 @@ export function EditTaskDialog({
     deleteTask,
     isDeletingTask,
   } = useColumnTasks(boardId, task.columnId);
-  const { board, labels, isLoadingLabels } = useBoard(boardId);
-  const { canAssignLabels } = useWorkspaceAccess(board?.workspaceId);
+  const { board, columns, labels, isLoadingLabels } = useBoard(boardId);
+  const { canAssignLabels, isOwner, isAdmin } = useWorkspaceAccess(board?.workspaceId);
+  const { user } = useAuth();
+
+  const columnName =
+    columns.find((c) => c.id === task.columnId)?.name ?? "Task";
+
+  // -- Single-draft save model -------------------------------------------
+  // Saved task (server snapshot) -> local draft { title, description } ->
+  // [Save] commits BOTH in one PATCH. Title Enter/blur only exits edit mode;
+  // nothing persists until Save / flush-on-close.
+  const savedTitle = task.title;
+  const savedDescription = useMemo(
+    () => normalizeSnapshotDescription(task.description),
+    [task.description],
+  );
+
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [error, setError] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState(task.title);
+  const [draftDescription, setDraftDescription] = useState<TaskDescription | undefined>(
+    () => normalizeSnapshotDescription(task.description),
+  );
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [isMembersPickerOpen, setIsMembersPickerOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
   const [isCreateLabelOpen, setIsCreateLabelOpen] = useState(false);
   const [togglingLabelId, setTogglingLabelId] = useState<string | null>(null);
+
+  // Guards double submission and lets a close attempt await an in-flight
+  // save (rapid close-while-saving re-enters the same flush path instead of
+  // firing a second PATCH).
+  const pendingSaveRef = useRef<Promise<boolean> | null>(null);
+
+  const isDirty =
+    draftTitle !== savedTitle ||
+    !descriptionsEqual(draftDescription, savedDescription);
 
   const assignedLabelIds = useMemo(
     () => new Set((task.labels ?? []).map((l) => l.id)),
     [task.labels],
   );
 
-  function handleOpenChange(nextOpen: boolean) {
+  const previewEmpty = isEmptyDescription(draftDescription);
+
+  function resetDraft() {
+    setDraftTitle(savedTitle);
+    setDraftDescription(savedDescription);
+    setEditingTitle(false);
+    setEditingDescription(false);
+  }
+  function handleOpenChange(
+    nextOpen: boolean,
+    eventDetails?: { cancel: () => void },
+  ) {
     if (nextOpen) {
-      setTitle(task.title);
-      setDescription(task.description ?? "");
-      setError(null);
+      setDraftTitle(task.title);
+      setDraftDescription(normalizeSnapshotDescription(task.description));
+      setEditingTitle(false);
+      setEditingDescription(false);
+      setAddMenuOpen(false);
+      setIsMembersPickerOpen(false);
+      setOpen(nextOpen);
+      return;
+    }
+    if (pendingSaveRef.current) {
+      // Prevent the native close; a save is already in flight, so await it
+      // and then close only on success.
+      eventDetails?.cancel();
+      void flushSaveAndClose();
+      return;
+    }
+    if (isDirty) {
+      // Prevent the native close (ESC / overlay / wrapper Close) and
+      // flush-save first. On success we close for real; on failure the modal
+      // stays open with the draft intact.
+      eventDetails?.cancel();
+      void flushSaveAndClose();
+      return;
     }
     setOpen(nextOpen);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) {
-      setError("Task title is required.");
-      return;
-    }
-    setError(null);
-    try {
-      await updateTask({
-        taskId: task.id,
-        data: {
-          title: title.trim(),
-          description: description.trim() || undefined,
-        },
-      });
+  function saveDraft(): Promise<boolean> {
+    if (pendingSaveRef.current) return pendingSaveRef.current;
+    const run = (async () => {
+      const title = draftTitle.trim();
+      if (!title) {
+        toast.error("Task title is required.");
+        return false;
+      }
+      if (!isDirty) return true;
+      try {
+        await updateTask({
+          taskId: task.id,
+          data: { title, description: draftDescription },
+        });
+        setEditingTitle(false);
+        setEditingDescription(false);
+        return true;
+      } catch (err) {
+        toast.error(
+          describeMutationError(err, "Failed to update task. Please try again."),
+        );
+        return false;
+      }
+    })();
+    pendingSaveRef.current = run;
+    void run.finally(() => {
+      if (pendingSaveRef.current === run) pendingSaveRef.current = null;
+    });
+    return run;
+  }
+
+  async function handleSave() {
+    await saveDraft();
+  }
+
+  function handleCancel() {
+    resetDraft();
+  }
+
+  async function flushSaveAndClose() {
+    const ok = await saveDraft();
+    if (ok) {
       setOpen(false);
-    } catch (err) {
-      setError("Failed to update task. Please try again.");
-      console.error("Update task failed:", err);
     }
   }
+
 
   async function handleToggleLabel(labelId: string) {
     setTogglingLabelId(labelId);
@@ -104,6 +280,7 @@ export function EditTaskDialog({
         await addLabelToTask({ taskId: task.id, labelId });
       }
     } catch (err) {
+      toast.error(describeMutationError(err, "Failed to update label. Please try again."));
       console.error("Label toggle failed:", err);
     } finally {
       setTogglingLabelId(null);
@@ -111,81 +288,191 @@ export function EditTaskDialog({
   }
 
   async function handleDelete() {
-    await deleteTask(task.id);
-    setOpen(false);
-    setIsDeleteOpen(false);
+    try {
+      await deleteTask(task.id);
+      toast.success("Task deleted.");
+      setIsDeleteOpen(false);
+      setOpen(false);
+    } catch (err) {
+      toast.error(describeMutationError(err, "Failed to delete task. Please try again."));
+      console.error("Delete task failed:", err);
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={trigger} />
-      <DialogPopup>
-        <DialogTitle>Edit Task</DialogTitle>
-        <DialogDescription>Update this task's details.</DialogDescription>
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`edit-task-title-${task.id}`}>Title</Label>
-            <Input
-              id={`edit-task-title-${task.id}`}
-              placeholder="e.g. Design login page"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
+      <DialogPopup
+        hideClose
+        className="flex max-h-[min(88vh,56rem)] w-[min(56rem,calc(100vw-2rem))] max-w-4xl flex-col gap-0 overflow-hidden p-0"
+      >
+        <DialogTitle className="sr-only">{task.title}</DialogTitle>
+        <DialogDescription className="sr-only">
+          Task details, description, labels, members, and activity.
+        </DialogDescription>
+
+        <div className="flex shrink-0 items-center gap-2 border-b border-border px-5 py-3">
+          <span
+            className="inline-flex max-w-64 items-center truncate rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+            title={`List: ${columnName}`}
+          >
+            {columnName}
+          </span>
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Attachments — not implemented yet"
+              aria-label="Attachments (coming soon)"
+              onClick={() => toast.info("Attachments are not implemented yet.")}
+            >
+              <Paperclip className="size-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label="More actions">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-48">
+                {canDelete ? (
+                  <DropdownMenuItem variant="destructive" onClick={() => setIsDeleteOpen(true)}>
+                    <Trash2 className="size-3.5" />
+                    Delete task
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled>No actions available</DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close"
+              onClick={() => handleOpenChange(false)}
+            >
+              <X className="size-4" />
+            </Button>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`edit-task-description-${task.id}`}>
-              Description (optional)
-            </Label>
-            <Textarea
-              id={`edit-task-description-${task.id}`}
-              placeholder="Add more details..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Assignees</Label>
-            <div className="flex flex-wrap items-center gap-1">
-              {canAssignLabels && board && (
+        </div>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] md:overflow-hidden">
+          <div className="min-w-0 px-5 py-4 md:overflow-y-auto">
+            <div className="flex items-start gap-2.5">
+              <Circle
+                className="mt-1.5 size-5 shrink-0 text-muted-foreground/60"
+                aria-label="Task status (display only)"
+              />
+              {editingTitle ? (
+                <Input
+                  value={draftTitle}
+                  autoFocus
+                  onChange={(e) => setDraftTitle(e.target.value)}
+                  onBlur={() => setEditingTitle(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setEditingTitle(false);
+                    if (e.key === "Escape") {
+                      setDraftTitle(savedTitle);
+                      setEditingTitle(false);
+                    }
+                  }}
+                  className="h-9 border-transparent px-1 text-xl font-bold shadow-none focus-visible:border-ring"
+                  aria-label="Task title"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingTitle(true)}
+                  className="group flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-0.5 text-left"
+                  title="Click to edit title"
+                >
+                  <span className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight">
+                    {draftTitle || savedTitle}
+                  </span>
+                  <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
+              )}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <DropdownMenu open={addMenuOpen} onOpenChange={setAddMenuOpen}>
+                <DropdownMenuTrigger
+                  render={
+                    <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2.5 text-xs font-medium">
+                      <Plus className="size-3.5" />
+                      Add
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="start" className="w-52">
+                  <DropdownMenuLabel>Add to card</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <NotImplementedMenuItem icon={<Calendar className="size-3.5" />} label="Dates" />
+                  <NotImplementedMenuItem icon={<Check className="size-3.5" />} label="Checklist" />
+                  <DropdownMenuItem
+                    className="gap-2"
+                    onClick={() => {
+                      setAddMenuOpen(false);
+                      setIsMembersPickerOpen(true);
+                    }}
+                  >
+                    <UserPlus className="size-3.5" />
+                    Members
+                  </DropdownMenuItem>
+                  <NotImplementedMenuItem icon={<Paperclip className="size-3.5" />} label="Attachment" />
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <ActionButton icon={<Calendar className="size-3.5" />} label="Dates" onClick={() => toast.info("Dates are not implemented yet.")} />
+              <ActionButton icon={<ListTodo className="size-3.5" />} label="Checklist" onClick={() => toast.info("Checklists are not implemented yet.")} />
+              {board?.workspaceId ? (
                 <EditTaskAssigneePicker
                   taskId={task.id}
                   workspaceId={board.workspaceId}
                   boardId={boardId}
                   columnId={task.columnId}
+                  open={isMembersPickerOpen}
+                  onOpenChange={setIsMembersPickerOpen}
                 />
+              ) : (
+                <ActionButton icon={<UserPlus className="size-3.5" />} label="Members" disabled />
               )}
+              <ActionButton icon={<Paperclip className="size-3.5" />} label="Attachment" onClick={() => toast.info("Attachments are not implemented yet.")} />
             </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Labels</Label>
-            <div className="flex flex-wrap items-center gap-1">
-              {(task.labels ?? []).map((label) => (
-                <span
-                  key={label.id}
-                  className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium text-white"
-                  style={
-                    label.color
-                      ? { backgroundColor: label.color }
-                      : { backgroundColor: "#6b7280" }
-                  }
-                  title={label.name}
-                >
-                  {label.name}
-                </span>
-              ))}
-              {canAssignLabels && (
-                <DropdownMenu
-                  open={isLabelMenuOpen}
-                  onOpenChange={setIsLabelMenuOpen}
-                >
-                  <DropdownMenuTrigger>
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-input bg-background text-xs text-muted-foreground transition-colors hover:bg-muted">
-                      +
-                    </span>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-64">
+
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Labels
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {(task.labels ?? []).map((label) => (
+                  <span
+                    key={label.id}
+                    className="inline-flex h-6 items-center rounded-md px-2.5 text-xs font-medium text-white"
+                    style={label.color ? { backgroundColor: label.color } : undefined}
+                    title={label.name}
+                  >
+                    {label.name || " "}
+                  </span>
+                ))}
+                {canAssignLabels && (
+                  <DropdownMenu open={isLabelMenuOpen} onOpenChange={setIsLabelMenuOpen}>
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="flex size-6 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          aria-label="Add label"
+                          title="Add label"
+                        >
+                          <Plus className="size-3.5" />
+                        </button>
+                      }
+                    />
+                    <DropdownMenuContent align="start" className="w-64">
                     {isLoadingLabels ? (
                       <div className="flex justify-center py-3">
                         <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -233,44 +520,90 @@ export function EditTaskDialog({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-          {error && <p className="text-xs text-red-500">{error}</p>}
-          <div className="flex items-center justify-between gap-2">
-            {canDelete && (
-              <ConfirmDeleteDialog
-                open={isDeleteOpen}
-                onOpenChange={setIsDeleteOpen}
-                title="Delete Task"
-                description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
-                onConfirm={handleDelete}
-                isLoading={isDeletingTask}
-                trigger={
-                  <Button type="button" variant="destructive">
-                    <Trash2 className="size-4" />
-                    Delete
-                  </Button>
-                }
-              />
+
+            <div className="mt-5">
+              <div className="flex items-center gap-2">
+                <AlignLeft className="size-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Description</h3>
+              </div>
+              <div className="mt-2">
+                {!editingDescription && previewEmpty ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDescription(true)}
+                    className="w-full rounded-lg bg-muted/60 px-3 py-2.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
+                  >
+                    Add a more detailed description…
+                  </button>
+                ) : (
+                  <TaskDescriptionEditor
+                    description={savedDescription}
+                    draftDescription={draftDescription}
+                    onDraftChange={setDraftDescription}
+                    editing={editingDescription}
+                    onEditingChange={setEditingDescription}
+                  />
+                )}
+                {editingDescription && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button type="button" size="sm" onClick={handleSave} disabled={isUpdatingTask}>
+                      {isUpdatingTask && <Loader2 className="size-3.5 animate-spin" />}
+                      Save
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={handleCancel}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {isDirty && !editingDescription && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2">
+                <p className="flex-1 text-xs text-muted-foreground">
+                  You have unsaved changes.
+                </p>
+                <Button type="button" size="sm" onClick={handleSave} disabled={isUpdatingTask}>
+                  {isUpdatingTask && <Loader2 className="size-3.5 animate-spin" />}
+                  Save
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={handleCancel}>
+                  Discard
+                </Button>
+              </div>
             )}
-            <div className="ml-auto flex justify-end gap-2">
-              <DialogClose render={<Button variant="ghost" />}>
-                Cancel
-              </DialogClose>
-              <Button type="submit" disabled={isUpdatingTask}>
-                {isUpdatingTask && <Loader2 className="size-4 animate-spin" />}
-                Save
-              </Button>
-            </div>
           </div>
-        </form>
+
+          <aside className="min-w-0 border-t border-border bg-muted/30 px-5 py-4 md:overflow-y-auto md:border-l md:border-t-0">
+            <TaskComments
+              key={task.id}
+              taskId={task.id}
+              enabled={open}
+              currentUserId={user?.id}
+              currentUserEmail={user?.email ?? ""}
+              canDeleteAnyComment={isOwner || isAdmin}
+            />
+          </aside>
+        </div>
       </DialogPopup>
       <CreateLabelDialog
         boardId={boardId}
         open={isCreateLabelOpen}
         onOpenChange={setIsCreateLabelOpen}
       />
+      {canDelete && (
+        <ConfirmDeleteDialog
+          open={isDeleteOpen}
+          onOpenChange={setIsDeleteOpen}
+          title="Delete Task"
+          description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+          onConfirm={handleDelete}
+          isLoading={isDeletingTask}
+        />
+      )}
     </Dialog>
   );
 }

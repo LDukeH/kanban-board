@@ -1,0 +1,104 @@
+/* Scoped Tiptap description styles. Read mode renders this directly;
+   edit mode adds the editor chrome (toolbar + focus ring) around it. */
+.task-description-prose {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--foreground);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.task-description-prose > *:first-child { margin-top: 0; }
+.task-description-prose > *:last-child { margin-bottom: 0; }
+
+.task-description-prose p { margin: 0.375rem 0; }
+.task-description-prose h1,
+.task-description-prose h2,
+.task-description-prose h3 {
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.task-description-prose h1 { font-size: 1.25rem; margin: 0.75rem 0 0.375rem; }
+.task-description-prose h2 { font-size: 1.125rem; margin: 0.625rem 0 0.375rem; }
+.task-description-prose h3 { font-size: 1rem; margin: 0.5rem 0 0.25rem; }
+
+.task-description-prose ul,
+.task-description-prose ol {
+  margin: 0.375rem 0;
+  padding-left: 1.375rem;
+}
+.task-description-prose ul { list-style: disc; }
+.task-description-prose ol { list-style: decimal; }
+.task-description-prose li { margin: 0.125rem 0; }
+.task-description-prose li > ul,
+.task-description-prose li > ol { margin: 0.125rem 0; }
+
+.task-description-prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.125rem;
+}
+.task-description-prose li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.task-description-prose li[data-type="taskItem"] > label {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+}
+.task-description-prose li[data-type="taskItem"] > div { flex: 1; min-width: 0; }
+
+.task-description-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.task-description-prose code {
+  font-family: var(--mono);
+  font-size: 0.8125em;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.0625rem 0.3125rem;
+}
+.task-description-prose pre {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+.task-description-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.task-description-prose blockquote {
+  border-left: 2px solid var(--primary);
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: var(--muted-foreground);
+}
+
+.task-description-prose hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.75rem 0;
+}
+
+.task-description-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.task-description-prose.is-empty::before {
+  content: "Add a more detailed description…";
+  color: var(--muted-foreground);
+  pointer-events: none;
+}

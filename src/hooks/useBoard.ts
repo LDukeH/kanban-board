@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+﻿import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getBoard } from "@/lib/api/board.api";
 import {
   getBoardColumns,
@@ -13,6 +13,7 @@ import {
   updateLabel,
   deleteLabel,
 } from "@/lib/api/label.api";
+import { reorderColumns } from "@/lib/dragDrop";
 import type { Column, Label, Task } from "@/types/board";
 
 export function boardLabelsQueryKey(boardId: string): readonly [
@@ -50,7 +51,6 @@ export function useBoard(boardId: string | undefined) {
     enabled: !!boardId,
   });
 
- 
   function updateBoardTaskLabels(transform: (labels: Label[]) => Label[]) {
     if (!boardId) return;
     queryClient
@@ -149,21 +149,7 @@ export function useBoard(boardId: string | undefined) {
 
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
-        (old) => {
-          if (!old) return old;
-          const sorted = [...old].sort((a, b) => a.position - b.position);
-          const moving = sorted.find((c) => c.id === columnId);
-          if (!moving) return old;
-
-          const withoutMoving = sorted.filter((c) => c.id !== columnId);
-          const nextIndex = Math.min(position, withoutMoving.length);
-          withoutMoving.splice(nextIndex, 0, moving);
-
-          return withoutMoving.map((c, index) => ({
-            ...c,
-            position: index,
-          }));
-        },
+        (old) => (old ? reorderColumns(old, columnId, position) : old),
       );
 
       return { previousColumns };
@@ -176,7 +162,7 @@ export function useBoard(boardId: string | undefined) {
         );
       }
     },
-        onSettled: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: ["boards", boardId, "columns"],
       });
@@ -298,7 +284,7 @@ export function useBoard(boardId: string | undefined) {
     isUpdatingColumn: updateColumnMutation.isPending,
     deleteColumn: deleteColumnMutation.mutateAsync,
     isDeletingColumn: deleteColumnMutation.isPending,
-        updateColumnPosition: updateColumnPositionMutation.mutateAsync,
+    updateColumnPosition: updateColumnPositionMutation.mutateAsync,
     isUpdatingColumnPosition: updateColumnPositionMutation.isPending,
     labels: labelsQuery.data ?? [],
     isLoadingLabels: labelsQuery.isLoading,
