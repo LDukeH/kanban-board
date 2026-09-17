@@ -20,7 +20,7 @@ import {
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { describeLoadError } from "@/lib/httpStatus";
+import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
 import {
   Loader2,
   Info,
@@ -183,6 +183,7 @@ export function WorkspaceMembersDialog({
   const [internalOpen, setInternalOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
 
@@ -200,17 +201,26 @@ export function WorkspaceMembersDialog({
     setOpen?.(nextOpen);
   }
   const membersQuery = useWorkspaceMembers(workspaceId);
-  const { removeMember, isRemoving, changeRole } =
+  const { removeMember, changeRole } =
     useWorkspaceMemberActions(workspaceId);
 
   const members = membersQuery.data ?? [];
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
   function handleRemove(member: WorkspaceMember) {
-    // Removing another member; managed by owner/admin. The backend authorizes.
+    if (removingId) return;
+    setRemovingId(member.id);
     void removeMember(member.id)
       .then(() => toast.success(`Removed ${emailToHandle(member.email)}`))
-      .catch(() => undefined);
+      .catch((err) =>
+        toast.error(
+          describeMutationError(
+            err,
+            `Could not remove ${emailToHandle(member.email)}. Please try again.`,
+          ),
+        ),
+      )
+      .finally(() => setRemovingId(null));
   }
 
   function handleLeave() {
@@ -219,12 +229,20 @@ export function WorkspaceMembersDialog({
 
   function handleChangeRole(member: WorkspaceMember, role: WorkspaceRole) {
     if (member.role === "owner") return;
+    if (changingRoleId) return;
     setChangingRoleId(member.id);
     void changeRole({ membershipId: member.id, role })
       .then(() =>
         toast.success(`Role changed to ${roleLabel(role).toLowerCase()}`),
       )
-      .catch((err) => console.error("Role change failed:", err))
+      .catch((err) =>
+        toast.error(
+          describeMutationError(
+            err,
+            `Could not change ${emailToHandle(member.email)}'s role. Please try again.`,
+          ),
+        ),
+      )
       .finally(() => setChangingRoleId(null));
   }
 
@@ -283,7 +301,7 @@ export function WorkspaceMembersDialog({
                     canRemove={canManageMembers}
                     onLeave={handleLeave}
                     onRemove={handleRemove}
-                    isRemoving={isRemoving}
+                    isRemoving={removingId === member.id}
                     onChangeRole={handleChangeRole}
                     isRoleChanging={changingRoleId === member.id}
                     isSoleOwner={member.role === "owner" && ownerCount === 1}

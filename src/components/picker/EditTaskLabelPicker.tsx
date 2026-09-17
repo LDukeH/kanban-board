@@ -20,9 +20,6 @@ interface EditTaskLabelPickerProps {
   };
 }
 
-/**
- * Multi-select label picker used inside EditTaskDialog.
- */
 export function EditTaskLabelPicker({
   boardId,
   task,

@@ -12,19 +12,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   AlignLeft,
-  Calendar,
   Check,
   Circle,
-  ListTodo,
   Loader2,
   MoreHorizontal,
-  Paperclip,
   Pencil,
   Plus,
   Trash2,
@@ -68,43 +64,18 @@ function normalizeSnapshotDescription(
   return undefined;
 }
 
-// ---------------------------------------------------------------------------
-// Small building blocks (display-only unless noted)
-// ---------------------------------------------------------------------------
-
-function NotImplementedMenuItem({
-  icon,
-  label,
-}: {
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <DropdownMenuItem
-      disabled
-      closeOnClick={false}
-      className="gap-2"
-      title={`${label} — not implemented yet`}
-    >
-      {icon}
-      <span className="flex-1">{label}</span>
-      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-        Soon
-      </span>
-    </DropdownMenuItem>
-  );
-}
-
 function ActionButton({
   icon,
   label,
   onClick,
   disabled,
+  title,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  title?: string;
 }) {
   return (
     <Button
@@ -113,6 +84,7 @@ function ActionButton({
       size="sm"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className="h-7 gap-1.5 px-2.5 text-xs font-medium"
     >
       {icon}
@@ -120,10 +92,6 @@ function ActionButton({
     </Button>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Redesigned task detail modal (Trello-like, app visual language)
-// ---------------------------------------------------------------------------
 
 export function EditTaskDialog({
   task,
@@ -163,7 +131,6 @@ export function EditTaskDialog({
   );
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [isMembersPickerOpen, setIsMembersPickerOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
@@ -201,7 +168,6 @@ export function EditTaskDialog({
       setDraftDescription(normalizeSnapshotDescription(task.description));
       setEditingTitle(false);
       setEditingDescription(false);
-      setAddMenuOpen(false);
       setIsMembersPickerOpen(false);
       setOpen(nextOpen);
       return;
@@ -319,16 +285,6 @@ export function EditTaskDialog({
             {columnName}
           </span>
           <div className="ml-auto flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              title="Attachments — not implemented yet"
-              aria-label="Attachments (coming soon)"
-              onClick={() => toast.info("Attachments are not implemented yet.")}
-            >
-              <Paperclip className="size-4" />
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -399,35 +355,6 @@ export function EditTaskDialog({
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <DropdownMenu open={addMenuOpen} onOpenChange={setAddMenuOpen}>
-                <DropdownMenuTrigger
-                  render={
-                    <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 px-2.5 text-xs font-medium">
-                      <Plus className="size-3.5" />
-                      Add
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="start" className="w-52">
-                  <DropdownMenuLabel>Add to card</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <NotImplementedMenuItem icon={<Calendar className="size-3.5" />} label="Dates" />
-                  <NotImplementedMenuItem icon={<Check className="size-3.5" />} label="Checklist" />
-                  <DropdownMenuItem
-                    className="gap-2"
-                    onClick={() => {
-                      setAddMenuOpen(false);
-                      setIsMembersPickerOpen(true);
-                    }}
-                  >
-                    <UserPlus className="size-3.5" />
-                    Members
-                  </DropdownMenuItem>
-                  <NotImplementedMenuItem icon={<Paperclip className="size-3.5" />} label="Attachment" />
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <ActionButton icon={<Calendar className="size-3.5" />} label="Dates" onClick={() => toast.info("Dates are not implemented yet.")} />
-              <ActionButton icon={<ListTodo className="size-3.5" />} label="Checklist" onClick={() => toast.info("Checklists are not implemented yet.")} />
               {board?.workspaceId ? (
                 <EditTaskAssigneePicker
                   taskId={task.id}
@@ -438,9 +365,13 @@ export function EditTaskDialog({
                   onOpenChange={setIsMembersPickerOpen}
                 />
               ) : (
-                <ActionButton icon={<UserPlus className="size-3.5" />} label="Members" disabled />
+                <ActionButton
+                  icon={<UserPlus className="size-3.5" />}
+                  label="Members"
+                  disabled
+                  title="Members require a workspace"
+                />
               )}
-              <ActionButton icon={<Paperclip className="size-3.5" />} label="Attachment" onClick={() => toast.info("Attachments are not implemented yet.")} />
             </div>
 
             <div className="mt-4">

@@ -1,4 +1,3 @@
-// axios.ts
 import axios from "axios";
 import { queryClient } from "@/lib/queryClient";
 
@@ -11,13 +10,18 @@ export const api = axios.create({
 });
 
 // Handle backend authorization failures gracefully.
-// A 401 means the session/credentials are no longer valid: clear the cached
-// current user so `useAuth` reports unauthenticated and ProtectedRoute
-// redirects to the login page.
+// A 401 from the session check (`GET /auth/me`) means the session/credentials
+// are no longer valid: clear the cached current user so `useAuth` reports
+// unauthenticated and ProtectedRoute redirects to the auth page. 401s from
+// the login/register endpoints are failed attempts, not session loss — leave
+// the cache alone so an in-flight session check is not cancelled.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const url = String(error.config?.url ?? "");
+    const isSessionCheck = url.includes("/auth/me");
+    if (status === 401 && isSessionCheck) {
       queryClient.setQueryData(["currentUser"], null);
       queryClient.cancelQueries({ queryKey: ["currentUser"] });
     }

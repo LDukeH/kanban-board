@@ -58,7 +58,9 @@ export function NotificationBell({ className }: { className?: string }) {
 
   function openNotification(notification: Notification) {
     if (notification.readAt === null) {
-      void markRead(notification.id);
+      void markRead(notification.id).catch(() =>
+        toast.error("Could not mark the notification as read."),
+      );
     }
 
     switch (notification.type) {
@@ -118,7 +120,11 @@ export function NotificationBell({ className }: { className?: string }) {
           {unreadItems > 0 && (
             <button
               type="button"
-              onClick={() => void markAllRead()}
+              onClick={() =>
+                void markAllRead().catch(() =>
+                  toast.error("Could not mark notifications as read."),
+                )
+              }
               className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               aria-label="Mark all notifications as read"
             >
@@ -133,6 +139,21 @@ export function NotificationBell({ className }: { className?: string }) {
           {isListLoading ? (
             <div className="flex justify-center py-8 text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
+            </div>
+          ) : listQuery.isError ? (
+            <div className="flex flex-col items-center justify-center gap-2 px-3 py-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                Couldn't load notifications.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  void listQuery.refetch();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Retry
+              </button>
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">

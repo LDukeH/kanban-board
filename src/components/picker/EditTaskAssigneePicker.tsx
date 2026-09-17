@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Check, Loader2, Plus, Search } from "lucide-react";
+import { toast } from "react-toastify";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useTaskAssignees } from "@/hooks/useTaskAssignees";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaces";
+import { describeMutationError } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
 import {
   emailInitial,
@@ -79,7 +81,6 @@ export function EditTaskAssigneePicker({
     if (togglingUserId) return;
     const isAssigned = assignedUserIds.has(memberUserId);
     const isSelf = memberUserId === currentUserId;
-    // Everyone can assign anyone; only the current user can unassign themself.
     if (isAssigned && !isSelf) return;
 
     setTogglingUserId(memberUserId);
@@ -90,7 +91,14 @@ export function EditTaskAssigneePicker({
         await assignUser({ userId: memberUserId });
       }
     } catch (err) {
-      console.error("Assignee toggle failed:", err);
+      toast.error(
+        describeMutationError(
+          err,
+          isAssigned
+            ? "Could not unassign this member. Please try again."
+            : "Could not assign this member. Please try again.",
+        ),
+      );
     } finally {
       setTogglingUserId(null);
     }
@@ -143,7 +151,6 @@ return (
           filteredMembers.map((member) => {
             const isAssigned = assignedUserIds.has(member.userId);
             const isSelf = member.userId === currentUserId;
-            // Other members' assignments can't be removed locally.
             const removable = isSelf && isAssigned;
             const isBusy = togglingUserId === member.userId;
             return (

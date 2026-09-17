@@ -48,7 +48,6 @@ export function EditWorkspaceDialog({
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
-      // Reset form fields to current workspace values when opening
       setName(workspace.name);
       setDescription(workspace.description ?? "");
       setError(null);

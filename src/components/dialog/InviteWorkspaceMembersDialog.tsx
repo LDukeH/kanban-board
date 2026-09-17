@@ -20,6 +20,7 @@ import {
   Check,
   UserPlus,
   Users,
+  AlertCircle,
 } from "lucide-react";
 import type { SearchedUser } from "@/types/workspace";
 import {
@@ -27,6 +28,7 @@ import {
   emailToHandle,
   avatarGradient,
 } from "@/lib/memberDisplay";
+import { describeMutationError } from "@/lib/httpStatus";
 import { toast } from "react-toastify";
 
 interface InviteWorkspaceMembersDialogProps {
@@ -44,6 +46,12 @@ export function InviteWorkspaceMembersDialog({
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<SearchedUser[]>([]);
+  // Per-email failures from the last invite attempt, shown inline so the user
+  // knows exactly which addresses still need attention.
+  const [inviteErrors, setInviteErrors] = useState<
+    { email: string; message: string }[]
+  >([]);
+  const [retryFailedOpen, setRetryFailedOpen] = useState(false);
 
   const search = useSearchUsers(query);
   const membersQuery = useWorkspaceMembers(workspaceId);
@@ -73,18 +81,92 @@ export function InviteWorkspaceMembersDialog({
   }
 
   async function handleAdd() {
-    if (selected.length === 0) return;
+    if (selected.length === 0 || isAdding) return;
+    setInviteErrors([]);
+    // Invite one by one and collect per-address results: a single failing
+    // address (already a member, unknown user, no permission) must not mask
+    // the ones that succeeded.
+    const outcomes = await Promise.allSettled(
+      selected.map((user) =>
+        addMember({ email: user.email, role: "member" }),
+      ),
+    );
+    const succeeded = selected.filter((_, i) => outcomes[i].status === "fulfilled");
+    const failed = selected
+      .map((user, i) => {
+        const outcome = outcomes[i];
+        if (outcome.status === "fulfilled") return null;
+        return {
+          email: user.email,
+          message: describeMutationError(
+            outcome.reason,
+            `Could not invite ${user.email}.`,
+          ),
+        };
+      })
+      .filter((entry): entry is { email: string; message: string } => entry !== null);
+
+    if (failed.length === 0) {
+      onOpenChange(false);
+      setSelected([]);
+      toast.success(`Invited ${succeeded.length} member${succeeded.length === 1 ? "" : "s"}`);
+      return;
+    }
+
+    // Keep only the failed addresses selected so Retry targets exactly them;
+    // show every failure inline next to the summary.
+    setInviteErrors(failed);
+    setSelected(failed.map((f) => selected.find((u) => u.email === f.email)!));
+    if (succeeded.length > 0) {
+      toast.success(`Invited ${succeeded.length} member${succeeded.length === 1 ? "" : "s"}`);
+    }
+    toast.error(
+      succeeded.length === 0
+        ? `Could not invite ${failed.length} member${failed.length === 1 ? "" : "s"}.`
+        : `Invited ${succeeded.length}, ${failed.length} failed.`,
+    );
+  }
+
+  async function handleRetryFailed() {
+    if (retryFailedOpen || inviteErrors.length === 0) return;
+    setRetryFailedOpen(true);
     try {
-      await Promise.all(
-        selected.map((user) =>
+      const failedEmails = new Set(inviteErrors.map((e) => e.email.toLowerCase()));
+      const retryTargets = selected.filter((u) => failedEmails.has(u.email.toLowerCase()));
+      const outcomes = await Promise.allSettled(
+        retryTargets.map((user) =>
           addMember({ email: user.email, role: "member" }),
         ),
       );
-      onOpenChange(false);
-      toast.success(`Invited ${selected.length} member${selected.length === 1 ? "" : "s"}`);
-    } catch (err) {
-      toast.error("Failed to invite members. Please try again.");
-      console.error("Invite members failed:", err);
+      const stillFailed = retryTargets
+        .map((user, i) => {
+          const outcome = outcomes[i];
+          if (outcome.status === "fulfilled") return null;
+          return {
+            email: user.email,
+            message: describeMutationError(
+              outcome.reason,
+              `Could not invite ${user.email}.`,
+            ),
+          };
+        })
+        .filter((entry): entry is { email: string; message: string } => entry !== null);
+      const recovered = retryTargets.length - stillFailed.length;
+      setInviteErrors(stillFailed);
+      setSelected(stillFailed.map((f) => retryTargets.find((u) => u.email === f.email)!));
+      if (recovered > 0) {
+        toast.success(`Invited ${recovered} member${recovered === 1 ? "" : "s"}`);
+      }
+      if (stillFailed.length === 0) {
+        onOpenChange(false);
+        setSelected([]);
+      } else {
+        toast.error(
+          `${stillFailed.length} invite${stillFailed.length === 1 ? "" : "s"} still failing.`,
+        );
+      }
+    } finally {
+      setRetryFailedOpen(false);
     }
   }
 
@@ -171,6 +253,41 @@ return (
             </ul>
           )}
         </div>
+
+        {inviteErrors.length > 0 && (
+          <div
+            role="alert"
+            className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2"
+          >
+            <p className="flex items-start gap-2 text-sm font-medium text-destructive">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>
+                {inviteErrors.length} invite{inviteErrors.length === 1 ? "" : "s"} failed
+              </span>
+            </p>
+            <ul className="mt-1 space-y-1 pl-6 text-xs text-destructive">
+              {inviteErrors.map((failure) => (
+                <li key={failure.email}>
+                  <span className="font-medium">{failure.email}</span>
+                  {" — "}
+                  {failure.message}
+                </li>
+              ))}
+            </ul>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 gap-1.5 text-destructive hover:text-destructive"
+              disabled={retryFailedOpen || isAdding}
+              onClick={handleRetryFailed}
+            >
+              {(retryFailedOpen || isAdding) && (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              )}
+              {retryFailedOpen || isAdding ? "Retrying…" : "Retry failed"}
+            </Button>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">

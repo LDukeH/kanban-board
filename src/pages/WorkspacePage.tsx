@@ -37,7 +37,6 @@ export default function WorkspacePage() {
   const members = membersQuery.data ?? [];
   const visibleMembers = members.slice(0, MAX_AVATARS);
 
-  // Keep the selected workspace in sync with the URL
   useEffect(() => {
     if (workspaceId) {
       setSelectedWorkspaceId(workspaceId);

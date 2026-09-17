@@ -104,7 +104,6 @@ export function Sidebar({ className }: SidebarProps) {
         className,
       )}
     >
-      {/* Logo */}
       <div className="flex items-center justify-between gap-2.5 px-5 py-4">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
@@ -117,7 +116,6 @@ export function Sidebar({ className }: SidebarProps) {
         <NotificationBell className="ml-auto" />
       </div>
 
-      {/* Navigation */}
       <nav className="border-b border-border px-3 py-3">
         <div className="space-y-0.5">
           <NavButton
@@ -130,9 +128,7 @@ export function Sidebar({ className }: SidebarProps) {
         </div>
       </nav>
 
-      {/* Recents */}
       <div className="flex-1 overflow-y-auto px-3 py-4">
-        {/* Recent Workspaces */}
         {recentWorkspaces.length > 0 && (
           <div>
             <div className="mb-2 flex items-center justify-between px-2">
@@ -205,9 +201,7 @@ export function Sidebar({ className }: SidebarProps) {
         )}
       </div>
 
-      {/* Bottom: Account + Settings */}
       <div className="space-y-0.5 border-t border-border p-3">
-        {/* Account */}
         <button
           onClick={() => navigate("/settings")}
           className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -227,7 +221,6 @@ export function Sidebar({ className }: SidebarProps) {
           </span>
         </button>
 
-        {/* Settings */}
         <NavButton
           label="Settings"
           icon={Settings}

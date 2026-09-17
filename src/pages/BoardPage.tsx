@@ -6,8 +6,10 @@ import { BoardLabelsPopover } from "@/components/board/BoardLabelsPopover";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
-import { describeLoadError } from "@/lib/httpStatus";
-import { Loader2, ArrowLeft, Columns3, Kanban } from "lucide-react";
+import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
+import { Button } from "@/components/ui/button";
+import { toast } from "react-toastify";
+import { Loader2, ArrowLeft, Columns3, Kanban, Info } from "lucide-react";
 import {
   DragDropProvider,
   type DragDropManager,
@@ -35,6 +37,12 @@ import {
   type TaskFilter,
 } from "@/lib/taskFilter";
 
+function reportMoveFailure(promise: Promise<unknown>, fallback: string) {
+  void promise.catch((err) => {
+    toast.error(describeMutationError(err, fallback));
+  });
+}
+
 function BoardLoading() {
   return (
     <div className="flex flex-1 items-center justify-center text-muted-foreground">
@@ -43,10 +51,21 @@ function BoardLoading() {
   );
 }
 
-function BoardError({ message }: { message: string }) {
+function BoardError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 py-20 text-muted-foreground">
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
       <p>{message}</p>
+      {onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          Retry
+        </Button>
+      )}
     </div>
   );
 }
@@ -184,6 +203,8 @@ function BoardContent({ boardId }: { boardId: string }) {
     isLoadingColumns,
     isColumnsError,
     columnsError,
+    refetchBoard,
+    refetchColumns,
     updateColumnPosition,
   } = useBoard(boardId);
 
@@ -224,6 +245,8 @@ function BoardContent({ boardId }: { boardId: string }) {
   const canUseTasks = canWorkOnTasks && !isLoadingRole;
   const canRemoveTasks = canDeleteTask && !isLoadingRole;
 
+  const filterActive = isTaskFilterActive(taskFilter);
+
   function handleDragEnd(event: DragEndEvent, manager: DragDropManager) {
     if (event.canceled) return;
 
@@ -237,10 +260,13 @@ function BoardContent({ boardId }: { boardId: string }) {
 
       if (initialIndex === index) return;
 
-      updateColumnPosition({
-        columnId: String(source.id),
-        position: index,
-      });
+      reportMoveFailure(
+        updateColumnPosition({
+          columnId: String(source.id),
+          position: index,
+        }),
+        "Couldn't move the column. Changes were reverted.",
+      );
 
       return;
     }
@@ -271,12 +297,20 @@ function BoardContent({ boardId }: { boardId: string }) {
         return;
       }
 
-      updateTaskPosition({
-        taskId,
-        sourceColumnId,
-        columnId: targetColumnId,
-        position: insertionPosition,
-      });
+      if (filterActive) {
+        toast.info("Clear the task filter to reorder tasks.");
+        return;
+      }
+
+      reportMoveFailure(
+        updateTaskPosition({
+          taskId,
+          sourceColumnId,
+          columnId: targetColumnId,
+          position: insertionPosition,
+        }),
+        "Couldn't move the task. Changes were reverted.",
+      );
 
       return;
     }
@@ -300,12 +334,20 @@ function BoardContent({ boardId }: { boardId: string }) {
       return;
     }
 
-    updateTaskPosition({
-      taskId,
-      sourceColumnId,
-      columnId: targetColumnId,
-      position: destinationPosition,
-    });
+    if (filterActive) {
+      toast.info("Clear the task filter to reorder tasks.");
+      return;
+    }
+
+    reportMoveFailure(
+      updateTaskPosition({
+        taskId,
+        sourceColumnId,
+        columnId: targetColumnId,
+        position: destinationPosition,
+      }),
+      "Couldn't move the task. Changes were reverted.",
+    );
   }
 
   if (!boardId) {
@@ -354,6 +396,16 @@ function BoardContent({ boardId }: { boardId: string }) {
             workspaceId={board?.workspaceId}
           />
 
+          {filterActive && canUseTasks && (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5 text-xs font-medium text-muted-foreground"
+              title="Clear the task filter to drag tasks into a new order."
+            >
+              <Info className="size-3.5" aria-hidden />
+              Reordering paused
+            </span>
+          )}
+
           <BoardLabelsPopover boardId={boardId} />
         </div>
       </header>
@@ -370,6 +422,10 @@ function BoardContent({ boardId }: { boardId: string }) {
           ) : isBoardError || isColumnsError ? (
             <BoardError
               message={describeLoadError(boardError ?? columnsError)}
+              onRetry={() => {
+                void refetchBoard();
+                void refetchColumns();
+              }}
             />
           ) : sortedColumns.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-4">

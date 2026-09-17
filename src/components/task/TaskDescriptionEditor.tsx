@@ -126,7 +126,6 @@ export function TaskDescriptionEditor({
     editor.commands.setContent(seed, { emitUpdate: false });
   }, [editor, editing, description]);
 
-  // Toggle editability + focus when entering edit mode.
   useEffect(() => {
     if (!editor) return;
     editor.setEditable(editing && !disabled);

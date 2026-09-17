@@ -17,7 +17,6 @@ export default function AuthLayout() {
     <div className="relative flex h-dvh w-full overflow-hidden bg-background">
       {/* Mobile view — stacked layout */}
       <div className="flex flex-col h-full w-full md:hidden">
-        {/* Mobile banner */}
         <div className="relative h-48 shrink-0 overflow-hidden">
           <img
             src="/side-image.png"
@@ -33,7 +32,6 @@ export default function AuthLayout() {
           </div>
         </div>
 
-        {/* Mobile form */}
         <div className="flex-1 overflow-y-auto py-8">
           <AnimatePresence mode="wait">
             <motion.div
@@ -55,10 +53,8 @@ export default function AuthLayout() {
 
       {/* Desktop view — animated split-screen */}
       <div className="hidden md:flex h-full w-full">
-        {/* Image panel */}
         <AuthSidePanel isRegister={isRegister} />
 
-        {/* Form panel */}
         <motion.div
           animate={{
             left: isRegister ? "0%" : "50%",

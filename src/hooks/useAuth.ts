@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser, logoutUser } from "@/lib/api/auth.api";
+import { getHttpStatus } from "@/lib/httpStatus";
 import { useRecentStore } from "@/stores/recentStore";
 
 export function useAuth() {
@@ -10,6 +11,8 @@ export function useAuth() {
     data: user,
     isLoading,
     isError,
+    error,
+    refetch,
   } = useQuery({
     queryKey: ["currentUser"],
     queryFn: getCurrentUser,
@@ -31,15 +34,26 @@ export function useAuth() {
   const logoutMutation = useMutation({
     mutationFn: logoutUser,
     onSuccess: () => {
-      // Clear the user from query cache on logout
       queryClient.setQueryData(["currentUser"], null);
     },
   });
+
+  // A 401 from /auth/me means the session is genuinely gone (invalid or
+  // expired credentials). Any other failure — network error, 5xx — is a
+  // transient problem: the user may still be authenticated, so report it as a
+  // session-check error instead of treating them as logged out.
+  const sessionCheckFailed = isError && getHttpStatus(error) !== 401;
 
   return {
     user: user ?? null,
     isLoading,
     isAuthenticated: !!user && !isError,
+    sessionCheckFailed,
+    sessionCheckError: sessionCheckFailed ? error : null,
+    retrySessionCheck: refetch,
+    isError,
+    error,
     logout: logoutMutation.mutateAsync,
+    isLoggingOut: logoutMutation.isPending,
   };
 }

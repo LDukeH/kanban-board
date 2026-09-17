@@ -123,7 +123,6 @@ export function TaskFilterPopover({
 
   function clearSearch() {
     onChange({ ...filter, query: "" });
-    // Keep the input focused so the user can immediately type again.
     searchInputRef.current?.focus();
   }
 
@@ -184,7 +183,6 @@ export function TaskFilterPopover({
         className="w-72"
         style={{ maxHeight: "min(70vh, 480px)" }}
       >
-        {/* Global task search — also narrows the assignee/label options */}
         <div className="relative px-1 pb-1 pt-1.5">
           <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -218,7 +216,6 @@ export function TaskFilterPopover({
           )}
         </div>
 
-        {/* Assignee */}
         <DropdownMenuGroup>
           <DropdownMenuLabel>Assignee</DropdownMenuLabel>
           <DropdownMenuSub>
@@ -283,7 +280,6 @@ export function TaskFilterPopover({
           </DropdownMenuSub>
         </DropdownMenuGroup>
 
-        {/* Label */}
         <DropdownMenuGroup>
           <DropdownMenuLabel>Label</DropdownMenuLabel>
           <DropdownMenuSub>

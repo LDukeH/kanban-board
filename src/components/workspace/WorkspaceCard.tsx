@@ -43,7 +43,6 @@ export function WorkspaceCard({
         className,
       )}
     >
-      {/* Identity band */}
       <div
         className={cn(
           "flex h-16 items-center justify-between bg-gradient-to-br px-4",
@@ -92,7 +91,6 @@ export function WorkspaceCard({
         )}
       </div>
 
-      {/* Content */}
       <div className="px-4 py-5">
         <h3 className="truncate text-sm font-semibold text-foreground">
           {workspace.name}
@@ -103,7 +101,6 @@ export function WorkspaceCard({
           </p>
         )}
 
-        {/* Meta Info */}
         {(typeof memberCount === "number" || typeof boardCount === "number") && (
           <div className="mt-3 flex items-center gap-4">
             {typeof memberCount === "number" && (

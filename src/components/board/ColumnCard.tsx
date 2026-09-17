@@ -6,6 +6,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
 import { EditColumnDialog } from "@/components/dialog/EditColumnDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { Button } from "@/components/ui/button";
 import { CreateTaskDialog } from "@/components/dialog/CreateTaskDialog";
 import { TaskCard } from "@/components/board/TaskCard";
 import {
@@ -15,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBoard } from "@/hooks/useBoard";
+import { describeLoadError } from "@/lib/httpStatus";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useDragDropManager, useDroppable } from "@dnd-kit/react";
 import { useComputed } from "@dnd-kit/react/hooks";
@@ -66,7 +68,13 @@ export function ColumnCard({
   filter,
 }: ColumnCardProps) {
   const { deleteColumn, isDeletingColumn } = useBoard(column.boardId);
-  const { tasks, isLoadingTasks } = useColumnTasks(column.boardId, column.id);
+  const {
+    tasks,
+    isLoadingTasks,
+    isTasksError,
+    tasksError,
+    refetchTasks,
+  } = useColumnTasks(column.boardId, column.id);
 
   const { ref, isDragging } = useSortable({
     id: column.id,
@@ -147,7 +155,6 @@ export function ColumnCard({
         isDragging && "opacity-50",
       )}
     >
-      {/* Header */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
         <span className="size-2 shrink-0 rounded-full bg-primary" />
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
@@ -193,7 +200,6 @@ export function ColumnCard({
         )}
       </div>
 
-      {/* Task area */}
       <div
         data-column-scroll
         data-column-id={column.id}
@@ -205,7 +211,24 @@ export function ColumnCard({
       >
         {isLoadingTasks ? (
           <div className="flex items-center justify-center py-6 text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            <span className="sr-only">Loading tasks…</span>
+          </div>
+        ) : isTasksError ? (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              Couldn't load tasks.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void refetchTasks();
+              }}
+            >
+              Retry
+            </Button>
+            <span className="sr-only">{describeLoadError(tasksError)}</span>
           </div>
         ) : visibleTasks.length === 0 ? (
           foreignTaskInsertionIndex >= 0 ? (
@@ -227,7 +250,7 @@ export function ColumnCard({
                   boardId={column.boardId}
                   canEdit={canEditTask}
                   canDelete={canDeleteTask}
-                  draggable={canEditTask}
+                  draggable={canEditTask && !filterActive}
                   index={index}
                 />
               </Fragment>
@@ -240,7 +263,6 @@ export function ColumnCard({
         )}
       </div>
 
-      {/* Footer */}
       {canCreateTask && (
         <div className="shrink-0 border-t border-border p-2">
           <CreateTaskDialog boardId={column.boardId} columnId={column.id} />

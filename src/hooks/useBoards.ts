@@ -49,7 +49,6 @@ export function useBoards(workspaceId: string | undefined) {
       data: { name?: string; description?: string };
     }) => updateBoard(boardId, data),
     onSuccess: (updatedBoard) => {
-      // Update the board in the workspace's board list
       queryClient.setQueryData<Board[]>(
         ["workspaces", workspaceId, "boards"],
         (old) =>
@@ -57,7 +56,6 @@ export function useBoards(workspaceId: string | undefined) {
             ? old.map((b) => (b.id === updatedBoard.id ? updatedBoard : b))
             : [updatedBoard],
       );
-      // Update the single board cache as well
       queryClient.setQueryData<Board>(
         ["boards", updatedBoard.id],
         updatedBoard,
@@ -71,14 +69,11 @@ export function useBoards(workspaceId: string | undefined) {
   const deleteBoardMutation = useMutation({
     mutationFn: (boardId: string) => deleteBoard(boardId),
     onSuccess: (_data, deletedBoardId) => {
-      // Remove the board from the workspace's board list
       queryClient.setQueryData<Board[]>(
         ["workspaces", workspaceId, "boards"],
         (old) => (old ? old.filter((b) => b.id !== deletedBoardId) : []),
       );
-      // Remove the single board cache and its columns
       queryClient.removeQueries({ queryKey: ["boards", deletedBoardId] });
-      // Drop the board from the recent sidebar list
       useRecentStore.getState().forgetBoard(deletedBoardId);
     },
   });

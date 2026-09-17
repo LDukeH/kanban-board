@@ -196,7 +196,6 @@ export function useBoard(boardId: string | undefined) {
       const previousLabels =
         queryClient.getQueryData<Label[]>(["boards", boardId, "labels"]) ?? [];
 
-      // Optimistically update the board's label list.
       queryClient.setQueryData<Label[]>(
         ["boards", boardId, "labels"],
         (old) =>
@@ -205,7 +204,6 @@ export function useBoard(boardId: string | undefined) {
           ) ?? [],
       );
 
-      // Propagate the rename to embedded labels on every cached task.
       updateBoardTaskLabels((labels) =>
         labels.map((label) =>
           label.id === labelId ? { ...label, ...data } : label,
@@ -240,13 +238,11 @@ export function useBoard(boardId: string | undefined) {
       const previousLabels =
         queryClient.getQueryData<Label[]>(["boards", boardId, "labels"]) ?? [];
 
-      // Optimistically remove the label from the board's label list.
       queryClient.setQueryData<Label[]>(
         ["boards", boardId, "labels"],
         (old) => (old ? old.filter((label) => label.id !== labelId) : []),
       );
 
-      // Remove the deleted label from embedded labels on every cached task.
       updateBoardTaskLabels((labels) =>
         labels.filter((label) => label.id !== labelId),
       );
@@ -274,6 +270,8 @@ export function useBoard(boardId: string | undefined) {
     isLoadingBoard: boardQuery.isLoading,
     isBoardError: boardQuery.isError,
     boardError: boardQuery.error,
+    refetchBoard: boardQuery.refetch,
+    refetchColumns: columnsQuery.refetch,
     columns: columnsQuery.data ?? [],
     isLoadingColumns: columnsQuery.isLoading,
     isColumnsError: columnsQuery.isError,

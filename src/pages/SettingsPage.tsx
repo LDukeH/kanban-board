@@ -27,7 +27,6 @@ export default function SettingsPage() {
       </header>
 
       <div className="flex-1 p-6">
-        {/* Account */}
         <section className="rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-2">
             <Mail className="size-4 text-primary" />
@@ -41,7 +40,6 @@ export default function SettingsPage() {
           </p>
         </section>
 
-        {/* Appearance */}
         <section className="mt-4 rounded-xl border border-border bg-card p-6">
           <h2 className="text-sm font-semibold text-foreground">Appearance</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -61,7 +59,6 @@ export default function SettingsPage() {
           </Button>
         </section>
 
-        {/* Session */}
         <section className="mt-4 rounded-xl border border-border bg-card p-6">
           <h2 className="text-sm font-semibold text-foreground">Session</h2>
           <p className="mt-1 text-sm text-muted-foreground">

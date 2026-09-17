@@ -497,6 +497,7 @@ export function useColumnTasks(
     isLoadingTasks: tasksQuery.isLoading,
     isTasksError: tasksQuery.isError,
     tasksError: tasksQuery.error,
+    refetchTasks: tasksQuery.refetch,
     createTask: createTaskMutation.mutateAsync,
     isCreatingTask: createTaskMutation.isPending,
     updateTask: updateTaskMutation.mutateAsync,

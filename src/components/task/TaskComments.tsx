@@ -62,17 +62,14 @@ export function TaskComments({
       setDraft("");
     } catch (err) {
       toast.error(
-        describeMutationError(
-          err,
-          "Failed to post comment. Please try again.",
-        ),
+        describeMutationError(err, "Failed to post comment. Please try again."),
       );
       console.error("Create comment failed:", err);
     }
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 pb-3">
         <MessageCircle className="size-4 text-muted-foreground" />
         <h3 className="text-sm font-semibold">Comments</h3>
@@ -83,7 +80,7 @@ export function TaskComments({
         )}
       </div>
 
-      <div className="flex items-start gap-2.5 pb-4">
+      <div className="flex shrink-0 items-start gap-2.5 pb-4">
         <span
           aria-hidden
           className={cn(
@@ -135,86 +132,89 @@ export function TaskComments({
           </div>
         </div>
       </div>
-      {isLoadingComments ? (
-        <div className="flex flex-1 items-center justify-center py-6 text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-        </div>
-      ) : isCommentsError ? (
-        <div className="flex flex-1 flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-center">
-          <p className="text-xs font-medium text-muted-foreground">
-            Couldn't load comments
-          </p>
-          <p className="max-w-56 text-[11px] leading-relaxed text-muted-foreground/80">
-            {describeLoadError(commentsError)}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void refetchComments()}
-          >
-            Try again
-          </Button>
-        </div>
-      ) : comments.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-center">
-          <MessageCircle className="size-6 text-muted-foreground/60" />
-          <p className="text-xs font-medium text-muted-foreground">
-            No comments yet
-          </p>
-          <p className="max-w-56 text-[11px] leading-relaxed text-muted-foreground/80">
-            Write a comment above to start the discussion on this card.
-          </p>
-        </div>
-      ) : (
-        <ul className="flex flex-1 flex-col gap-2.5">
-          {comments.map((comment) => {
-            const canDelete =
-              canDeleteAnyComment || comment.authorId === currentUserId;
-            return (
-              <li key={comment.id} className="flex items-start gap-2.5">
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-                    avatarGradient(comment.authorEmail),
-                  )}
-                >
-                  {emailInitial(comment.authorEmail)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
-                      {comment.authorEmail}
-                    </span>
-                    <time
-                      className="shrink-0 text-[11px] text-muted-foreground"
-                      dateTime={comment.createdAt}
-                      title={comment.createdAt}
-                    >
-                      {formatRelativeTime(comment.createdAt)}
-                    </time>
-                    {canDelete && (
-                      <button
-                        type="button"
-                        onClick={() => setDeleting(comment)}
-                        aria-label={`Delete comment by ${comment.authorEmail}`}
-                        title="Delete comment"
-                        className="text-muted-foreground transition-colors hover:text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {isLoadingComments ? (
+          <div className="flex h-full items-center justify-center py-6 text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+          </div>
+        ) : isCommentsError ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-center">
+            <p className="text-xs font-medium text-muted-foreground">
+              Couldn't load comments
+            </p>
+            <p className="max-w-56 text-[11px] leading-relaxed text-muted-foreground/80">
+              {describeLoadError(commentsError)}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void refetchComments()}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : comments.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-center">
+            <MessageCircle className="size-6 text-muted-foreground/60" />
+            <p className="text-xs font-medium text-muted-foreground">
+              No comments yet
+            </p>
+            <p className="max-w-56 text-[11px] leading-relaxed text-muted-foreground/80">
+              Write a comment above to start the discussion on this card.
+            </p>
+          </div>
+        ) : (
+          <ul className="flex h-full max-h-full flex-col gap-2.5 overflow-y-auto pr-1">
+            {comments.map((comment) => {
+              const canDelete =
+                canDeleteAnyComment || comment.authorId === currentUserId;
+              return (
+                <li key={comment.id} className="flex items-start gap-2.5">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
+                      avatarGradient(comment.authorEmail),
                     )}
+                  >
+                    {emailInitial(comment.authorEmail)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+                        {comment.authorEmail}
+                      </span>
+                      <time
+                        className="shrink-0 text-[11px] text-muted-foreground"
+                        dateTime={comment.createdAt}
+                        title={comment.createdAt}
+                      >
+                        {formatRelativeTime(comment.createdAt)}
+                      </time>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleting(comment)}
+                          aria-label={`Delete comment by ${comment.authorEmail}`}
+                          title="Delete comment"
+                          className="text-muted-foreground transition-colors hover:text-destructive"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                      {comment.content}
+                    </p>
                   </div>
-                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-                    {comment.content}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
       <ConfirmDeleteDialog
         open={deleting !== null}
         onOpenChange={(open) => {

@@ -57,7 +57,6 @@ export function BoardCard({
           </span>
         </div>
 
-        {/* Content */}
         <div className="px-4 py-5">
           <h3 className="truncate text-sm font-semibold text-foreground">
             {board.name}

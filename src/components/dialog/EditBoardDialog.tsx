@@ -47,7 +47,6 @@ export function EditBoardDialog({
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
-      // Reset form fields to current board values when opening
       setName(board.name);
       setDescription(board.description ?? "");
       setError(null);

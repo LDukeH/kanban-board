@@ -67,11 +67,9 @@ export function useWorkspaces() {
       queryClient.setQueryData<Workspace[]>(["workspaces"], (old) =>
         old ? old.filter((w) => w.id !== deletedWorkspaceId) : [],
       );
-      // Invalidate members query for the deleted workspace
       queryClient.removeQueries({
         queryKey: ["workspaces", deletedWorkspaceId],
       });
-      // Drop the workspace (and its boards) from the recent sidebar list
       useRecentStore.getState().forgetWorkspace(deletedWorkspaceId);
     },
   });
@@ -150,7 +148,6 @@ export function useLeaveWorkspace(workspaceId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       // Drop cached members/boards/columns/tasks for the left workspace.
       queryClient.removeQueries({ queryKey: ["workspaces", workspaceId] });
-      // Drop the workspace (and its boards) from the recent sidebar list.
       useRecentStore.getState().forgetWorkspace(workspaceId!);
     },
   });

@@ -46,7 +46,6 @@ export function EditColumnDialog({
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
-      // Reset form field to current column value when opening
       setName(column.name);
       setError(null);
     }

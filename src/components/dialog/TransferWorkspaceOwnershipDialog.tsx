@@ -36,9 +36,6 @@ interface TransferWorkspaceOwnershipDialogProps {
   onSuccess?: (member: WorkspaceMember) => void;
 }
 
-/**
- * Transfer ownership of the workspace to another member.
- */
 export function TransferWorkspaceOwnershipDialog({
   workspaceId,
   open,
@@ -56,7 +53,6 @@ export function TransferWorkspaceOwnershipDialog({
   const submitLockedRef = useRef(false);
 
   const members = membersQuery.data ?? [];
-  // Candidates: real members of the workspace, excluding the current owner.
   const candidates = members.filter(
     (m) => m.userId !== user?.id && m.role !== "owner",
   );
@@ -65,7 +61,6 @@ export function TransferWorkspaceOwnershipDialog({
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
-      // Reset the selection each time the dialog opens.
       setSelectedUserId(null);
     }
     onOpenChange(nextOpen);
@@ -88,7 +83,6 @@ export function TransferWorkspaceOwnershipDialog({
           "Failed to transfer ownership. Please try again.",
         ),
       );
-      console.error("Transfer ownership failed:", err);
     } finally {
       submitLockedRef.current = false;
     }
