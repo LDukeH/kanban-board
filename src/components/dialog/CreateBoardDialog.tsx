@@ -12,7 +12,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
 import { useBoards } from "@/hooks/useBoards";
 
 interface CreateBoardDialogProps {
@@ -38,14 +37,13 @@ export function CreateBoardDialog({
     }
     setError(null);
     try {
-      const created = await createBoard({
+      await createBoard({
         name: name.trim(),
         description: description.trim() || undefined,
       });
       setName("");
       setDescription("");
       setOpen(false);
-      toast.success(`“${created.name}” created`);
     } catch (err) {
       setError("Failed to create board. Please try again.");
       console.error("Create board failed:", err);

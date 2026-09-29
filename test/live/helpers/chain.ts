@@ -3,7 +3,7 @@ import { createColumn } from "@/lib/api/column.api";
 import { createWorkspace, deleteWorkspace } from "@/lib/api/workspace.api";
 import type { Board, Column } from "@/types/board";
 import type { Workspace } from "@/types/workspace";
-import { loginAs, provisionUser, type LiveAccount } from "./session";
+import { deleteAccount, loginAs, provisionUser, type LiveAccount } from "./session";
 import { uniqueName } from "./uniq";
 
 export interface ProvisionedChain {
@@ -30,9 +30,20 @@ export async function provisionChain(prefix: string): Promise<ProvisionedChain> 
   return { owner, workspace, board, columns: [column] };
 }
 
+/**
+ * Tears down a provisioned chain and the throwaway owner account itself.
+ *
+ * Order matters: the workspace goes first, then the account. Ownership lives in
+ * `workspace_memberships` and the backend has no ownership-transfer trigger
+ * (migration 012 is unimplemented), so deleting an owner before its workspace
+ * would strand the workspace ownerless. Deleting the user then cascades the
+ * owner's memberships, task_assignees, notifications, comments and invitations,
+ * so the run leaves no residue behind.
+ */
 export async function tearDownChain(
   chain: Pick<ProvisionedChain, "owner" | "workspace">,
 ): Promise<void> {
   await loginAs(chain.owner);
   await deleteWorkspace(chain.workspace.id);
+  await deleteAccount(chain.owner);
 }

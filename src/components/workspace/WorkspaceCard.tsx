@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { getGradient } from "@/lib/colors";
-import { Users, LayoutGrid, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Workspace } from "@/types/workspace";
 import { EditWorkspaceDialog } from "@/components/dialog/EditWorkspaceDialog";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
@@ -16,8 +16,6 @@ import { useState } from "react";
 
 interface WorkspaceCardProps {
   workspace: Workspace;
-  memberCount?: number;
-  boardCount?: number;
   canEdit?: boolean;
   canDelete?: boolean;
   className?: string;
@@ -25,8 +23,6 @@ interface WorkspaceCardProps {
 
 export function WorkspaceCard({
   workspace,
-  memberCount,
-  boardCount,
   canEdit = false,
   canDelete = false,
   className,
@@ -100,23 +96,6 @@ export function WorkspaceCard({
             {workspace.description}
           </p>
         )}
-
-        {(typeof memberCount === "number" || typeof boardCount === "number") && (
-          <div className="mt-3 flex items-center gap-4">
-            {typeof memberCount === "number" && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Users className="size-3.5" />
-                <span>{memberCount} members</span>
-              </div>
-            )}
-            {typeof boardCount === "number" && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <LayoutGrid className="size-3.5" />
-                <span>{boardCount} boards</span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {canEdit && (
@@ -130,7 +109,6 @@ export function WorkspaceCard({
         <ConfirmDeleteDialog
           title="Delete Workspace"
           description={`Are you sure you want to delete "${workspace.name}"? This will permanently delete all boards, columns, and tasks within this workspace.`}
-          successMessage={`Workspace “${workspace.name}” deleted`}
           onConfirm={() => deleteWorkspace(workspace.id)}
           isLoading={isDeleting}
           open={deleteOpen}

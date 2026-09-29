@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import {
   Dialog,
   DialogPopup,
@@ -10,7 +11,6 @@ import {
 import { useLeaveWorkspace } from "@/hooks/useWorkspaces";
 import { describeMutationError } from "@/lib/httpStatus";
 import { LogOut, Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
 import type { Workspace } from "@/types/workspace";
 
 interface LeaveWorkspaceDialogProps {
@@ -28,6 +28,9 @@ export function LeaveWorkspaceDialog({
   onLeft,
 }: LeaveWorkspaceDialogProps) {
   const { leaveWorkspace, isLeaving } = useLeaveWorkspace(workspace.id);
+  // A failed leave keeps the dialog open and reports inline so the user can
+  // retry without re-navigating.
+  const [error, setError] = useState<string | null>(null);
   // Synchronous lock so two rapid submits can never fire two leave requests
   // before React re-renders with the disabled confirm button.
   const submitLockedRef = useRef(false);
@@ -35,6 +38,7 @@ export function LeaveWorkspaceDialog({
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
       submitLockedRef.current = false;
+      setError(null);
     }
     onOpenChange(nextOpen);
   }
@@ -43,13 +47,13 @@ export function LeaveWorkspaceDialog({
     e.preventDefault();
     if (submitLockedRef.current || isLeaving) return;
     submitLockedRef.current = true;
+    setError(null);
     try {
       await leaveWorkspace();
       onOpenChange(false);
-      toast.success(`Left “${workspace.name}”`);
       onLeft?.();
     } catch (err) {
-      toast.error(
+      setError(
         describeMutationError(
           err,
           "Failed to leave the workspace. Please try again.",
@@ -71,6 +75,7 @@ export function LeaveWorkspaceDialog({
         </DialogDescription>
 
         <form onSubmit={handleConfirm} className="mt-4 flex flex-col gap-4">
+          {error && <InlineAlert message={error} />}
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="ghost" />}>
               Cancel

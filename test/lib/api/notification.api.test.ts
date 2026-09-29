@@ -46,7 +46,12 @@ describe("notification.api", () => {
       id: "n2",
       user_id: "u1",
       type: "workspace_invited",
-      payload: { workspace_id: "ws1", workspace_name: "Team", actor_email: "ada@example.com" },
+      payload: {
+        invitation_id: "inv1",
+        workspace_id: "ws1",
+        workspace_name: "Team",
+        actor_email: "ada@example.com",
+      },
       read_at: "2026-01-01T00:00:00.000Z",
       created_at: "2026-01-01T00:00:00.000Z",
       updated_at: "2026-01-01T00:00:00.000Z",
@@ -58,6 +63,38 @@ describe("notification.api", () => {
 
     expect(notification.type).toBe("workspace_invited");
     expect(notification.payload).toEqual({
+      invitationId: "inv1",
+      workspaceId: "ws1",
+      workspaceName: "Team",
+      actorEmail: "ada@example.com",
+    });
+  });
+
+  it("maps a workspace_invited payload without invitation_id to an empty id", async () => {
+    // A backend that predates the field must not break the app: the empty id is
+    // the contract that tells consumers to fall back to the inline notice
+    // instead of firing an accept/decline request (docs/api/invitations.md).
+    const payload = {
+      id: "n4",
+      user_id: "u1",
+      type: "workspace_invited",
+      payload: {
+        workspace_id: "ws1",
+        workspace_name: "Team",
+        actor_email: "ada@example.com",
+      },
+      read_at: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    };
+    const handle = createMockApiAdapter([route("get", "/notifications", [payload])]);
+    mockApi(handle);
+
+    const [notification] = await getNotifications();
+
+    expect(notification.type).toBe("workspace_invited");
+    expect(notification.payload).toEqual({
+      invitationId: "",
       workspaceId: "ws1",
       workspaceName: "Team",
       actorEmail: "ada@example.com",
@@ -81,6 +118,7 @@ describe("notification.api", () => {
     // Unknown types fall through to the workspace_invited mapping branch.
     expect(notification.type).toBe("workspace_invited");
     expect(notification.payload).toEqual({
+      invitationId: "",
       workspaceId: "",
       workspaceName: "",
       actorEmail: "",

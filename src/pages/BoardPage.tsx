@@ -8,7 +8,10 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
 import { Button } from "@/components/ui/button";
-import { toast } from "react-toastify";
+import {
+  InlineAlert,
+  type InlineAlertTone,
+} from "@/components/ui/inline-alert";
 import { Loader2, ArrowLeft, Columns3, Kanban, Info } from "lucide-react";
 import {
   DragDropProvider,
@@ -37,9 +40,15 @@ import {
   type TaskFilter,
 } from "@/lib/taskFilter";
 
-function reportMoveFailure(promise: Promise<unknown>, fallback: string) {
+/** Reports a failed optimistic move: the drag handler cannot await, so it is surfaced as a dismissible banner and the hook reverts the position. */
+function reportMoveFailure(
+  promise: Promise<unknown>,
+  fallback: string,
+  onNotice: (message: string) => void,
+) {
   void promise.catch((err) => {
-    toast.error(describeMutationError(err, fallback));
+    onNotice(describeMutationError(err, fallback));
+    console.error("Board move failed:", err);
   });
 }
 
@@ -159,8 +168,7 @@ function handleBoardWheel(e: WheelEvent<HTMLDivElement>) {
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
-  // Key the inner content by boardId so switching boards fully remounts it and
-  // resets board-scoped state (including the task filter / URL).
+  // Key the content by boardId so switching boards remounts it and resets board-scoped state (task filter / URL).
   return <BoardContent key={boardId} boardId={boardId ?? ""} />;
 }
 function BoardContent({ boardId }: { boardId: string }) {
@@ -168,6 +176,11 @@ function BoardContent({ boardId }: { boardId: string }) {
   const { workspaces } = useWorkspaces();
 
   const [searchParams, setSearchParams] = useSearchParams();
+  // Failed or blocked moves surface here, and clear whenever the task filter changes (clearing it is what unblocks reordering).
+  const [moveNotice, setMoveNotice] = useState<{
+    tone: InlineAlertTone;
+    message: string;
+  } | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>(() => {
     // Prefer the URL filter (shareable / deep-link), otherwise fall back to the
     // board's remembered filter so returning here restores the previous one.
@@ -180,6 +193,7 @@ function BoardContent({ boardId }: { boardId: string }) {
   const updateTaskFilter = useCallback(
     (next: TaskFilter) => {
       setTaskFilter(next);
+      setMoveNotice(null);
       saveBoardTaskFilter(boardId, next);
       const merged = new URLSearchParams(searchParams);
       // Remove all filter keys, then set the new ones (keeps unrelated params).
@@ -266,6 +280,7 @@ function BoardContent({ boardId }: { boardId: string }) {
           position: index,
         }),
         "Couldn't move the column. Changes were reverted.",
+        (message) => setMoveNotice({ tone: "error", message }),
       );
 
       return;
@@ -298,7 +313,11 @@ function BoardContent({ boardId }: { boardId: string }) {
       }
 
       if (filterActive) {
-        toast.info("Clear the task filter to reorder tasks.");
+        setMoveNotice({
+          tone: "info",
+          message:
+            "Clear the task filter to reorder tasks. A filtered board hides tasks, so a drop cannot be turned into a real position.",
+        });
         return;
       }
 
@@ -310,6 +329,7 @@ function BoardContent({ boardId }: { boardId: string }) {
           position: insertionPosition,
         }),
         "Couldn't move the task. Changes were reverted.",
+        (message) => setMoveNotice({ tone: "error", message }),
       );
 
       return;
@@ -335,7 +355,11 @@ function BoardContent({ boardId }: { boardId: string }) {
     }
 
     if (filterActive) {
-      toast.info("Clear the task filter to reorder tasks.");
+      setMoveNotice({
+        tone: "info",
+        message:
+          "Clear the task filter to reorder tasks. A filtered board hides tasks, so a drop cannot be turned into a real position.",
+      });
       return;
     }
 
@@ -347,6 +371,7 @@ function BoardContent({ boardId }: { boardId: string }) {
         position: destinationPosition,
       }),
       "Couldn't move the task. Changes were reverted.",
+      (message) => setMoveNotice({ tone: "error", message }),
     );
   }
 
@@ -409,6 +434,16 @@ function BoardContent({ boardId }: { boardId: string }) {
           <BoardLabelsPopover boardId={boardId} />
         </div>
       </header>
+
+      {moveNotice && (
+        <div className="shrink-0 px-6 pt-3">
+          <InlineAlert
+            message={moveNotice.message}
+            tone={moveNotice.tone}
+            onDismiss={() => setMoveNotice(null)}
+          />
+        </div>
+      )}
 
       <DragDropProvider
         onDragEnd={canManageColumns || canUseTasks ? handleDragEnd : undefined}

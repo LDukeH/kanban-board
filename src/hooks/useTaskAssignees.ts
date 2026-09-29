@@ -36,8 +36,7 @@ export function useTaskAssignees(
     queryClient.invalidateQueries({ queryKey });
   };
 
-  // The task cards read assignees from the embedded column task list, so keep
-  // that list in sync whenever assignments change.
+  // Task cards read assignees from the embedded column task list, so keep that list in sync too.
   const invalidateEmbeddedTask = () => {
     if (!options?.boardId || !options?.columnId) return;
     queryClient.invalidateQueries({

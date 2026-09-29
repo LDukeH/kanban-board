@@ -116,10 +116,7 @@ export const unassignUserFromTask = async (
 /** Session-scoped cache: taskId -> owning boardId (undefined = unresolvable). */
 const taskBoardCache = new Map<string, string | undefined>();
 
-/**
- * Resolve the board that owns a task through the normal board/column/task
- * endpoints (notification payloads carry only a task id). Session-cached.
- */
+/** Resolves the owning board through the normal board/column/task endpoints, since notification payloads carry only a task id. Session-cached. */
 export const findBoardIdForTask = async (
   taskId: string,
 ): Promise<string | undefined> => {

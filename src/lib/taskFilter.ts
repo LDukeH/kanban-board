@@ -58,9 +58,7 @@ export function matchesTaskFilter(task: Task, filter: TaskFilter): boolean {
     if (!inTitle && !inAssignee && !inLabel) return false;
   }
 
-  // Assignee group: matches only if the user's *selection* is satisfied.
-  // - "0 assigned" checked → task must have zero assignees.
-  // - specific assignees picked → task must have at least one by email.
+  // A selection only matches if satisfied: "0 assigned" needs zero assignees, picked emails need at least one.
   if (filter.hasNoAssignees || filter.assigneeEmails.length > 0) {
     const passesNoAssignees =
       filter.hasNoAssignees && (task.assignees ?? []).length === 0;
@@ -70,9 +68,7 @@ export function matchesTaskFilter(task: Task, filter: TaskFilter): boolean {
     if (!passesNoAssignees && !passesSelected) return false;
   }
 
-  // Label group: matches only if the user's *selection* is satisfied.
-  // - "0 labels" checked → task must have zero labels.
-  // - specific labels picked → task must have at least one by name.
+  // Same OR-within-group rule as assignees: "0 labels" needs zero labels, picked names need at least one.
   if (filter.hasNoLabels || filter.labelNames.length > 0) {
     const passesNoLabels =
       filter.hasNoLabels && (task.labels ?? []).length === 0;

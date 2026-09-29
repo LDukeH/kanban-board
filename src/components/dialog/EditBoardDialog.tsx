@@ -12,7 +12,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
-import { toast } from "react-toastify";
 import { useBoards } from "@/hooks/useBoards";
 import type { Board } from "@/types/board";
 
@@ -62,7 +61,7 @@ export function EditBoardDialog({
     }
     setError(null);
     try {
-      const updated = await updateBoard({
+      await updateBoard({
         boardId: board.id,
         data: {
           name: name.trim(),
@@ -70,7 +69,6 @@ export function EditBoardDialog({
         },
       });
       setOpen(false);
-      toast.success(`“${updated.name}” updated`);
     } catch (err) {
       setError("Failed to update board. Please try again.");
       console.error("Update board failed:", err);

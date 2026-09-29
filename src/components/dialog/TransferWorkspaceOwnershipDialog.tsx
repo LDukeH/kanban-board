@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Check, ChevronDown, Crown, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "react-toastify";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import {
   useWorkspaceMembers,
   useTransferWorkspaceOwnership,
@@ -48,6 +48,9 @@ export function TransferWorkspaceOwnershipDialog({
     useTransferWorkspaceOwnership(workspaceId);
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  // A failed transfer keeps the dialog open and reports inline so the user can
+  // retry without re-picking the member.
+  const [error, setError] = useState<string | null>(null);
   // Synchronous lock so two rapid clicks can never fire two transfer requests
   // before React re-renders with the disabled button.
   const submitLockedRef = useRef(false);
@@ -62,6 +65,7 @@ export function TransferWorkspaceOwnershipDialog({
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
       setSelectedUserId(null);
+      setError(null);
     }
     onOpenChange(nextOpen);
   }
@@ -71,18 +75,20 @@ export function TransferWorkspaceOwnershipDialog({
     if (!selectedMember) return;
     if (submitLockedRef.current || isTransferring) return;
     submitLockedRef.current = true;
+    setError(null);
     try {
       await transferOwnership(selectedMember.userId);
       // 204 only — queries were invalidated by the hook on success.
       onSuccess?.(selectedMember);
       onOpenChange(false);
     } catch (err) {
-      toast.error(
+      setError(
         describeMutationError(
           err,
           "Failed to transfer ownership. Please try again.",
         ),
       );
+      console.error("Transfer ownership failed:", err);
     } finally {
       submitLockedRef.current = false;
     }
@@ -189,6 +195,7 @@ export function TransferWorkspaceOwnershipDialog({
         </div>
 
         <form onSubmit={handleConfirm} className="mt-4 flex flex-col gap-4">
+          {error && <InlineAlert message={error} />}
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="ghost" />}>
               Cancel

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser, logoutUser } from "@/lib/api/auth.api";
 import { getHttpStatus } from "@/lib/httpStatus";
 import { useRecentStore } from "@/stores/recentStore";
+import { useInvitationStore } from "@/stores/invitationStore";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -23,12 +24,14 @@ export function useAuth() {
 
   const userId = user?.id;
 
-  // Recents are persisted per account (`kanban-recent:<userId>`). Re-bind the
-  // store whenever the signed-in user changes (login, logout, session restore,
-  // 401) so one account's recently visited workspaces/boards never leak into
-  // another account's sidebar.
+  // Recents are persisted per account (`kanban-recent:<userId>`); re-bind on user change so one account's recents never leak into another's.
   useEffect(() => {
     useRecentStore.getState().setScope(userId ?? null);
+  }, [userId]);
+
+  // Resolved invitations are in-memory and account-agnostic, so they are dropped on the same boundary to avoid leaking across accounts on a shared browser.
+  useEffect(() => {
+    useInvitationStore.getState().reset();
   }, [userId]);
 
   const logoutMutation = useMutation({
@@ -38,10 +41,7 @@ export function useAuth() {
     },
   });
 
-  // A 401 from /auth/me means the session is genuinely gone (invalid or
-  // expired credentials). Any other failure — network error, 5xx — is a
-  // transient problem: the user may still be authenticated, so report it as a
-  // session-check error instead of treating them as logged out.
+  // A 401 from /auth/me means the session is gone; any other failure is transient, so report a session-check error rather than logging the user out.
   const sessionCheckFailed = isError && getHttpStatus(error) !== 401;
 
   return {

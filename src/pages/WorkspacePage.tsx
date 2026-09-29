@@ -3,7 +3,11 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { BoardGrid } from "@/components/dashboard/BoardGrid";
 import { FeaturedSection } from "@/components/dashboard/FeaturedSection";
 import { WorkspaceMembersDialog } from "@/components/dialog/WorkspaceMembersDialog";
-import { useWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspaces";
+import {
+  useWorkspaces,
+  useWorkspaceDetail,
+  useWorkspaceMembers,
+} from "@/hooks/useWorkspaces";
 import { useBoards } from "@/hooks/useBoards";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
@@ -28,12 +32,24 @@ export default function WorkspacePage() {
     isError: isBoardsError,
     error: boardsError,
   } = useBoards(workspaceId);
-  const { canManageBoards, isLoadingRole } = useWorkspaceAccess(workspaceId);
+  const { canManageBoards, isLoadingRole, role } = useWorkspaceAccess(workspaceId);
   const { recordWorkspace } = useRecentStore();
   const membersQuery = useWorkspaceMembers(workspaceId);
   const [membersOpen, setMembersOpen] = useState(false);
 
-  const workspace = workspaces.find((w) => w.id === workspaceId);
+  // The detail route is the authoritative source for the header name and the
+  // workspace description, and the workspace mutations keep it in sync. The list
+  // entry is the fallback while the detail read is still in flight.
+  const workspaceDetail = useWorkspaceDetail(workspaceId, {
+    // Skip a request the backend is guaranteed to reject: the route answers 403
+    // for non-members, and `role` stays undefined without a membership.
+    enabled: !isLoadingRole && role !== undefined,
+  });
+
+  const workspace =
+    workspaceDetail.data ?? workspaces.find((w) => w.id === workspaceId);
+  const isLoadingWorkspace =
+    !workspace && (isLoadingWorkspaces || workspaceDetail.isLoading);
   const members = membersQuery.data ?? [];
   const visibleMembers = members.slice(0, MAX_AVATARS);
 
@@ -59,12 +75,14 @@ export default function WorkspacePage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-foreground">
-              {isLoadingWorkspaces
+              {isLoadingWorkspace
                 ? "Loading..."
                 : (workspace?.name ?? "Workspace")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {workspace?.description ?? "Boards in this workspace."}
+              {/* `description` is a plain string; an empty one falls back to
+                  the generic subtitle. */}
+              {workspace?.description || "Boards in this workspace."}
             </p>
           </div>
         </div>
@@ -143,7 +161,7 @@ export default function WorkspacePage() {
         ) : (
           <>
             <h2 className="mb-3 text-sm font-semibold text-foreground">
-              Your boards
+              Boards
             </h2>
             <BoardGrid
               boards={boards}

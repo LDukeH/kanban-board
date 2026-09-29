@@ -1,16 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getWorkspaces,
+  getWorkspace,
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
   getWorkspaceMembers,
-  createMembership,
   changeMemberRole,
   removeMember,
   leaveWorkspace,
   transferWorkspaceOwnership,
 } from "@/lib/api/workspace.api";
+import {
+  cancelInvitation,
+  acceptInvitation,
+  createInvitation,
+  declineInvitation,
+  getWorkspaceInvitations,
+} from "@/lib/api/invitation.api";
 import { searchUsersByEmail } from "@/lib/api/users.api";
 import type { Workspace, WorkspaceRole } from "@/types/workspace";
 import { useRecentStore } from "@/stores/recentStore";
@@ -28,12 +35,26 @@ export function useWorkspaces() {
     queryFn: getWorkspaces,
   });
 
+  // Both create and update return the full workspace, so the caches are written from the response instead of refetching; the list write is an upsert.
+  const writeWorkspaceCaches = (workspace: Workspace) => {
+    queryClient.setQueryData<Workspace>(
+      ["workspaces", workspace.id],
+      workspace,
+    );
+    queryClient.setQueryData<Workspace[]>(["workspaces"], (old) => {
+      if (!old) return [workspace];
+      const index = old.findIndex((w) => w.id === workspace.id);
+      if (index === -1) return [...old, workspace];
+      const next = [...old];
+      next[index] = workspace;
+      return next;
+    });
+  };
+
   const createWorkspaceMutation = useMutation({
     mutationFn: createWorkspace,
     onSuccess: (newWorkspace) => {
-      queryClient.setQueryData<Workspace[]>(["workspaces"], (old) =>
-        old ? [...old, newWorkspace] : [newWorkspace],
-      );
+      writeWorkspaceCaches(newWorkspace);
     },
   });
 
@@ -43,16 +64,10 @@ export function useWorkspaces() {
       data,
     }: {
       workspaceId: string;
-      data: { name?: string; description?: string };
+      data: { name: string; description?: string };
     }) => updateWorkspace(workspaceId, data),
     onSuccess: (updatedWorkspace) => {
-      queryClient.setQueryData<Workspace[]>(["workspaces"], (old) =>
-        old
-          ? old.map((w) =>
-              w.id === updatedWorkspace.id ? updatedWorkspace : w,
-            )
-          : [updatedWorkspace],
-      );
+      writeWorkspaceCaches(updatedWorkspace);
       // Refresh the workspace's name in the sidebar's Recent Workspaces
       // (no-op if it is not listed).
       useRecentStore
@@ -88,11 +103,35 @@ export function useWorkspaces() {
   };
 }
 
+/** Authoritative name/description for the detail page; the backend 403s non-members, so callers may pass `enabled: <known membership>`. */
+export function useWorkspaceDetail(
+  workspaceId: string | undefined,
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: ["workspaces", workspaceId],
+    queryFn: () => getWorkspace(workspaceId!),
+    enabled: !!workspaceId && options.enabled !== false,
+  });
+}
+
 export function useWorkspaceMembers(workspaceId: string | undefined) {
   return useQuery({
     queryKey: ["workspaces", workspaceId, "members"],
     queryFn: () => getWorkspaceMembers(workspaceId!),
     enabled: !!workspaceId,
+  });
+}
+
+/** Owner/Admin scoped: a pending invitee gets 403, so pass `enabled: canManageMembers` — a member may open the dialog but not list invitations. */
+export function useWorkspaceInvitations(
+  workspaceId: string | undefined,
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: ["workspaces", workspaceId, "invitations"],
+    queryFn: () => getWorkspaceInvitations(workspaceId!),
+    enabled: !!workspaceId && options.enabled !== false,
   });
 }
 
@@ -105,10 +144,25 @@ export function useWorkspaceMemberActions(workspaceId: string | undefined) {
     });
   };
 
-  const createMembershipMutation = useMutation({
-    mutationFn: ({ email, role }: { email: string; role: WorkspaceRole }) =>
-      createMembership(workspaceId!, { email, role }),
-    onSuccess: invalidateMembers,
+  const invalidateInvitations = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["workspaces", workspaceId, "invitations"],
+    });
+  };
+
+  // Inviting never creates a membership: the invitee becomes a member only after accepting, always as `member`.
+  const createInvitationMutation = useMutation({
+    mutationFn: ({ userId }: { userId: string }) =>
+      createInvitation(workspaceId!, { userId }),
+    onSuccess: invalidateInvitations,
+  });
+
+  // Cancelling only closes the pending invitation, so the members cache is
+  // intentionally left untouched.
+  const cancelInvitationMutation = useMutation({
+    mutationFn: (invitationId: string) =>
+      cancelInvitation(workspaceId!, invitationId),
+    onSuccess: invalidateInvitations,
   });
 
   const changeRoleMutation = useMutation({
@@ -129,12 +183,54 @@ export function useWorkspaceMemberActions(workspaceId: string | undefined) {
   });
 
   return {
-    addMember: createMembershipMutation.mutateAsync,
-    isAdding: createMembershipMutation.isPending,
+    inviteMember: createInvitationMutation.mutateAsync,
+    isInviting: createInvitationMutation.isPending,
+    cancelInvitation: cancelInvitationMutation.mutateAsync,
+    isCancellingInvitation: cancelInvitationMutation.isPending,
     changeRole: changeRoleMutation.mutateAsync,
     isChangingRole: changeRoleMutation.isPending,
     removeMember: removeMemberMutation.mutateAsync,
     isRemoving: removeMemberMutation.isPending,
+  };
+}
+
+/** Invitee-side actions: separate from `useWorkspaceMemberActions` because an invitee has no workspace context until they accept; `workspaceId` only targets cache keys. */
+export function useInvitationActions() {
+  const queryClient = useQueryClient();
+
+  const invalidateInvitationsFor = (workspaceId: string) => {
+    queryClient.invalidateQueries({
+      queryKey: ["workspaces", workspaceId, "invitations"],
+    });
+  };
+
+  // Acceptance creates the membership in the same transaction, so the workspace list, members list and workspace-scoped invitations all change.
+  const acceptInvitationMutation = useMutation({
+    mutationFn: ({ invitationId }: { invitationId: string; workspaceId: string }) =>
+      acceptInvitation(invitationId),
+    onSuccess: (_invitation, { workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      queryClient.invalidateQueries({
+        queryKey: ["workspaces", workspaceId, "members"],
+      });
+      invalidateInvitationsFor(workspaceId);
+    },
+  });
+
+  // Declining grants no access and creates no membership, so the workspace list is left untouched.
+  const declineInvitationMutation = useMutation({
+    mutationFn: ({ invitationId }: { invitationId: string; workspaceId: string }) =>
+      declineInvitation(invitationId),
+    onSuccess: (_invitation, { workspaceId }) => {
+      invalidateInvitationsFor(workspaceId);
+    },
+  });
+
+  return {
+    acceptInvitation: acceptInvitationMutation.mutateAsync,
+    isAccepting: acceptInvitationMutation.isPending,
+    declineInvitation: declineInvitationMutation.mutateAsync,
+    isDeclining: declineInvitationMutation.isPending,
   };
 }
 

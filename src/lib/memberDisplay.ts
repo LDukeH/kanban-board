@@ -1,4 +1,5 @@
 import type { WorkspaceRole } from "@/types/workspace";
+import { hashString } from "@/lib/colors";
 
 export const WORKSPACE_ROLE_LABELS: Record<WorkspaceRole, string> = {
   owner: "Owner",
@@ -19,20 +20,15 @@ export function emailInitial(email: string): string {
   return (email.charAt(0) || "?").toUpperCase();
 }
 
+const AVATAR_PALETTES = [
+  "from-indigo-500 to-violet-600",
+  "from-sky-500 to-cyan-500",
+  "from-emerald-500 to-teal-500",
+  "from-amber-500 to-orange-500",
+  "from-rose-500 to-pink-500",
+  "from-fuchsia-500 to-purple-600",
+] as const;
+
 export function avatarGradient(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
-  }
-  const palettes = [
-    "from-indigo-500 to-violet-600",
-    "from-sky-500 to-cyan-500",
-    "from-emerald-500 to-teal-500",
-    "from-amber-500 to-orange-500",
-    "from-rose-500 to-pink-500",
-    "from-fuchsia-500 to-purple-600",
-  ];
-  const index = Math.abs(hash) % palettes.length;
-  return palettes[index];
+  return AVATAR_PALETTES[hashString(seed) % AVATAR_PALETTES.length];
 }

@@ -42,3 +42,9 @@ export const loginUser = async (data: LoginFormSchema) => {
 export const logoutUser = async (): Promise<void> => {
   await api.post("/auth/logout");
 };
+
+// Ownership lives in `workspace_memberships`, not an owner column, and deleting a user cascades every referencing table.
+// A workspace whose owner is deleted survives ownerless, so delete the workspace first. Not exposed in the UI; the live suite uses it for teardown.
+export const deleteAccount = async (): Promise<void> => {
+  await api.delete("/auth/me");
+};

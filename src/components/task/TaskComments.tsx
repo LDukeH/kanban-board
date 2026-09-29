@@ -1,9 +1,9 @@
 ﻿import { useState } from "react";
 import { Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
-import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { useTaskComments } from "@/hooks/useTaskComments";
 import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
 import { avatarGradient, emailInitial } from "@/lib/memberDisplay";
@@ -46,6 +46,9 @@ export function TaskComments({
 
   const [draft, setDraft] = useState("");
   const [deleting, setDeleting] = useState<Comment | null>(null);
+  // Comment failures report under the composer, so the reason a post did not
+  // happen stays readable after the click.
+  const [error, setError] = useState<string | null>(null);
 
   const trimmedLength = draft.trim().length;
   const isTooLong = trimmedLength > COMMENT_CONTENT_MAX_LENGTH;
@@ -54,14 +57,15 @@ export function TaskComments({
     const content = draft.trim();
     const validationMessage = validateCommentContent(content);
     if (validationMessage) {
-      toast.error(validationMessage);
+      setError(validationMessage);
       return;
     }
+    setError(null);
     try {
       await createComment({ content });
       setDraft("");
     } catch (err) {
-      toast.error(
+      setError(
         describeMutationError(err, "Failed to post comment. Please try again."),
       );
       console.error("Create comment failed:", err);
@@ -130,6 +134,13 @@ export function TaskComments({
               Comment
             </Button>
           </div>
+          {error && (
+            <InlineAlert
+              message={error}
+              onDismiss={() => setError(null)}
+              className="mt-2"
+            />
+          )}
         </div>
       </div>
 
@@ -232,7 +243,6 @@ export function TaskComments({
           }
         }}
         isLoading={isDeletingComment}
-        successMessage="Comment deleted."
       />
     </div>
   );

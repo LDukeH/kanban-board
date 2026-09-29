@@ -119,7 +119,6 @@ export function BoardCard({
         <ConfirmDeleteDialog
           title="Delete Board"
           description={`Are you sure you want to delete "${board.name}"? This will permanently delete all columns and tasks within this board.`}
-          successMessage={`Board “${board.name}” deleted`}
           onConfirm={() => deleteBoard(board.id)}
           isLoading={isDeletingBoard}
           open={deleteOpen}

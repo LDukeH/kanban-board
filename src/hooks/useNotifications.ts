@@ -31,11 +31,11 @@ export function useUnreadNotificationCount() {
   });
 }
 
-/** Bell panel list (limit 20) — fetched only while the panel is open. */
+/** Shared by the bell and the invitation inbox: a pending invitation is the only notification the user must act on, so the window is the backend max. */
 export function useNotificationsList(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: notificationsListQueryKey(),
-    queryFn: () => getNotifications({ limit: 20, unreadOnly: false }),
+    queryFn: () => getNotifications({ limit: 50, unreadOnly: false }),
     enabled: options.enabled,
   });
 }

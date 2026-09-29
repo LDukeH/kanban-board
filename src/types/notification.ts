@@ -7,6 +7,9 @@ export interface TaskAssignedPayload {
 }
 
 export interface WorkspaceInvitedPayload {
+  // `invitation_id` is the only invitee-readable source of an invitation id; a pending invitee gets 403 from the workspace invitation list and no
+  // "my invitations" route exists. Mapped tolerantly: `""` means a backend predating the field, and consumers must treat that as "no actions available".
+  invitationId: string;
   workspaceId: string;
   workspaceName: string;
   actorEmail: string;

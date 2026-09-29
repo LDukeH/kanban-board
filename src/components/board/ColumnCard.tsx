@@ -30,8 +30,7 @@ import {
   type TaskFilter,
 } from "@/lib/taskFilter";
 
-/** Empty card-sized slot that "pushes" a column's tasks apart while a task
- * from another column is dragged over them so the landing spot is obvious. */
+/** Empty card-sized slot that pushes a column's tasks apart while a foreign task is dragged over them. */
 function TaskDropPlaceholder() {
   return (
     <div
@@ -83,9 +82,7 @@ export function ColumnCard({
     type: "column",
     accept: "column",
     collisionDetector: closestCenter,
-    // Columns use the library defaults (keyboard support + optimistic
-    // sorting); the DragOverlay renders the drag preview, so no extra
-    // feedback config is needed. Column dragging stays gated behind canEdit.
+    // Library defaults cover keyboard support and optimistic sorting; the DragOverlay renders the preview, and dragging stays gated behind canEdit.
     disabled: !canEdit ? { draggable: true } : false,
     data: {
       type: "column",
@@ -284,7 +281,6 @@ export function ColumnCard({
           onOpenChange={setIsDeleteDialogOpen}
           title="Delete Column"
           description={`Are you sure you want to delete "${column.name}"? This will permanently delete all tasks within this column.`}
-          successMessage={`Column “${column.name}” deleted`}
           onConfirm={() => deleteColumn(column.id)}
           isLoading={isDeletingColumn}
         />

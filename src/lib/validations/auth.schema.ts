@@ -16,7 +16,7 @@ export const registerSchema = z
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
 
-    // Path help with displaying the error message on the confirmPassword field instead of the form level
+    // Path the mismatch to confirmPassword so it shows on that field instead of at form level.
     path: ["confirmPassword"],
   });
 

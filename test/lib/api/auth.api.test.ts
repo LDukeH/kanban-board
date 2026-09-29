@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { api } from "@/lib/api/axios";
-import { getCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
+import { deleteAccount, getCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
 import { queryClient } from "@/lib/queryClient";
 import { createMockApiAdapter, noContentRoute, route, type MockApiHandle } from "../../helpers/mockApiModule";
 
@@ -67,6 +67,14 @@ describe("auth.api", () => {
 
     await expect(logoutUser()).resolves.toBeUndefined();
     expect(handle.requests[0]).toMatchObject({ method: "post", path: "/auth/logout" });
+  });
+
+  it("deleteAccount deletes the signed-in account and resolves", async () => {
+    const handle = createMockApiAdapter([noContentRoute("delete", "/auth/me")]);
+    mockApi(handle);
+
+    await expect(deleteAccount()).resolves.toBeUndefined();
+    expect(handle.requests[0]).toMatchObject({ method: "delete", path: "/auth/me" });
   });
 
   it("clears the cached current user when the session check responds 401", async () => {

@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import {
   Dialog,
   DialogTrigger,
@@ -14,6 +14,7 @@ import { TransferWorkspaceOwnershipDialog } from "@/components/dialog/TransferWo
 import { LeaveWorkspaceDialog } from "@/components/dialog/LeaveWorkspaceDialog";
 import {
   useWorkspaces,
+  useWorkspaceInvitations,
   useWorkspaceMembers,
   useWorkspaceMemberActions,
 } from "@/hooks/useWorkspaces";
@@ -21,6 +22,7 @@ import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
+import { formatRelativeTime } from "@/lib/relativeTime";
 import {
   Loader2,
   Info,
@@ -31,8 +33,13 @@ import {
   ArrowDown,
   Crown,
   LogOut,
+  X,
 } from "lucide-react";
-import type { WorkspaceMember, WorkspaceRole } from "@/types/workspace";
+import type {
+  WorkspaceInvitation,
+  WorkspaceMember,
+  WorkspaceRole,
+} from "@/types/workspace";
 import {
   roleLabel,
   emailInitial,
@@ -184,8 +191,12 @@ export function WorkspaceMembersDialog({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  // Row actions (remove / cancel invitation / change role) have no per-row
+  // error surface, so a failure is reported once for the whole dialog.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -198,28 +209,42 @@ export function WorkspaceMembersDialog({
   const workspace = workspaces.find((w) => w.id === workspaceId);
 
   function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setActionError(null);
+    }
     setOpen?.(nextOpen);
   }
   const membersQuery = useWorkspaceMembers(workspaceId);
-  const { removeMember, changeRole } =
+  const invitationsQuery = useWorkspaceInvitations(workspaceId, {
+    enabled: canManageMembers,
+  });
+  const { removeMember, changeRole, cancelInvitation } =
     useWorkspaceMemberActions(workspaceId);
 
   const members = membersQuery.data ?? [];
   const ownerCount = members.filter((m) => m.role === "owner").length;
+  // The live backend returns invitations in every status; only pending ones
+  // are actionable (accepted ones are already members, and only a pending
+  // invitation may be cancelled — source-of-truth §3.4).
+  const pendingInvitations = (invitationsQuery.data ?? []).filter(
+    (invitation) => invitation.status === "pending",
+  );
 
   function handleRemove(member: WorkspaceMember) {
     if (removingId) return;
     setRemovingId(member.id);
+    // The row disappearing from the list is the success feedback; only the
+    // failure needs a message, and it is reported for the whole dialog.
     void removeMember(member.id)
-      .then(() => toast.success(`Removed ${emailToHandle(member.email)}`))
-      .catch((err) =>
-        toast.error(
+      .catch((err) => {
+        setActionError(
           describeMutationError(
             err,
             `Could not remove ${emailToHandle(member.email)}. Please try again.`,
           ),
-        ),
-      )
+        );
+        console.error("Remove member failed:", err);
+      })
       .finally(() => setRemovingId(null));
   }
 
@@ -227,22 +252,39 @@ export function WorkspaceMembersDialog({
     setLeaveOpen(true);
   }
 
+  function handleCancelInvitation(invitation: WorkspaceInvitation) {
+    if (cancellingId) return;
+    setCancellingId(invitation.id);
+    const label = invitation.inviteeEmail ?? invitation.inviteeUserId;
+    void cancelInvitation(invitation.id)
+      .catch((err) => {
+        setActionError(
+          describeMutationError(
+            err,
+            `Could not cancel the invitation for ${label}. Please try again.`,
+          ),
+        );
+        console.error("Cancel invitation failed:", err);
+      })
+      .finally(() => setCancellingId(null));
+  }
+
   function handleChangeRole(member: WorkspaceMember, role: WorkspaceRole) {
     if (member.role === "owner") return;
     if (changingRoleId) return;
     setChangingRoleId(member.id);
+    // The updated role badge on the row is the success feedback; only failures
+    // need a message.
     void changeRole({ membershipId: member.id, role })
-      .then(() =>
-        toast.success(`Role changed to ${roleLabel(role).toLowerCase()}`),
-      )
-      .catch((err) =>
-        toast.error(
+      .catch((err) => {
+        setActionError(
           describeMutationError(
             err,
             `Could not change ${emailToHandle(member.email)}'s role. Please try again.`,
           ),
-        ),
-      )
+        );
+        console.error("Change role failed:", err);
+      })
       .finally(() => setChangingRoleId(null));
   }
 
@@ -262,6 +304,14 @@ export function WorkspaceMembersDialog({
           <DialogDescription className="mt-1">
             People who have access to this workspace.
           </DialogDescription>
+
+          {actionError && (
+            <InlineAlert
+              message={actionError}
+              onDismiss={() => setActionError(null)}
+              className="mt-3"
+            />
+          )}
 
           <div className="mt-4 flex items-center justify-between border-b border-border pb-3">
             <h3 className="text-sm font-semibold text-foreground">Members</h3>
@@ -311,6 +361,69 @@ export function WorkspaceMembersDialog({
             )}
           </div>
 
+          {/* Pending invitations are a separate concept from members: the
+              invitee has no access until they accept, so they are never mixed
+              into the member list (source-of-truth §3.4). */}
+          {canManageMembers && pendingInvitations.length > 0 && (
+            <div className="mt-4 border-t border-border pt-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Pending invitations
+                </h3>
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-semibold text-muted-foreground">
+                  {pendingInvitations.length}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Invited users join as members only after they accept.
+              </p>
+              <ul className="mt-2 divide-y divide-border">
+                {pendingInvitations.map((invitation) => {
+                  const label =
+                    invitation.inviteeEmail ?? invitation.inviteeUserId;
+                  const isCancelling = cancellingId === invitation.id;
+                  return (
+                    <li
+                      key={invitation.id}
+                      className="flex items-center gap-3 py-2.5"
+                    >
+                      <div
+                        className={cn(
+                          "flex size-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-xs font-semibold text-white",
+                          avatarGradient(invitation.inviteeUserId),
+                        )}
+                      >
+                        {emailInitial(label)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {label}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          Invited {formatRelativeTime(invitation.createdAt)}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        disabled={isCancelling}
+                        onClick={() => handleCancelInvitation(invitation)}
+                      >
+                        {isCancelling ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <X className="size-3.5" />
+                        )}
+                        Cancel
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           {/* Owner-only transfer action, pinned below the scrollable member
               list so it stays visible no matter how many members there are. */}
           {isOwner && (
@@ -341,10 +454,7 @@ export function WorkspaceMembersDialog({
           workspaceId={workspaceId}
           open={transferOpen}
           onOpenChange={setTransferOpen}
-          onSuccess={(target) => {
-            setTransferOpen(false);
-            toast.success(`Ownership transferred to ${target.email}`);
-          }}
+          onSuccess={() => setTransferOpen(false)}
         />
       )}
 

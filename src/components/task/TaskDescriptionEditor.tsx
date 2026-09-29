@@ -37,10 +37,7 @@ function normalizeDoc(description: TaskDescription | undefined): TaskDescription
 interface TaskDescriptionEditorProps {
   /** Saved description snapshot (drives the read-only render). */
   description: TaskDescription | undefined;
-  /**
-   * Draft setter owned by the modal. Called only on explicit save/flush —
-   * never on keystroke — so typing never fires API requests.
-   */
+  // Draft setter owned by the modal; called only on explicit save/flush, never on keystroke, so typing never fires API requests.
   draftDescription: TaskDescription | undefined;
   onDraftChange: (doc: TaskDescription) => void;
   editing: boolean;
@@ -65,11 +62,7 @@ export function TaskDescriptionEditor({
   const editor: Editor | null = useEditor(
     {
       extensions: [
-        // Explicit extension set (no StarterKit meta-package) so the bundle
-        // only ships what the description editor needs. Document/Paragraph/
-        // Text define the schema's structural nodes (`doc` is the required
-        // top node). Markdown shortcuts (#, ##, -, 1., >, [ ], ---) come
-        // from the heading/list/blockquote extensions' own input rules.
+        // Explicit extension set (no StarterKit meta-package) so the bundle ships only what the description editor needs.
         Document,
         Paragraph,
         Text,
@@ -105,20 +98,12 @@ export function TaskDescriptionEditor({
           "aria-label": "Task description",
         },
       },
-      // Markdown shortcuts (#, ##, -, 1., >, [ ], ---) come from the heading,
-      // list, and blockquote extensions' input rules. We deliberately avoid
-      // persisting onUpdate directly: the draft is captured via onUpdate into
-      // the modal's local state, and only explicit Save / close-flush sends
-      // the PATCH, so typing and toolbar clicks never trigger API requests.
+  // The draft is captured via onUpdate into the modal's state; only explicit Save / close-flush PATCHes, so typing never hits the API.
     },
     [],
   );
 
-  // Swap the load-bearing snapshot without disturbing an in-progress draft.
-  // Read mode follows the saved value; edit mode owns its ProseMirror state
-  // and only reports back via onUpdate/handleCaptureDraft, so re-seeding here
-  // while editing would discard keystrokes. Identity comparison is enough:
-  // the modal passes stable snapshot/draft references.
+  // Swap the load-bearing snapshot without disturbing an in-progress draft: re-seeding while editing would discard keystrokes.
   useEffect(() => {
     if (!editor || editing) return;
     const seed = normalizeDoc(description);
@@ -138,9 +123,7 @@ export function TaskDescriptionEditor({
 
   function handleEnterEdit() {
     if (disabled) return;
-    // Seed the draft buffer with the current saved content on entry. The
-    // modal passes `description` both as snapshot and draft initially, so
-    // this is a no-op in the common case — it only matters after Cancel.
+    // Seed the draft with the current content on entry; a no-op unless the user previously cancelled.
     if (editor) {
       onDraftChangeRef.current(editor.getJSON() as TaskDescription);
     }

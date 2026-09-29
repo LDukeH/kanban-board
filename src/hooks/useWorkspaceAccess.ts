@@ -23,13 +23,12 @@ export function useWorkspaceAccess(workspaceId: string | undefined) {
     isLoadingRole,
     isOwner,
     isAdmin,
-    isMember,
     canManageMembers: isOwner || isAdmin,
-    canManageWorkspace: isOwner || isAdmin,
     canManageBoards: isOwner || isAdmin,
     canManageWorkspaceContent: isOwner || isAdmin,
     canManageLabels: isOwner || isAdmin,
-
+    // PATCH /workspaces/{id} is owner-only and reports a non-owner as 500, not 403, so the edit controls must be gated here.
+    canEditWorkspace: isOwner,
     canWorkOnTasks: isOwner || isAdmin || isMember,
     canAssignLabels: isOwner || isAdmin || isMember,
     canDeleteTask: isOwner || isAdmin,

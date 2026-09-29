@@ -4,7 +4,6 @@ import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     tailwindcss(),
@@ -63,7 +62,7 @@ export default defineConfig({
               test: /node_modules[\\/]lucide-react[\\/]/,
               priority: 60,
             },
-            // Everything else from node_modules (axios, toastify,...)
+            // Everything else from node_modules (axios, ...).
             {
               name: "vendor",
               test: /node_modules[\\/]/,

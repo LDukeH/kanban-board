@@ -14,12 +14,13 @@ import {
   updateTask,
   updateTaskPosition,
 } from "@/lib/api/task.api";
-import { createMembership } from "@/lib/api/workspace.api";
+import { inviteAndAccept } from "./helpers/invitations";
 import { provisionChain, tearDownChain, type ProvisionedChain } from "./helpers/chain";
 import { assertBackendReachable } from "./helpers/env";
 import { expectStatus, UUID_RE } from "./helpers/http";
 import {
   actingAs,
+  deleteAccounts,
   installSessionManager,
   provisionUser,
   type LiveAccount,
@@ -41,13 +42,16 @@ describe("live task API", () => {
 
     await actingAs(chain.owner, async () => {
       doneColumn = await createColumn(chain.board.id, { name: "Done" });
-      await createMembership(chain.workspace.id, { email: colleague.email, role: "member" });
+      // Assignments require a real membership, so the colleague accepts an
+      // invitation rather than being added directly.
+      await inviteAndAccept(chain.workspace.id, colleague, chain.owner);
     });
   });
 
   afterAll(async () => {
     if (!chain) return; // setup aborted (backend down); nothing to clean up
     await tearDownChain(chain);
+    await deleteAccounts([colleague]);
   });
 
   it("creates a task with a Tiptap description", async () => {

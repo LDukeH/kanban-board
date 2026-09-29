@@ -8,7 +8,8 @@ import type {
 interface WorkspaceApiResponse {
   id: string;
   name: string;
-  description?: string;
+  // The backend always sends a plain string (`""` when unset); nullable here so a row predating the field cannot leak `undefined`.
+  description?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -17,7 +18,7 @@ function mapWorkspace(raw: WorkspaceApiResponse): Workspace {
   return {
     id: raw.id,
     name: raw.name,
-    description: raw.description,
+    description: raw.description ?? "",
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -50,6 +51,14 @@ export const getWorkspaces = async (): Promise<Workspace[]> => {
   return response.data.map(mapWorkspace);
 };
 
+/** `GET /workspaces/{workspaceID}` — single workspace, including `description`. */
+export const getWorkspace = async (workspaceId: string): Promise<Workspace> => {
+  const response = await api.get<WorkspaceApiResponse>(
+    `/workspaces/${workspaceId}`,
+  );
+  return mapWorkspace(response.data);
+};
+
 export const createWorkspace = async (data: {
   name: string;
   description?: string;
@@ -58,9 +67,12 @@ export const createWorkspace = async (data: {
   return mapWorkspace(response.data);
 };
 
+// `name` is still mandatory on the wire (the backend 400s without it), so a description-only edit must resend it.
+// `description` distinguishes a value (set), `""` (clear) and omitted (leave unchanged).
+// Only the owner may patch, and the backend reports a non-owner as 500 rather than 403, so the UI gates on the role instead.
 export const updateWorkspace = async (
   workspaceId: string,
-  data: { name?: string; description?: string },
+  data: { name: string; description?: string },
 ): Promise<Workspace> => {
   const response = await api.patch<WorkspaceApiResponse>(
     `/workspaces/${workspaceId}`,
@@ -80,17 +92,6 @@ export const getWorkspaceMembers = async (
     `/workspaces/${workspaceId}/members`,
   );
   return response.data.map(mapMember);
-};
-
-export const createMembership = async (
-  workspaceId: string,
-  data: { email: string; role: WorkspaceRole },
-): Promise<WorkspaceMember> => {
-  const response = await api.post<WorkspaceMemberApiResponse>(
-    `/workspaces/${workspaceId}/members`,
-    data,
-  );
-  return mapMember(response.data);
 };
 
 export const changeMemberRole = async (

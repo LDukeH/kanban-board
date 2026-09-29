@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import {
   Dialog,
   DialogPopup,
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   useSearchUsers,
+  useWorkspaceInvitations,
   useWorkspaceMembers,
   useWorkspaceMemberActions,
 } from "@/hooks/useWorkspaces";
@@ -20,7 +22,6 @@ import {
   Check,
   UserPlus,
   Users,
-  AlertCircle,
 } from "lucide-react";
 import type { SearchedUser } from "@/types/workspace";
 import {
@@ -29,7 +30,6 @@ import {
   avatarGradient,
 } from "@/lib/memberDisplay";
 import { describeMutationError } from "@/lib/httpStatus";
-import { toast } from "react-toastify";
 
 interface InviteWorkspaceMembersDialogProps {
   workspaceId: string;
@@ -52,10 +52,15 @@ export function InviteWorkspaceMembersDialog({
     { email: string; message: string }[]
   >([]);
   const [retryFailedOpen, setRetryFailedOpen] = useState(false);
+  // Outcome summary for the last attempt. It rides along with the inline
+  // failure list so a partial success (some invitations sent, some failed) is
+  // still reported instead of only being visible in a transient message.
+  const [inviteSummary, setInviteSummary] = useState<string | null>(null);
 
   const search = useSearchUsers(query);
   const membersQuery = useWorkspaceMembers(workspaceId);
-  const { addMember, isAdding } = useWorkspaceMemberActions(workspaceId);
+  const invitationsQuery = useWorkspaceInvitations(workspaceId);
+  const { inviteMember, isInviting } = useWorkspaceMemberActions(workspaceId);
 
   const members = membersQuery.data ?? [];
 
@@ -64,12 +69,20 @@ export function InviteWorkspaceMembersDialog({
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  const existingEmails = new Set(
-    members.map((m) => m.email.toLowerCase()),
-  );
+  // Members already have access and pending invitees already have an
+  // invitation; the backend rejects both with 409, so neither is offered.
+  const unavailableUserIds = new Set([
+    ...members.map((member) => member.userId),
+    ...(invitationsQuery.data ?? [])
+      .filter((invitation) => invitation.status === "pending")
+      .map((invitation) => invitation.inviteeUserId),
+  ]);
+  const existingEmails = new Set(members.map((member) => member.email.toLowerCase()));
 
   const availableUsers = (search.data ?? []).filter(
-    (u) => !existingEmails.has(u.email.toLowerCase()),
+    (u) =>
+      !unavailableUserIds.has(u.id) &&
+      !existingEmails.has(u.email.toLowerCase()),
   );
 
   function toggleSelect(user: SearchedUser) {
@@ -81,15 +94,15 @@ export function InviteWorkspaceMembersDialog({
   }
 
   async function handleAdd() {
-    if (selected.length === 0 || isAdding) return;
+    if (selected.length === 0 || isInviting) return;
     setInviteErrors([]);
+    setInviteSummary(null);
     // Invite one by one and collect per-address results: a single failing
-    // address (already a member, unknown user, no permission) must not mask
-    // the ones that succeeded.
+    // address (already a member, already invited, unknown user, no permission)
+    // must not mask the ones that succeeded. An invitation is not a
+    // membership — the invitee only joins after accepting.
     const outcomes = await Promise.allSettled(
-      selected.map((user) =>
-        addMember({ email: user.email, role: "member" }),
-      ),
+      selected.map((user) => inviteMember({ userId: user.id })),
     );
     const succeeded = selected.filter((_, i) => outcomes[i].status === "fulfilled");
     const failed = selected
@@ -109,7 +122,6 @@ export function InviteWorkspaceMembersDialog({
     if (failed.length === 0) {
       onOpenChange(false);
       setSelected([]);
-      toast.success(`Invited ${succeeded.length} member${succeeded.length === 1 ? "" : "s"}`);
       return;
     }
 
@@ -117,13 +129,10 @@ export function InviteWorkspaceMembersDialog({
     // show every failure inline next to the summary.
     setInviteErrors(failed);
     setSelected(failed.map((f) => selected.find((u) => u.email === f.email)!));
-    if (succeeded.length > 0) {
-      toast.success(`Invited ${succeeded.length} member${succeeded.length === 1 ? "" : "s"}`);
-    }
-    toast.error(
-      succeeded.length === 0
-        ? `Could not invite ${failed.length} member${failed.length === 1 ? "" : "s"}.`
-        : `Invited ${succeeded.length}, ${failed.length} failed.`,
+    setInviteSummary(
+      succeeded.length > 0
+        ? `Sent ${succeeded.length} invitation${succeeded.length === 1 ? "" : "s"}; ${failed.length} still need${failed.length === 1 ? "s" : ""} attention.`
+        : `Could not invite ${failed.length} user${failed.length === 1 ? "" : "s"}.`,
     );
   }
 
@@ -134,9 +143,7 @@ export function InviteWorkspaceMembersDialog({
       const failedEmails = new Set(inviteErrors.map((e) => e.email.toLowerCase()));
       const retryTargets = selected.filter((u) => failedEmails.has(u.email.toLowerCase()));
       const outcomes = await Promise.allSettled(
-        retryTargets.map((user) =>
-          addMember({ email: user.email, role: "member" }),
-        ),
+        retryTargets.map((user) => inviteMember({ userId: user.id })),
       );
       const stillFailed = retryTargets
         .map((user, i) => {
@@ -154,15 +161,16 @@ export function InviteWorkspaceMembersDialog({
       const recovered = retryTargets.length - stillFailed.length;
       setInviteErrors(stillFailed);
       setSelected(stillFailed.map((f) => retryTargets.find((u) => u.email === f.email)!));
-      if (recovered > 0) {
-        toast.success(`Invited ${recovered} member${recovered === 1 ? "" : "s"}`);
-      }
       if (stillFailed.length === 0) {
+        // Everything recovered: the dialog closes and the parent's refreshed
+        // pending-invitation list is the confirmation.
         onOpenChange(false);
         setSelected([]);
       } else {
-        toast.error(
-          `${stillFailed.length} invite${stillFailed.length === 1 ? "" : "s"} still failing.`,
+        setInviteSummary(
+          recovered > 0
+            ? `Sent ${recovered} more; ${stillFailed.length} invitation${stillFailed.length === 1 ? "" : "s"} still failing.`
+            : `${stillFailed.length} invitation${stillFailed.length === 1 ? "" : "s"} still failing.`,
         );
       }
     } finally {
@@ -176,7 +184,8 @@ return (
       <DialogPopup className="max-w-md">
         <DialogTitle>Invite Workspace Members</DialogTitle>
         <DialogDescription className="mt-1">
-          Search users by email and add them as members.
+          Search registered users by email and invite them to this workspace.
+          They become members once they accept the invitation.
         </DialogDescription>
 
         <div className="relative mt-4">
@@ -255,16 +264,15 @@ return (
         </div>
 
         {inviteErrors.length > 0 && (
-          <div
-            role="alert"
-            className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2"
+          <InlineAlert
+            message={
+              inviteSummary ??
+              `${inviteErrors.length} invitation${
+                inviteErrors.length === 1 ? "" : "s"
+              } failed`
+            }
+            className="mt-3"
           >
-            <p className="flex items-start gap-2 text-sm font-medium text-destructive">
-              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>
-                {inviteErrors.length} invite{inviteErrors.length === 1 ? "" : "s"} failed
-              </span>
-            </p>
             <ul className="mt-1 space-y-1 pl-6 text-xs text-destructive">
               {inviteErrors.map((failure) => (
                 <li key={failure.email}>
@@ -278,15 +286,15 @@ return (
               variant="ghost"
               size="sm"
               className="mt-2 gap-1.5 text-destructive hover:text-destructive"
-              disabled={retryFailedOpen || isAdding}
+              disabled={retryFailedOpen || isInviting}
               onClick={handleRetryFailed}
             >
-              {(retryFailedOpen || isAdding) && (
+              {(retryFailedOpen || isInviting) && (
                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
               )}
-              {retryFailedOpen || isAdding ? "Retrying…" : "Retry failed"}
+              {retryFailedOpen || isInviting ? "Retrying…" : "Retry failed"}
             </Button>
-          </div>
+          </InlineAlert>
         )}
 
         <div className="mt-4 flex items-center justify-between gap-2">
@@ -298,12 +306,12 @@ return (
           <div className="flex items-center gap-2">
             <DialogClose render={<Button variant="ghost" />}>Cancel</DialogClose>
             <Button
-              disabled={selected.length === 0 || isAdding}
+              disabled={selected.length === 0 || isInviting}
               onClick={handleAdd}
             >
-              {isAdding && <Loader2 className="size-4 animate-spin" />}
+              {isInviting && <Loader2 className="size-4 animate-spin" />}
               <UserPlus className="size-4" />
-              Add
+              Invite
             </Button>
           </div>
         </div>

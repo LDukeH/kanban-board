@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { WorkspaceCard } from "@/components/workspace/WorkspaceCard";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
+import { InvitationInbox } from "@/components/invitations/InvitationInbox";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useNavigate } from "react-router-dom";
@@ -16,14 +17,14 @@ function WorkspaceCardWithAccess({
   workspace: Workspace;
   onClick: () => void;
 }) {
-  const { canManageWorkspace, canDeleteWorkspace, isLoadingRole } =
+  const { canEditWorkspace, canDeleteWorkspace, isLoadingRole } =
     useWorkspaceAccess(workspace.id);
 
   return (
     <div onClick={onClick}>
       <WorkspaceCard
         workspace={workspace}
-        canEdit={canManageWorkspace && !isLoadingRole}
+        canEdit={canEditWorkspace && !isLoadingRole}
         canDelete={canDeleteWorkspace && !isLoadingRole}
       />
     </div>
@@ -60,6 +61,9 @@ export default function WorkspacesPage() {
       </header>
 
       <div className="flex-1 p-6">
+        {/* The inbox renders nothing unless there is an invitation awaiting a
+            decision, so it costs no chrome on the common path. */}
+        <InvitationInbox className="mb-6" />
         {isLoading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />

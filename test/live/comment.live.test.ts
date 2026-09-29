@@ -6,13 +6,14 @@ import {
   getTaskComments,
 } from "@/lib/api/comment.api";
 import { createTask } from "@/lib/api/task.api";
-import { createMembership } from "@/lib/api/workspace.api";
 import { provisionChain, tearDownChain, type ProvisionedChain } from "./helpers/chain";
 import { assertBackendReachable } from "./helpers/env";
 import { expectStatus, UUID_RE } from "./helpers/http";
+import { inviteAndAccept } from "./helpers/invitations";
 import {
   actingAs,
   clearSession,
+  deleteAccounts,
   installSessionManager,
   provisionUser,
   type LiveAccount,
@@ -35,8 +36,13 @@ describe("live comment API (authorization matrix)", () => {
     chain = await provisionChain("comment");
 
     await actingAs(chain.owner, async () => {
-      await createMembership(chain.workspace.id, { email: admin.email, role: "admin" });
-      await createMembership(chain.workspace.id, { email: member.email, role: "member" });
+      // Both fixtures need real memberships so the authorization matrix below
+      // exercises roles instead of failing on 403s: admins are promoted after
+      // acceptance, regular members keep the accept-time role.
+      await inviteAndAccept(chain.workspace.id, admin, chain.owner, {
+        promoteToAdmin: true,
+      });
+      await inviteAndAccept(chain.workspace.id, member, chain.owner);
       task = await createTask(chain.columns[0].id, { title: "Commented task" });
     });
   });
@@ -44,6 +50,7 @@ describe("live comment API (authorization matrix)", () => {
   afterAll(async () => {
     if (!chain) return; // setup aborted (backend down); nothing to clean up
     await tearDownChain(chain);
+    await deleteAccounts([admin, member, outsider]);
   });
 
   it("creates a comment as the authenticated author", async () => {

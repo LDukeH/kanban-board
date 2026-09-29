@@ -30,6 +30,11 @@ function mapWorkspaceInvitedPayload(
   raw: Record<string, unknown>,
 ): WorkspaceInvitedPayload {
   return {
+    // `invitation_id` is the only invitee-readable source of an invitation id
+    // (the workspace invitation list is 403 for a pending invitee). Mapped
+    // tolerantly: a backend without the field yields "", which callers must
+    // treat as "no actions available" rather than a usable id.
+    invitationId: String(raw.invitation_id ?? ""),
     workspaceId: String(raw.workspace_id ?? ""),
     workspaceName: String(raw.workspace_name ?? ""),
     actorEmail: String(raw.actor_email ?? ""),

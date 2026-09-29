@@ -1,6 +1,6 @@
 import { AxiosHeaders } from "axios";
 import { api } from "@/lib/api/axios";
-import { getCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
+import { getCurrentUser, deleteAccount as deleteCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
 import { uniqueEmail, uniquePassword } from "./uniq";
 
 export interface LiveAccount {
@@ -81,4 +81,54 @@ export function clearSession(): void {
 export async function logout(): Promise<void> {
   await logoutUser();
   jar.token = "";
+}
+
+/**
+ * Deletes a provisioned account (`DELETE /auth/me`) and drops the local session.
+ *
+ * Takes credentials rather than a `LiveAccount` handle because deletion needs
+ * that account's own session, and the shared client may be logged in as someone
+ * else by then.
+ *
+ * Cascade behaviour on the live backend: every table referencing `users(id)` is
+ * `ON DELETE CASCADE` (`workspace_memberships`, `task_assignees`,
+ * `notifications`, `comments`, `workspace_invitations`), so the account leaves
+ * no user-owned residue — this is what removes the notification rows a live
+ * test would otherwise strand. Workspaces do NOT cascade: ownership lives in
+ * `workspace_memberships` and migration 012 (transfer ownership on delete) is
+ * unimplemented, so a workspace whose owner is deleted survives ownerless.
+ * **Delete the workspace first**, then the users.
+ */
+export async function deleteAccount(
+  account: Pick<LiveAccount, "email" | "password">,
+): Promise<void> {
+  await loginAs(account);
+  await deleteCurrentUser();
+  clearSession();
+}
+
+/**
+ * Best-effort teardown for every account a live test provisioned.
+ *
+ * Deletes in reverse order and never throws: a cleanup failure must not turn a
+ * passing suite red, but it is still surfaced so residue is not silently
+ * accepted. Entries that are not yet provisioned (setup aborted) are skipped by
+ * the caller's guard.
+ */
+export async function deleteAccounts(
+  accounts: readonly (Pick<LiveAccount, "email" | "password"> | undefined)[],
+): Promise<void> {
+  for (const account of [...accounts].reverse()) {
+    if (!account) continue;
+    try {
+      await deleteAccount(account);
+    } catch (error) {
+      const status = (error as { response?: { status?: number } }).response
+        ?.status;
+      console.warn(
+        `Live fixture: could not delete test account ${account.email} (${status ?? (error as Error).message}); the dev database keeps this row.`,
+      );
+    }
+  }
+  clearSession();
 }

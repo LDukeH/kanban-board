@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Bell, BellRing, Check, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
 
 import {
   DropdownMenu,
@@ -11,10 +10,17 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import {
+  InlineAlert,
+  type InlineAlertTone,
+} from "@/components/ui/inline-alert";
+import {
   useNotificationActions,
   useNotificationsList,
   useUnreadNotificationCount,
 } from "@/hooks/useNotifications";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { useInvitationStore } from "@/stores/invitationStore";
+import { selectPendingInvitations } from "@/lib/pendingInvitations";
 import { findBoardIdForTask } from "@/lib/api/task.api";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/relativeTime";
@@ -34,21 +40,28 @@ function notificationCopy(notification: Notification): {
     case "workspace_invited":
       return {
         actorEmail: notification.payload.actorEmail,
-        message: `added you to “${notification.payload.workspaceName}”`,
+        message: `invited you to “${notification.payload.workspaceName}”`,
       };
   }
 }
 
-/**
- * Sidebar bell: polled unread badge and a dropdown list. Opening an item
- * marks it read and navigates to the referenced resource.
- */
+/** Sidebar bell: polled unread badge plus a dropdown list; opening an item marks it read and navigates. */
 export function NotificationBell({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
+  // Notification actions report inside the panel so the reason a click did
+  // nothing stays readable while it is open (e.g. a task's board could not be
+  // resolved).
+  const [notice, setNotice] = useState<{
+    tone: InlineAlertTone;
+    message: string;
+  } | null>(null);
+  // Invitation resolution lives on the Workspaces page; the bell only recognises a still-pending invitation to point at the inbox, via the same shared helper.
+  const { resolved } = useInvitationStore();
   const navigate = useNavigate();
 
   const unreadQuery = useUnreadNotificationCount();
   const listQuery = useNotificationsList({ enabled: open });
+  const { workspaces } = useWorkspaces();
   const { markRead, markAllRead } = useNotificationActions();
 
   const unreadCount = unreadQuery.data ?? 0;
@@ -56,11 +69,24 @@ export function NotificationBell({ className }: { className?: string }) {
   const unreadItems = notifications.filter((n) => n.readAt === null).length;
   const isListLoading = listQuery.isLoading || listQuery.isFetching;
 
+  // A `workspace_invited` notification is only actionable while the
+  // invitation is still pending and unresolved. Everything else is history.
+  const pendingInvitationIds = new Set(
+    selectPendingInvitations(notifications, {
+      accessibleWorkspaceIds: workspaces.map((workspace) => workspace.id),
+      resolvedInvitationIds: Object.keys(resolved),
+    }).map((invitation) => invitation.invitationId),
+  );
+
   function openNotification(notification: Notification) {
+    setNotice(null);
     if (notification.readAt === null) {
-      void markRead(notification.id).catch(() =>
-        toast.error("Could not mark the notification as read."),
-      );
+      void markRead(notification.id).catch(() => {
+        setNotice({
+          tone: "error",
+          message: "Could not mark the notification as read.",
+        });
+      });
     }
 
     switch (notification.type) {
@@ -70,15 +96,52 @@ export function NotificationBell({ className }: { className?: string }) {
           if (boardId) {
             navigate(`/boards/${boardId}`);
           } else {
-            toast.error("This task's board could not be opened.");
+            setNotice({
+              tone: "error",
+              message: "This task's board could not be opened.",
+            });
           }
         });
         break;
       }
-      case "workspace_invited":
-        navigate(`/workspaces/${notification.payload.workspaceId}`);
+      case "workspace_invited": {
+        const { workspaceId, workspaceName, invitationId } =
+          notification.payload;
+        // A pending invitation grants no workspace access (§3.4), so navigating would 403; only open it once the user actually has access.
+        if (workspaces.some((workspace) => workspace.id === workspaceId)) {
+          navigate(`/workspaces/${workspaceId}`);
+          break;
+        }
+        // Still pending, and the payload carried an invitation id: send the
+        // user to the inbox that can actually resolve it.
+        if (invitationId) {
+          goToInvitations(notification);
+          break;
+        }
+        // No id — a backend that predates the field. The notification is
+        // display-only, so explain the situation instead of offering actions
+        // that cannot work.
+        setNotice({
+          tone: "info",
+          message: `You've been invited to “${workspaceName}”. It appears in your workspaces once the invitation is accepted.`,
+        });
         break;
+      }
     }
+  }
+
+  // The bell points at the inbox rather than resolving invitations here: the dropdown unmounts on navigation, losing the decision.
+  function goToInvitations(notification: Notification) {
+    setNotice(null);
+    if (notification.readAt === null) {
+      void markRead(notification.id).catch(() => {
+        setNotice({
+          tone: "error",
+          message: "Could not mark the notification as read.",
+        });
+      });
+    }
+    navigate("/workspaces");
   }
 
   return (
@@ -120,11 +183,15 @@ export function NotificationBell({ className }: { className?: string }) {
           {unreadItems > 0 && (
             <button
               type="button"
-              onClick={() =>
-                void markAllRead().catch(() =>
-                  toast.error("Could not mark notifications as read."),
-                )
-              }
+              onClick={() => {
+                setNotice(null);
+                void markAllRead().catch(() => {
+                  setNotice({
+                    tone: "error",
+                    message: "Could not mark notifications as read.",
+                  });
+                });
+              }}
               className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               aria-label="Mark all notifications as read"
             >
@@ -134,6 +201,16 @@ export function NotificationBell({ className }: { className?: string }) {
           )}
         </div>
         <DropdownMenuSeparator />
+
+        {notice && (
+          <div className="px-2 pb-1.5">
+            <InlineAlert
+              message={notice.message}
+              tone={notice.tone}
+              onDismiss={() => setNotice(null)}
+            />
+          </div>
+        )}
 
         <div className="max-h-[380px] overflow-y-auto">
           {isListLoading ? (
@@ -165,12 +242,17 @@ export function NotificationBell({ className }: { className?: string }) {
               {notifications.map((notification) => {
                 const unread = notification.readAt === null;
                 const { actorEmail, message } = notificationCopy(notification);
-                return (
-                  <DropdownMenuItem
-                    key={notification.id}
-                    className="cursor-pointer items-center gap-2 py-2.5 pl-2 pr-3 hover:bg-accent hover:text-accent-foreground"
-                    onClick={() => openNotification(notification)}
-                  >
+
+                // A still-pending `workspace_invited` notification is the one row
+                // that needs a decision. The bell only points at the inbox now —
+                // the derivation is shared with it so both agree on which
+                // invitations are actionable.
+                const isPendingInvitation =
+                  notification.type === "workspace_invited" &&
+                  pendingInvitationIds.has(notification.payload.invitationId);
+
+                const row = (
+                  <>
                     <span
                       aria-hidden
                       className={cn(
@@ -202,6 +284,39 @@ export function NotificationBell({ className }: { className?: string }) {
                         {formatRelativeTime(notification.createdAt)}
                       </span>
                     </span>
+                  </>
+                );
+
+                if (isPendingInvitation) {
+                  // A plain menu item again, now that the row is a pointer
+                  // rather than an action surface: it navigates to the
+                  // Workspaces page, and the dropdown closing on navigation is
+                  // the desired behaviour.
+                  return (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className="cursor-pointer items-center gap-2 py-2.5 pl-2 pr-3 hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => goToInvitations(notification)}
+                    >
+                      {row}
+                      <span className="ml-1 shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        Pending
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                }
+
+                return (
+                  <DropdownMenuItem
+                    key={notification.id}
+                    className="cursor-pointer items-center gap-2 py-2.5 pl-2 pr-3 hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => openNotification(notification)}
+                    // Keep the panel open so a notice raised by the click (a
+                    // failed board lookup, a mark-read failure) stays on screen;
+                    // navigating away unmounts the panel anyway.
+                    closeOnClick={false}
+                  >
+                    {row}
                   </DropdownMenuItem>
                 );
               })}

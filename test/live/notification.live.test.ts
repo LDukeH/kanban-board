@@ -8,12 +8,13 @@ import {
   markNotificationRead,
 } from "@/lib/api/notification.api";
 import { createTask, assignUserToTask } from "@/lib/api/task.api";
-import { createMembership } from "@/lib/api/workspace.api";
 import { provisionChain, tearDownChain, type ProvisionedChain } from "./helpers/chain";
 import { assertBackendReachable } from "./helpers/env";
-import { expectStatus } from "./helpers/http";
+import { expectStatus, UUID_RE } from "./helpers/http";
+import { inviteAndAccept, inviteUser } from "./helpers/invitations";
 import {
   actingAs,
+  deleteAccounts,
   installSessionManager,
   provisionUser,
   type LiveAccount,
@@ -41,18 +42,26 @@ describe("live notification API", () => {
     chain = await provisionChain("notif");
 
     await actingAs(chain.owner, async () => {
-      // Adding the assignee by a different user triggers workspace_invited.
-      await createMembership(chain.workspace.id, { email: assignee.email, role: "member" });
+      // The assignee must be a real member (task assignment is workspace
+      // bound), and inviting them is what emits workspace_invited (§12.2: the
+      // notification is created with the pending invitation, not on accept).
+      await inviteAndAccept(chain.workspace.id, assignee, chain.owner);
       task = await createTask(chain.columns[0].id, { title: "Notifying task" });
     });
   });
 
   afterAll(async () => {
     if (!chain) return; // setup aborted (backend down); nothing to clean up
-    // Deleting the workspace cascades the shared resources; the notifications
-    // the assignee/invitee received stay behind as user-owned rows (accepted
-    // dev-DB residue, per docs/plan/plan.md).
+    // Delete the workspace first (cascades boards/columns/tasks/labels/
+    // comments/memberships), then the accounts. Deleting an owner does NOT
+    // cascade to their workspaces — ownership lives in
+    // `workspace_memberships` and migration 012 is unimplemented — so the
+    // order is required. Account deletion cascades the notifications the
+    // assignee/invitee received, so the run leaves no user-owned residue.
+    // `tearDownChain` already removes the chain owner; the extra accounts this
+    // file provisioned are removed here.
     await tearDownChain(chain);
+    await deleteAccounts([assignee, invitee]);
   });
 
   it("notifies the assignee when someone else assigns them a task", async () => {
@@ -102,9 +111,11 @@ describe("live notification API", () => {
     });
   });
 
-  it("notifies the invitee when added to a workspace", async () => {
+  it("notifies the invitee when invited to a workspace (before acceptance)", async () => {
     await actingAs(chain.owner, async () => {
-      await createMembership(chain.workspace.id, { email: invitee.email, role: "member" });
+      // Creation only — no acceptance — so the notification must already exist
+      // while the invitation is still pending.
+      await inviteUser(chain.workspace.id, invitee);
     });
 
     await actingAs(invitee, async () => {
@@ -112,6 +123,9 @@ describe("live notification API", () => {
       expect(invited).toBeDefined();
       expect(invited?.payload.workspaceId).toBe(chain.workspace.id);
       expect(invited?.payload.workspaceName).toBe(chain.workspace.name);
+      // The payload is the invitee's only route to the invitation id, so it
+      // must be present and usable (docs/api/invitations.md).
+      expect(invited?.payload.invitationId).toMatch(UUID_RE);
     });
   });
 

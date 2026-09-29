@@ -34,30 +34,20 @@ interface TaskFilterPopoverProps {
   workspaceId?: string;
 }
 
-function assigneeStateLabel(filter: TaskFilter): string {
-  const n = filter.assigneeEmails.length;
-  if (filter.hasNoAssignees) return "Unassigned";
-  if (n === 1) return "1 assignee";
-  if (n > 1) return `${n} assignees`;
-  return "All assignees";
+function stateLabel(
+  { empty, selected }: { empty: boolean; selected: string[] },
+  { none, singular, plural, all }: { none: string; singular: string; plural: string; all: string },
+): string {
+  if (empty) return none;
+  if (selected.length === 1) return `1 ${singular}`;
+  if (selected.length > 1) return `${selected.length} ${plural}`;
+  return all;
 }
 
-function labelStateLabel(filter: TaskFilter): string {
-  const n = filter.labelNames.length;
-  if (filter.hasNoLabels) return "No labels";
-  if (n === 1) return "1 label";
-  if (n > 1) return `${n} labels`;
-  return "All labels";
-}
+const ASSIGNEE_WORDS = { none: "Unassigned", singular: "assignee", plural: "assignees", all: "All assignees" };
+const LABEL_WORDS = { none: "No labels", singular: "label", plural: "labels", all: "All labels" };
 
-/**
- * Board-level task filter, rendered as a single popover triggered from the
- * header's "Filters" button. A top search bar searches tasks globally; the two
- * rows below — Assignee and Label — expand into lightweight multi-select
- * submenus. Each row doubles as the live filter state ("All assignees" →
- * "2 assignees" / "Unassigned"), so there is no separate "0 assigned" status
- * row to interpret.
- */
+/** Board-level filter: a top search bar plus Assignee/Label rows that expand into multi-selects, each row doubling as the live filter state. */
 export function TaskFilterPopover({
   filter,
   onChange,
@@ -79,17 +69,21 @@ export function TaskFilterPopover({
     filter.hasNoAssignees || filter.assigneeEmails.length > 0;
   const labelActive = filter.hasNoLabels || filter.labelNames.length > 0;
 
-  const assigneeSummary = assigneeStateLabel(filter);
-  const labelSummary = labelStateLabel(filter);
+  const assigneeSummary = stateLabel(
+    { empty: filter.hasNoAssignees, selected: filter.assigneeEmails },
+    ASSIGNEE_WORDS,
+  );
+  const labelSummary = stateLabel(
+    { empty: filter.hasNoLabels, selected: filter.labelNames },
+    LABEL_WORDS,
+  );
 
   const sortedLabels = useMemo(
     () => [...labels].sort((a, b) => a.name.localeCompare(b.name)),
     [labels],
   );
 
-  // Trello-style search: while the query is non-empty it narrows the visible
-  // label/member options (case-insensitive substring match). It never mutates
-  // existing selections — it only controls visibility.
+  // Trello-style search narrows the visible label/member options but never mutates existing selections.
   const query = filter.query.trim().toLowerCase();
   const isSearching = query.length > 0;
   const visibleLabels = useMemo(
@@ -111,8 +105,7 @@ export function TaskFilterPopover({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Autofocus the search input each time the popover opens (only on open —
-  // never steal focus back while the user interacts with filter controls).
+  // Autofocus on open only, never stealing focus back while the user works the filter controls.
   useEffect(() => {
     if (open) {
       // Defer so the menu's own focus handling settles first.

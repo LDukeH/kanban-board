@@ -23,11 +23,7 @@ interface RecentState {
   forgetBoard: (boardId: string) => void;
 }
 
-/**
- * How many recently accessed workspaces we remember and render. For boards
- * the limit applies per workspace: the sidebar's boards section is scoped to
- * the workspace being viewed and shows at most this many of its boards.
- */
+/** Limit for recently accessed workspaces; for boards it applies per workspace, since the sidebar's boards section is workspace-scoped. */
 export const RECENT_LIMIT = 4;
 
 const LEGACY_STORAGE_KEY = "kanban-recent";
@@ -66,11 +62,7 @@ function saveScope(userId: string | null, data: RecentData): void {
   }
 }
 
-/**
- * Insert at the front if new, de-duplicate by id, and cap the list at `limit`.
- * Existing entries keep their position (no reordering) so the sidebar list
- * stays stable during a session; only brand-new entries push older ones out.
- */
+/** Insert at the front if new, de-duplicate by id, cap at `limit`; existing entries keep their position so the sidebar stays stable. */
 function pushRecent<T extends { id: string }>(
   entries: T[],
   entry: T,
@@ -86,14 +78,7 @@ function pushRecent<T extends { id: string }>(
   return [entry, ...entries].slice(0, limit);
 }
 
-/**
- * Board variant of `pushRecent`. Boards are remembered per workspace — the
- * sidebar's boards section is scoped to the workspace being viewed — so the
- * `limit` caps each workspace's slice of the list instead of the list as a
- * whole. A new board is prepended and, if its workspace is over the limit,
- * the oldest entries of that workspace are evicted; other workspaces'
- * entries are untouched and keep their order.
- */
+/** Board variant of `pushRecent`: the `limit` caps each workspace's slice, evicting that workspace's oldest entries and leaving others untouched. */
 function pushRecentBoard(
   entries: RecentBoardEntry[],
   entry: RecentBoardEntry,
@@ -173,9 +158,7 @@ export const useRecentStore = create<RecentState>((set, get) => {
       });
     },
 
-    // Renames update listed entries in place (same position, new name).
-    // They never insert: renaming something the user never opened must not
-    // make it "recent".
+  // Renames update listed entries in place and never insert: renaming something never opened must not make it "recent".
     renameWorkspace: (workspaceId, name) => {
       const recentWorkspaces = get().recentWorkspaces.map((workspace) =>
         workspace.id === workspaceId ? { ...workspace, name } : workspace,

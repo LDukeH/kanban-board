@@ -9,12 +9,7 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-// Handle backend authorization failures gracefully.
-// A 401 from the session check (`GET /auth/me`) means the session/credentials
-// are no longer valid: clear the cached current user so `useAuth` reports
-// unauthenticated and ProtectedRoute redirects to the auth page. 401s from
-// the login/register endpoints are failed attempts, not session loss — leave
-// the cache alone so an in-flight session check is not cancelled.
+// A 401 from the session check means the credentials are gone, so clear the cached user; 401s from login/register are failed attempts, not session loss.
 api.interceptors.response.use(
   (response) => response,
   (error) => {

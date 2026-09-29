@@ -1,4 +1,4 @@
-﻿import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { getDescriptionPreview } from "@/lib/description";
 import type { Task } from "@/types/board";
 import { EditTaskDialog } from "@/components/dialog/EditTaskDialog";
@@ -28,14 +28,9 @@ export function TaskCard({
   index,
   isOverlay = false,
 }: TaskCardProps) {
-  // Task-to-task drops are scoped to THIS column via the accept predicate.
-  // That keeps dnd-kit's live optimistic reordering inside a single DOM
-  // container, where React and dnd-kit agree on the tree. Cross-column drops
-  // instead route through the target column's task-container droppable, which
-  // the board drop handler resolves into a precise pointer-based insertion
-  // position. This avoids dnd-kit physically reparenting the card across
-  // containers, which would make React's reconciliation throw ("node to be
-  // removed is not a child of this node").
+  // Task-to-task drops are scoped to THIS column so dnd-kit's live reordering stays in one DOM container.
+  // Cross-column drops route through the target column's task-container droppable, which the board handler resolves into a
+  // pointer-based position; this avoids dnd-kit reparenting the card, which would break React's reconciliation.
   const { ref, isDragging, isDragSource, isDropTarget, sortable } = useSortable({
     id: task.id,
     index,
@@ -54,9 +49,7 @@ export function TaskCard({
 
   const { source } = useDragOperation();
 
-  // While dragging, the sortable plugin keeps the dragged task's index in sync
-  // with the current render order, so comparing it with this card's index tells
-  // us (and matches the final drop) whether the task lands above or below.
+  // While dragging, the sortable plugin syncs the dragged task's index with the render order, so comparing it with this card's index matches the final drop.
   const showInsertionIndicator =
     !isOverlay &&
     !isDragSource &&
@@ -65,6 +58,8 @@ export function TaskCard({
     isSortable(source);
   const isDropBelow =
     showInsertionIndicator && source.sortable.index > sortable.index;
+
+  const preview = getDescriptionPreview(task.description);
 
   return (
     <div
@@ -112,14 +107,11 @@ export function TaskCard({
             </p>
           )}
         </div>
-        {(() => {
-          const preview = getDescriptionPreview(task.description);
-          return preview ? (
+        {preview ? (
           <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
             {preview}
           </p>
-          ) : null;
-        })()}
+        ) : null}
 
         {(task.labels ?? []).length > 0 && (
           <div className="mt-1.5 flex flex-wrap gap-1">

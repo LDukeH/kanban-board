@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { api } from "@/lib/api/axios";
 import {
   changeMemberRole,
-  createMembership,
   createWorkspace,
   deleteWorkspace,
+  getWorkspace,
   getWorkspaceMembers,
   getWorkspaces,
   leaveWorkspace,
@@ -16,6 +16,7 @@ import {
   createMockApiAdapter,
   noContentRoute,
   route,
+  suffixRoute,
   type MockApiHandle,
 } from "../../helpers/mockApiModule";
 
@@ -89,6 +90,83 @@ describe("workspace.api CRUD", () => {
     await expect(updateWorkspace("ws1", { name: "Team v2" })).resolves.toEqual(mappedWorkspace);
   });
 
+  it("getWorkspace reads a single workspace and maps the description", async () => {
+    const handle = createMockApiAdapter([
+      suffixRoute("get", "/workspaces/ws1", workspacePayload),
+    ]);
+    mockApi(handle);
+
+    await expect(getWorkspace("ws1")).resolves.toEqual(mappedWorkspace);
+    expect(handle.requests[0]).toMatchObject({ method: "get", path: "/workspaces/ws1" });
+  });
+
+  it("normalizes a missing description to an empty string", async () => {
+    const payloadWithoutDescription = {
+      id: workspacePayload.id,
+      name: workspacePayload.name,
+      created_at: workspacePayload.created_at,
+      updated_at: workspacePayload.updated_at,
+    };
+    const handle = createMockApiAdapter([
+      suffixRoute("get", "/workspaces/ws1", payloadWithoutDescription),
+    ]);
+    mockApi(handle);
+
+    const result = await getWorkspace("ws1");
+    expect(result.description).toBe("");
+  });
+
+  it("normalizes a null description to an empty string", async () => {
+    const handle = createMockApiAdapter([
+      suffixRoute("get", "/workspaces/ws1", { ...workspacePayload, description: null }),
+    ]);
+    mockApi(handle);
+
+    await expect(getWorkspace("ws1")).resolves.toEqual({
+      ...mappedWorkspace,
+      description: "",
+    });
+  });
+
+  it("sends an empty description to clear the stored value", async () => {
+    const handle = createMockApiAdapter([
+      suffixRoute("patch", "/workspaces/ws1", { ...workspacePayload, description: "" }),
+    ]);
+    mockApi(handle);
+
+    await updateWorkspace("ws1", { name: "Team", description: "" });
+
+    // The key must be present with an empty value: omitting it would leave the
+    // stored description untouched on the backend.
+    expect(handle.requests[0]).toMatchObject({
+      method: "patch",
+      path: "/workspaces/ws1",
+      data: { name: "Team", description: "" },
+    });
+    expect(handle.requests[0].data).toHaveProperty("description", "");
+  });
+
+  it("omits the description key entirely when it is not provided", async () => {
+    const handle = createMockApiAdapter([suffixRoute("patch", "/workspaces/ws1", workspacePayload)]);
+    mockApi(handle);
+
+    await updateWorkspace("ws1", { name: "Team" });
+
+    expect(handle.requests[0]).toMatchObject({ data: { name: "Team" } });
+    expect(handle.requests[0].data).not.toHaveProperty("description");
+  });
+
+  it("always resends the name so a description-only edit cannot 400", async () => {
+    const handle = createMockApiAdapter([suffixRoute("patch", "/workspaces/ws1", workspacePayload)]);
+    mockApi(handle);
+
+    await updateWorkspace("ws1", { name: "Team", description: "Platform roadmap" });
+
+    expect(handle.requests[0]).toMatchObject({
+      data: { name: "Team", description: "Platform roadmap" },
+    });
+  });
+
   it("deleteWorkspace issues a DELETE and resolves", async () => {
     const handle = createMockApiAdapter([noContentRoute("delete", "/workspaces/ws1")]);
     mockApi(handle);
@@ -103,20 +181,6 @@ describe("workspace.api members", () => {
     mockApi(handle);
 
     await expect(getWorkspaceMembers("ws1")).resolves.toEqual([mappedMember]);
-  });
-
-  it("createMembership posts email and role and maps the response", async () => {
-    const handle = createMockApiAdapter([route("post", "/workspaces/ws1/members", memberPayload)]);
-    mockApi(handle);
-
-    await expect(createMembership("ws1", { email: "ada@example.com", role: "admin" })).resolves.toEqual(
-      mappedMember,
-    );
-    expect(handle.requests[0]).toMatchObject({
-      method: "post",
-      path: "/workspaces/ws1/members",
-      data: { email: "ada@example.com", role: "admin" },
-    });
   });
 
   it("changeMemberRole patches the role and maps the response", async () => {

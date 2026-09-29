@@ -29,25 +29,19 @@ export function useBoard(boardId: string | undefined) {
 
   const boardQuery = useQuery({
     queryKey: ["boards", boardId],
-    queryFn: () => {
-      return getBoard(boardId!);
-    },
+    queryFn: () => getBoard(boardId!),
     enabled: !!boardId,
   });
 
   const columnsQuery = useQuery({
     queryKey: ["boards", boardId, "columns"],
-    queryFn: () => {
-      return getBoardColumns(boardId!);
-    },
+    queryFn: () => getBoardColumns(boardId!),
     enabled: !!boardId,
   });
 
   const labelsQuery = useQuery({
     queryKey: ["boards", boardId, "labels"],
-    queryFn: () => {
-      return getBoardLabels(boardId!);
-    },
+    queryFn: () => getBoardLabels(boardId!),
     enabled: !!boardId,
   });
 

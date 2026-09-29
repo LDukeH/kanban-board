@@ -2,12 +2,7 @@
 import type { DragDropManager } from "@dnd-kit/dom";
 import { isSortable } from "@dnd-kit/dom/sortable";
 
-/**
- * Pure drag-and-drop ordering helpers shared by the board drop handler and the
- * optimistic cache updates in `useBoard` / `useColumnTasks`. Keeping the
- * reorder math in one place guarantees the UI, the optimistic cache and the
- * final PATCH always agree on positions.
- */
+// Reorder math lives here so the UI, the optimistic cache and the final PATCH always agree on positions.
 
 /** Return a fresh copy of `tasks` sorted by ascending `position`. */
 export function orderTasksByPosition(tasks: Task[]): Task[] {
@@ -26,12 +21,7 @@ export function removeTaskFromColumn(tasks: Task[], taskId: string): Task[] {
   );
 }
 
-/**
- * Insert (or move) `task` into a column task list at `position` (0-based,
- * clamped to the list bounds) and renumber all positions. Any existing
- * occurrence of the task is removed first, which makes this safe for both
- * same-column reorders and cross-column moves.
- */
+/** Insert/move `task` at a clamped 0-based `position`; any existing copy is removed first, so same-column and cross-column moves share it. */
 export function insertTaskIntoColumn(
   tasks: Task[],
   task: Task,
@@ -70,12 +60,7 @@ function clampIndex(position: number, length: number): number {
   return Math.max(0, Math.min(clamped, length));
 }
 
-/**
- * Given the tasks currently registered for one column as `{ index, top,
- * height }` entries, count how many sit above the pointer's Y coordinate.
- * This turns a drop on a column's empty area into the matching insertion
- * index (top, between tasks, or bottom) instead of always appending.
- */
+/** Counts entries whose midpoint sits above `pointerY`, turning a drop on a column's empty area into a real index. */
 export function countTasksAbovePointer(
   entries: readonly { index: number; top: number; height: number }[],
   pointerY: number,
@@ -85,13 +70,7 @@ export function countTasksAbovePointer(
     .filter(({ top, height }) => top + height / 2 < pointerY).length;
 }
 
-/**
- * Collect the currently rendered task cards of `columnId` from the drag-drop
- * manager registry so the insertion index can be derived from the pointer
- * position. Used both by the board drop handler (final position on drop) and
- * by the live cross-column insertion placeholder, guaranteeing the preview and
- * the committed move always agree on the destination index.
- */
+/** Rendered task cards of `columnId` from the registry; shared by the drop handler and the live insertion placeholder so preview and commit agree. */
 export function collectColumnTaskEntries(
   manager: DragDropManager,
   columnId: string,

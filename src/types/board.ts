@@ -37,11 +37,8 @@ export interface Task {
   id: string;
   columnId: string;
   title: string;
-  /**
-   * Canonical format is a Tiptap JSON document ({ type: "doc", ... })
-   * persisted as PostgreSQL JSONB. Kept as `TaskDescription | string`
-   * during the backend transition so legacy plain-text rows keep rendering.
-   */
+  // Canonical format is a Tiptap JSON document ({ type: "doc", ... }) persisted as PostgreSQL JSONB.
+  // Kept as `TaskDescription | string` during the backend transition so legacy plain-text rows keep rendering.
   description?: TaskDescription | string;
   position: number;
   createdAt: string;

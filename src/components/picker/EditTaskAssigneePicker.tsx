@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Check, Loader2, Plus, Search } from "lucide-react";
-import { toast } from "react-toastify";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { useAuth } from "@/hooks/useAuth";
 import { useTaskAssignees } from "@/hooks/useTaskAssignees";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaces";
@@ -30,15 +30,7 @@ interface EditTaskAssigneePickerProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-/**
- * Assignee picker used inside EditTaskDialog. A small popup (like the labels
- * popup) with a search bar for filtering workspace members.
- *
- * Permission model (enforced server-side, reflected in the UI):
- * - Everyone can assign anyone → clicking an unassigned member assigns them.
- * - A user can only unassign themself → the current user's own assigned row
- *   can be toggled off; other assigned members are shown but not removable.
- */
+/** Assignee picker popup with member search; a user may only unassign themself, which the server also enforces. */
 export function EditTaskAssigneePicker({
   taskId,
   workspaceId,
@@ -58,6 +50,9 @@ export function EditTaskAssigneePicker({
 
   const [search, setSearch] = useState("");
   const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
+  // Assign/unassign failures report inside the popup (which stays open on
+  // failure) so the member rows keep their context.
+  const [error, setError] = useState<string | null>(null);
 
   const members = membersQuery.data ?? [];
   const isLoadingMembers =
@@ -84,6 +79,7 @@ export function EditTaskAssigneePicker({
     if (isAssigned && !isSelf) return;
 
     setTogglingUserId(memberUserId);
+    setError(null);
     try {
       if (isAssigned) {
         await unassignUser({ userId: memberUserId });
@@ -91,7 +87,7 @@ export function EditTaskAssigneePicker({
         await assignUser({ userId: memberUserId });
       }
     } catch (err) {
-      toast.error(
+      setError(
         describeMutationError(
           err,
           isAssigned
@@ -99,6 +95,7 @@ export function EditTaskAssigneePicker({
             : "Could not assign this member. Please try again.",
         ),
       );
+      console.error("Assignee toggle failed:", err);
     } finally {
       setTogglingUserId(null);
     }
@@ -196,6 +193,11 @@ return (
               </DropdownMenuItem>
             );
           })
+        )}
+        {error && (
+          <div className="border-t border-border p-1.5 pt-2">
+            <InlineAlert message={error} onDismiss={() => setError(null)} />
+          </div>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

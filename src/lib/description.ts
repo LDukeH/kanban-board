@@ -1,14 +1,4 @@
-/**
- * Canonical task description format.
- *
- * Descriptions are stored and presented as Tiptap JSON documents, persisted
- * as PostgreSQL JSONB on the backend. We never persist HTML strings.
- *
- * During the backend transition `Task.description` is typed as
- * `TaskDescription | string` so legacy plain-text rows keep rendering.
- * After the backend migration lands this tightens to JSON-only.
- */
-
+// Descriptions are Tiptap JSON docs (PostgreSQL JSONB); legacy plain-text rows still render via the `| string` union.
 export interface TipTapJSONMark {
   type: string;
   attrs?: Record<string, unknown>;
@@ -46,10 +36,7 @@ function collectText(nodes: TipTapJSONNode[] | undefined, out: string[]): void {
   }
 }
 
-/**
- * Plain-text preview of a description for card/list rendering.
- * Deep-walks Tiptap JSON; falls back to the raw string for legacy rows.
- */
+/** Plain-text preview for cards; deep-walks Tiptap JSON and falls back to the raw string for legacy rows. */
 export function getDescriptionPreview(description: RawTaskDescription): string {
   if (!description) return "";
   if (typeof description === "string") return description.trim();

@@ -27,12 +27,12 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { toast } from "react-toastify";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { CreateLabelDialog } from "@/components/dialog/CreateLabelDialog";
 import { EditTaskAssigneePicker } from "@/components/picker/EditTaskAssigneePicker";
 import { TaskComments } from "@/components/task/TaskComments";
@@ -114,10 +114,7 @@ export function EditTaskDialog({
   const columnName =
     columns.find((c) => c.id === task.columnId)?.name ?? "Task";
 
-  // -- Single-draft save model -------------------------------------------
-  // Saved task (server snapshot) -> local draft { title, description } ->
-  // [Save] commits BOTH in one PATCH. Title Enter/blur only exits edit mode;
-  // nothing persists until Save / flush-on-close.
+  // Single-draft save: one [Save] PATCHes title + description together; nothing persists until Save or flush-on-close.
   const savedTitle = task.title;
   const savedDescription = useMemo(
     () => normalizeSnapshotDescription(task.description),
@@ -136,6 +133,9 @@ export function EditTaskDialog({
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
   const [isCreateLabelOpen, setIsCreateLabelOpen] = useState(false);
   const [togglingLabelId, setTogglingLabelId] = useState<string | null>(null);
+  // Save/label failures are reported in a banner under the header so the draft
+  // stays visible and the reason the save did not happen is never lost.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Guards double submission and lets a close attempt await an in-flight
   // save (rapid close-while-saving re-enters the same flush path instead of
@@ -169,6 +169,7 @@ export function EditTaskDialog({
       setEditingTitle(false);
       setEditingDescription(false);
       setIsMembersPickerOpen(false);
+      setActionError(null);
       setOpen(nextOpen);
       return;
     }
@@ -195,10 +196,11 @@ export function EditTaskDialog({
     const run = (async () => {
       const title = draftTitle.trim();
       if (!title) {
-        toast.error("Task title is required.");
+        setActionError("Task title is required.");
         return false;
       }
       if (!isDirty) return true;
+      setActionError(null);
       try {
         await updateTask({
           taskId: task.id,
@@ -208,9 +210,10 @@ export function EditTaskDialog({
         setEditingDescription(false);
         return true;
       } catch (err) {
-        toast.error(
+        setActionError(
           describeMutationError(err, "Failed to update task. Please try again."),
         );
+        console.error("Update task failed:", err);
         return false;
       }
     })();
@@ -239,6 +242,7 @@ export function EditTaskDialog({
 
   async function handleToggleLabel(labelId: string) {
     setTogglingLabelId(labelId);
+    setActionError(null);
     try {
       if (assignedLabelIds.has(labelId)) {
         await removeLabelFromTask({ taskId: task.id, labelId });
@@ -246,7 +250,9 @@ export function EditTaskDialog({
         await addLabelToTask({ taskId: task.id, labelId });
       }
     } catch (err) {
-      toast.error(describeMutationError(err, "Failed to update label. Please try again."));
+      setActionError(
+        describeMutationError(err, "Failed to update label. Please try again."),
+      );
       console.error("Label toggle failed:", err);
     } finally {
       setTogglingLabelId(null);
@@ -256,12 +262,13 @@ export function EditTaskDialog({
   async function handleDelete() {
     try {
       await deleteTask(task.id);
-      toast.success("Task deleted.");
       setIsDeleteOpen(false);
       setOpen(false);
     } catch (err) {
-      toast.error(describeMutationError(err, "Failed to delete task. Please try again."));
+      // Re-throw so ConfirmDeleteDialog keeps the confirmation open and renders
+      // its own inline error, instead of closing over a silent failure.
       console.error("Delete task failed:", err);
+      throw err;
     }
   }
 
@@ -315,6 +322,15 @@ export function EditTaskDialog({
             </Button>
           </div>
         </div>
+
+        {actionError && (
+          <div className="shrink-0 px-5 pt-3">
+            <InlineAlert
+              message={actionError}
+              onDismiss={() => setActionError(null)}
+            />
+          </div>
+        )}
 
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] md:overflow-hidden">
           <div className="min-w-0 px-5 py-4 md:overflow-y-auto">

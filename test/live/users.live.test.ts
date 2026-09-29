@@ -1,10 +1,11 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { searchUsersByEmail } from "@/lib/api/users.api";
 import { assertBackendReachable } from "./helpers/env";
 import { expectStatus } from "./helpers/http";
 import {
   actingAs,
   clearSession,
+  deleteAccounts,
   installSessionManager,
   provisionUser,
   type LiveAccount,
@@ -19,6 +20,11 @@ describe("live users API", () => {
     await assertBackendReachable();
     alice = await provisionUser("users-alice");
     bob = await provisionUser("users-bob");
+  });
+
+  afterAll(async () => {
+    if (!alice || !bob) return; // setup aborted (backend down)
+    await deleteAccounts([alice, bob]);
   });
 
   it("finds a user by email", async () => {
