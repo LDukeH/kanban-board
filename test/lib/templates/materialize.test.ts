@@ -250,6 +250,10 @@ describe("materializeBoardTemplate", () => {
 });
 
 describe("BOARD_TEMPLATES", () => {
+  it("ships at least one preset so the picker is never empty in practice", () => {
+    expect(BOARD_TEMPLATES.length).toBeGreaterThan(0);
+  });
+
   it("exposes unique ids and at least one column per preset", () => {
     const ids = BOARD_TEMPLATES.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);

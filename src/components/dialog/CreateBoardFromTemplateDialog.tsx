@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { Check, LayoutTemplate, Loader2 } from "lucide-react";
+import { describeMutationError } from "@/lib/httpStatus";
 import { useBoardTemplates } from "@/hooks/useBoardTemplates";
 import {
   BOARD_TEMPLATES,
@@ -28,7 +29,7 @@ interface CreateBoardFromTemplateDialogProps {
   trigger?: React.ReactElement;
 }
 
-const FIRST_TEMPLATE = BOARD_TEMPLATES[0];
+const FIRST_TEMPLATE: BoardTemplate | undefined = BOARD_TEMPLATES[0];
 
 /**
  * Board creation from a static preset (Feature 4). Kept separate from
@@ -42,9 +43,11 @@ export function CreateBoardFromTemplateDialog({
     useBoardTemplates(workspaceId);
 
   const [open, setOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string>(FIRST_TEMPLATE.id);
-  const [name, setName] = useState(FIRST_TEMPLATE.name);
-  const [description, setDescription] = useState(FIRST_TEMPLATE.description);
+  // Defaults are optional so an empty preset list degrades to an explicit
+  // "no templates" state instead of crashing on BOARD_TEMPLATES[0].
+  const [selectedId, setSelectedId] = useState<string>(FIRST_TEMPLATE?.id ?? "");
+  const [name, setName] = useState(FIRST_TEMPLATE?.name ?? "");
+  const [description, setDescription] = useState(FIRST_TEMPLATE?.description ?? "");
   const [error, setError] = useState<string | null>(null);
   // Set only when the board was created but some template rows were not; the
   // dialog then stays open so the outcome cannot be missed.
@@ -53,9 +56,9 @@ export function CreateBoardFromTemplateDialog({
   const selected = getBoardTemplate(selectedId) ?? FIRST_TEMPLATE;
 
   function reset() {
-    setSelectedId(FIRST_TEMPLATE.id);
-    setName(FIRST_TEMPLATE.name);
-    setDescription(FIRST_TEMPLATE.description);
+    setSelectedId(FIRST_TEMPLATE?.id ?? "");
+    setName(FIRST_TEMPLATE?.name ?? "");
+    setDescription(FIRST_TEMPLATE?.description ?? "");
     setError(null);
     setOutcome(null);
   }
@@ -82,6 +85,10 @@ export function CreateBoardFromTemplateDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selected) {
+      setError("Choose a template to start from.");
+      return;
+    }
     if (!name.trim()) {
       setError("Board name is required.");
       return;
@@ -102,7 +109,8 @@ export function CreateBoardFromTemplateDialog({
     } catch (err) {
       // materializeBoardTemplate only rejects when createBoard rejects, which
       // happens before any column or label call — so nothing was created.
-      setError("Failed to create board. Please try again.");
+      // describeMutationError keeps 401/403/404 and network failures distinct.
+      setError(describeMutationError(err, "Failed to create board."));
       console.error("Create board from template failed:", err);
     }
   }
@@ -132,18 +140,23 @@ export function CreateBoardFromTemplateDialog({
               Template
             </span>
             <div
-              role="radiogroup"
+              role="group"
               aria-labelledby="template-picker-label"
               className="flex flex-col gap-2"
             >
+              {BOARD_TEMPLATES.length === 0 && (
+                <p className="rounded-lg border border-border bg-muted px-3 py-4 text-center text-sm text-muted-foreground">
+                  No board templates are available right now. Use “Create New
+                  Board” to start from scratch instead.
+                </p>
+              )}
               {BOARD_TEMPLATES.map((template) => {
                 const isSelected = template.id === selectedId;
                 return (
                   <button
                     key={template.id}
                     type="button"
-                    role="radio"
-                    aria-checked={isSelected}
+                    aria-pressed={isSelected}
                     onClick={() => selectTemplate(template)}
                     className={cn(
                       "rounded-lg border p-3 text-left transition-colors",
@@ -179,7 +192,7 @@ export function CreateBoardFromTemplateDialog({
           <div className="flex flex-col gap-2">
             <span className="text-sm font-medium">Columns</span>
             <div className="flex flex-wrap gap-1.5">
-              {selected.columns.map((column) => (
+              {(selected?.columns ?? []).map((column) => (
                 <span
                   key={column.name}
                   className="rounded-md border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground"
@@ -236,7 +249,10 @@ export function CreateBoardFromTemplateDialog({
                 <DialogClose render={<Button variant="ghost" />}>
                   Cancel
                 </DialogClose>
-                <Button type="submit" disabled={isCreatingFromTemplate}>
+                <Button
+                  type="submit"
+                  disabled={isCreatingFromTemplate || !selected}
+                >
                   {isCreatingFromTemplate && (
                     <Loader2 className="size-4 animate-spin" />
                   )}
