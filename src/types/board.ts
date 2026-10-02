@@ -33,6 +33,13 @@ export interface TaskAssignee {
   email: string;
 }
 
+/**
+ * Closed set of task priorities. Mirrors the backend's `tasks_priority_check`
+ * constraint (migrations/019_add_task_metadata.sql) — reject anything else
+ * client-side, since the API answers 400 for an unknown value.
+ */
+export type TaskPriority = "none" | "low" | "medium" | "high";
+
 export interface Task {
   id: string;
   columnId: string;
@@ -42,6 +49,12 @@ export interface Task {
   description?: TaskDescription | string;
   position: number;
   createdAt: string;
+  /** Always present in backend responses; defaults to "none". */
+  priority: TaskPriority;
+  /** Calendar due date as "YYYY-MM-DD", or null when none is set. Never an ISO timestamp. */
+  dueDate: string | null;
+  /** Always present in backend responses; defaults to false. */
+  completed: boolean;
   labels?: Label[];
   assignees?: TaskAssignee[];
 }

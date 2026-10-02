@@ -29,6 +29,8 @@ import {
 import { useState, useCallback, useEffect, type WheelEvent } from "react";
 import { TaskCard } from "@/components/board/TaskCard";
 import { TaskFilterPopover } from "@/components/board/TaskFilterPopover";
+import { ProgressSummary } from "@/components/summary/ProgressSummary";
+import { useBoardSummary } from "@/hooks/useBoardSummary";
 import { useRecentStore } from "@/stores/recentStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import {
@@ -253,6 +255,8 @@ function BoardContent({ boardId }: { boardId: string }) {
     isLoadingRole,
   } = useWorkspaceAccess(board?.workspaceId);
 
+  const boardSummary = useBoardSummary(boardId);
+
   const sortedColumns = [...columns].sort((a, b) => a.position - b.position);
 
   const canManageColumns = canManageWorkspaceContent && !isLoadingRole;
@@ -444,6 +448,19 @@ function BoardContent({ boardId }: { boardId: string }) {
           />
         </div>
       )}
+
+      <div className="shrink-0 px-6 pt-3">
+        <ProgressSummary
+          heading="Board progress"
+          isLoading={boardSummary.isLoadingSummary}
+          isError={boardSummary.isSummaryError}
+          error={boardSummary.summaryError}
+          onRetry={boardSummary.refetchSummary}
+          totals={boardSummary.summary}
+          breakdown={boardSummary.summary?.byColumn}
+          note="Computed in your browser from loaded tasks"
+        />
+      </div>
 
       <DragDropProvider
         onDragEnd={canManageColumns || canUseTasks ? handleDragEnd : undefined}

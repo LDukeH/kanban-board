@@ -9,7 +9,7 @@ import { getBoardColumns } from "./column.api";
 import { getBoards } from "./board.api";
 import { getWorkspaces } from "./workspace.api";
 import { isTaskDescriptionDoc, type TaskDescription } from "@/lib/description";
-import type { Task, TaskAssignee } from "@/types/board";
+import type { Task, TaskAssignee, TaskPriority } from "@/types/board";
 
 interface TaskApiResponse {
   id: string;
@@ -19,6 +19,11 @@ interface TaskApiResponse {
   position: number;
   created_at: string;
   updated_at: string;
+  // Planning metadata added by migration 019. Always present in current backend
+  // responses; optional here so a pre-019 server cannot blow up the mapper.
+  priority?: TaskPriority;
+  due_date?: string | null;
+  completed?: boolean;
   labels?: LabelApiResponse[] | null;
   assignees?: AssigneeApiResponse[] | null;
 }
@@ -50,6 +55,12 @@ function mapTask(raw: TaskApiResponse): Task {
     description: normalizeDescription(raw.description),
     position: raw.position,
     createdAt: raw.created_at,
+    // The backend guarantees these three keys; the fallbacks only guard against
+    // a pre-019 server so the UI degrades to the neutral values instead of
+    // undefined. Raw snake_case never leaves this module.
+    priority: raw.priority ?? "none",
+    dueDate: raw.due_date ?? null,
+    completed: raw.completed ?? false,
     labels: (raw.labels ?? []).map(mapLabel),
     assignees: (raw.assignees ?? []).map(mapAssignee),
   };

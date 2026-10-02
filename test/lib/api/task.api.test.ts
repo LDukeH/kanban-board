@@ -99,6 +99,43 @@ describe("task.api mapping", () => {
     expect(tasks[3].description).toBeUndefined();
   });
 
+  it("maps priority, due_date and completed from the task response", async () => {
+    const handle = createMockApiAdapter([
+      route("get", "/columns/c1/tasks", [
+        {
+          ...tasksPayload[0],
+          priority: "high",
+          due_date: "2026-10-02",
+          completed: true,
+        },
+      ]),
+    ]);
+    mockApi(handle);
+
+    const [task] = await getColumnTasks("c1");
+
+    expect(task).toMatchObject({
+      priority: "high",
+      dueDate: "2026-10-02",
+      completed: true,
+    });
+  });
+
+  it("falls back to the neutral metadata when the keys are absent", async () => {
+    const handle = createMockApiAdapter([
+      route("get", "/columns/c1/tasks", [tasksPayload[1]]),
+    ]);
+    mockApi(handle);
+
+    const [task] = await getColumnTasks("c1");
+
+    expect(task).toMatchObject({
+      priority: "none",
+      dueDate: null,
+      completed: false,
+    });
+  });
+
   it("createTask posts title/description and maps the response", async () => {
     const handle = createMockApiAdapter([route("post", "/columns/c1/tasks", tasksPayload[0])]);
     mockApi(handle);

@@ -106,6 +106,53 @@ export function columnTasksQueryKey(boardId: string, columnId: string) {
   return ["boards", boardId, "columns", columnId, "tasks"] as const;
 }
 
+/**
+ * The single implementation behind a column's task query, exported so another
+ * observer of the same key (see useBoardSummary) runs the identical
+ * reconciliation.
+ *
+ * It matters because React Query lets any observer for a key set that query's
+ * options: if two observers supplied different functions, a background refetch
+ * could swap in the simpler one and silently drop in-flight position moves.
+ */
+export function columnTasksQueryFn(
+  boardId: string | undefined,
+  columnId: string | undefined,
+): () => Promise<Task[]> {
+  return async () => {
+    const serverTasks = await getColumnTasks(columnId!);
+    const moves = [...pendingTaskMoves.entries()].filter(
+      ([, move]) => move.boardId === boardId,
+    );
+
+    let tasks = orderTasksByPosition(serverTasks);
+
+    for (const [taskId, move] of moves) {
+      const destinationConfirmed =
+        move.targetColumnId === columnId &&
+        serverTasks.some((task) => task.id === taskId);
+
+      if (move.sourceColumnId === columnId) {
+        tasks = removeTaskFromColumn(tasks, taskId);
+      }
+      if (move.targetColumnId === columnId) {
+        tasks = insertTaskIntoColumn(
+          tasks,
+          { ...move.task, columnId: columnId! },
+          columnId!,
+          move.position,
+        );
+      }
+
+      if (destinationConfirmed) {
+        pendingTaskMoves.delete(taskId);
+      }
+    }
+
+    return tasks;
+  };
+}
+
 export function useColumnTasks(
   boardId: string | undefined,
   columnId: string | undefined,
@@ -148,38 +195,7 @@ export function useColumnTasks(
 
   const tasksQuery = useQuery({
     queryKey,
-    queryFn: async () => {
-      const serverTasks = await getColumnTasks(columnId!);
-      const moves = [...pendingTaskMoves.entries()].filter(
-        ([, move]) => move.boardId === boardId,
-      );
-
-      let tasks = orderTasksByPosition(serverTasks);
-
-      for (const [taskId, move] of moves) {
-        const destinationConfirmed =
-          move.targetColumnId === columnId &&
-          serverTasks.some((task) => task.id === taskId);
-
-        if (move.sourceColumnId === columnId) {
-          tasks = removeTaskFromColumn(tasks, taskId);
-        }
-        if (move.targetColumnId === columnId) {
-          tasks = insertTaskIntoColumn(
-            tasks,
-            { ...move.task, columnId: columnId! },
-            columnId!,
-            move.position,
-          );
-        }
-
-        if (destinationConfirmed) {
-          pendingTaskMoves.delete(taskId);
-        }
-      }
-
-      return tasks;
-    },
+    queryFn: columnTasksQueryFn(boardId, columnId),
     enabled,
   });
   const createTaskMutation = useMutation({

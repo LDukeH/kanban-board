@@ -3,12 +3,14 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { BoardGrid } from "@/components/dashboard/BoardGrid";
 import { FeaturedSection } from "@/components/dashboard/FeaturedSection";
 import { WorkspaceMembersDialog } from "@/components/dialog/WorkspaceMembersDialog";
+import { ProgressSummary } from "@/components/summary/ProgressSummary";
 import {
   useWorkspaces,
   useWorkspaceDetail,
   useWorkspaceMembers,
 } from "@/hooks/useWorkspaces";
 import { useBoards } from "@/hooks/useBoards";
+import { useWorkspaceSummary } from "@/hooks/useWorkspaceSummary";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { useRecentStore } from "@/stores/recentStore";
@@ -36,6 +38,8 @@ export default function WorkspacePage() {
   const { recordWorkspace } = useRecentStore();
   const membersQuery = useWorkspaceMembers(workspaceId);
   const [membersOpen, setMembersOpen] = useState(false);
+
+  const workspaceSummary = useWorkspaceSummary(workspaceId);
 
   // The detail route is the authoritative source for the header name and the
   // workspace description, and the workspace mutations keep it in sync. The list
@@ -131,6 +135,26 @@ export default function WorkspacePage() {
 
       <div className="flex-1 p-6">
         <FeaturedSection />
+
+        <ProgressSummary
+          heading="Workspace progress"
+          isLoading={workspaceSummary.isLoadingSummary}
+          isError={workspaceSummary.isSummaryError}
+          error={workspaceSummary.summaryError}
+          onRetry={workspaceSummary.refetchSummary}
+          totals={workspaceSummary.summary?.totals}
+          breakdown={(workspaceSummary.summary?.boards ?? []).map(
+            ({ board, summary }) => ({
+              id: board.id,
+              label: board.name,
+              total: summary.total,
+              completed: summary.completed,
+            }),
+          )}
+          note="Computed in your browser from loaded tasks"
+          className="mb-5"
+        />
+
         {isLoadingBoards ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
