@@ -42,7 +42,6 @@ describe("live auth API (cookie session)", () => {
     const user = await getCurrentUser();
     expect(user.id).toBe(account.id);
     expect(user.email).toBe(account.email);
-    expect(user.passwordHash).toEqual(expect.any(String));
   });
 
   it("rejects a wrong password with 401", async () => {

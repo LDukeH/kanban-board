@@ -7,7 +7,6 @@ import { createMockApiAdapter, noContentRoute, route, type MockApiHandle } from 
 const userPayload = {
   id: "u1",
   email: "ada@example.com",
-  password_hash: "hashed-value",
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
 };
@@ -27,7 +26,6 @@ describe("auth.api", () => {
     expect(user).toEqual({
       id: "u1",
       email: "ada@example.com",
-      passwordHash: "hashed-value",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     });

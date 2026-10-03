@@ -9,7 +9,6 @@ import type {
 interface UserApiResponse {
   id: string;
   email: string;
-  password_hash: string;
   created_at: string;
   updated_at: string;
 }
@@ -18,7 +17,6 @@ function mapUser(raw: UserApiResponse): User {
   return {
     id: raw.id,
     email: raw.email,
-    passwordHash: raw.password_hash,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
