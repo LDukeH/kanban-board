@@ -20,10 +20,15 @@ import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaces";
 import { cn } from "@/lib/utils";
 import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { TASK_PRIORITIES, type TaskPriority } from "@/types/board";
 import {
   clearTaskFilter,
+  COMPLETION_STATUSES,
+  DUE_STATUSES,
   isTaskFilterActive,
   taskFilterCount,
+  type TaskCompletionStatus,
+  type TaskDueStatus,
   type TaskFilter,
 } from "@/lib/taskFilter";
 
@@ -46,6 +51,101 @@ function stateLabel(
 
 const ASSIGNEE_WORDS = { none: "Unassigned", singular: "assignee", plural: "assignees", all: "All assignees" };
 const LABEL_WORDS = { none: "No labels", singular: "label", plural: "labels", all: "All labels" };
+
+/** Visible text per option for the metadata filter rows. */
+const PRIORITY_OPTION_LABEL: Record<TaskPriority, string> = {
+  none: "None",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+const DUE_OPTION_LABEL: Record<TaskDueStatus, string> = {
+  overdue: "Overdue",
+  scheduled: "Scheduled",
+  unscheduled: "No due date",
+};
+const COMPLETION_OPTION_LABEL: Record<TaskCompletionStatus, string> = {
+  completed: "Completed",
+  active: "Active",
+};
+
+/**
+ * Summarises a metadata selection for its row trigger.
+ *
+ * Unlike the assignee/label rows (which can only count), these groups have
+ * short closed value sets, so naming the single selection is more useful than
+ * "1 priority".
+ */
+function enumSummary<T>(
+  selected: T[],
+  { all, label, plural }: { all: string; label: (value: T) => string; plural: string },
+): string {
+  if (selected.length === 0) return all;
+  if (selected.length === 1) return label(selected[0]);
+  return `${selected.length} ${plural}`;
+}
+
+/** Toggles one value in a metadata group's selection list. */
+function toggleEnumValue<T>(selected: T[], value: T): T[] {
+  return selected.includes(value)
+    ? selected.filter((entry) => entry !== value)
+    : [...selected, value];
+}
+
+/**
+ * One metadata filter row: a trigger showing the current selection, expanding
+ * into a multi-select of the group's closed value set. Mirrors the Assignee and
+ * Label rows so the three metadata rows stay visually identical.
+ */
+function FilterSubMenu<T extends string>({
+  title,
+  summary,
+  active,
+  options,
+  selected,
+  labelFor,
+  onToggle,
+}: {
+  title: string;
+  summary: string;
+  active: boolean;
+  options: readonly T[];
+  selected: T[];
+  labelFor: (value: T) => string;
+  onToggle: (value: T) => void;
+}) {
+  return (
+    <DropdownMenuGroup>
+      <DropdownMenuLabel>{title}</DropdownMenuLabel>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+            <span className={cn(active && "font-medium text-primary")}>
+              {summary}
+            </span>
+          </span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="w-56">
+          <DropdownMenuLabel className="flex items-center gap-1.5">
+            <ArrowLeft className="size-3.5 text-muted-foreground" />
+            {title}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {options.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option}
+              checked={selected.includes(option)}
+              onCheckedChange={() => onToggle(option)}
+              closeOnClick={false}
+            >
+              <span className="text-sm">{labelFor(option)}</span>
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    </DropdownMenuGroup>
+  );
+}
 
 /** Board-level filter: a top search bar plus Assignee/Label rows that expand into multi-selects, each row doubling as the live filter state. */
 export function TaskFilterPopover({
@@ -77,6 +177,22 @@ export function TaskFilterPopover({
     { empty: filter.hasNoLabels, selected: filter.labelNames },
     LABEL_WORDS,
   );
+
+  const prioritySummary = enumSummary(filter.priorities, {
+    all: "Any priority",
+    label: (value) => PRIORITY_OPTION_LABEL[value],
+    plural: "priorities",
+  });
+  const dueSummary = enumSummary(filter.dueStatuses, {
+    all: "Any due date",
+    label: (value) => DUE_OPTION_LABEL[value],
+    plural: "due dates",
+  });
+  const completionSummary = enumSummary(filter.completion, {
+    all: "Any status",
+    label: (value) => COMPLETION_OPTION_LABEL[value],
+    plural: "statuses",
+  });
 
   const sortedLabels = useMemo(
     () => [...labels].sort((a, b) => a.name.localeCompare(b.name)),
@@ -149,6 +265,18 @@ export function TaskFilterPopover({
 
   function toggleNoLabels() {
     update({ hasNoLabels: !filter.hasNoLabels, labelNames: [] });
+  }
+
+  function togglePriority(value: TaskPriority) {
+    update({ priorities: toggleEnumValue(filter.priorities, value) });
+  }
+
+  function toggleDueStatus(value: TaskDueStatus) {
+    update({ dueStatuses: toggleEnumValue(filter.dueStatuses, value) });
+  }
+
+  function toggleCompletion(value: TaskCompletionStatus) {
+    update({ completion: toggleEnumValue(filter.completion, value) });
   }
 
   return (
@@ -317,6 +445,36 @@ export function TaskFilterPopover({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         </DropdownMenuGroup>
+
+        <FilterSubMenu
+          title="Priority"
+          summary={prioritySummary}
+          active={filter.priorities.length > 0}
+          options={TASK_PRIORITIES}
+          selected={filter.priorities}
+          labelFor={(value) => PRIORITY_OPTION_LABEL[value]}
+          onToggle={togglePriority}
+        />
+
+        <FilterSubMenu
+          title="Due date"
+          summary={dueSummary}
+          active={filter.dueStatuses.length > 0}
+          options={DUE_STATUSES}
+          selected={filter.dueStatuses}
+          labelFor={(value) => DUE_OPTION_LABEL[value]}
+          onToggle={toggleDueStatus}
+        />
+
+        <FilterSubMenu
+          title="Status"
+          summary={completionSummary}
+          active={filter.completion.length > 0}
+          options={COMPLETION_STATUSES}
+          selected={filter.completion}
+          labelFor={(value) => COMPLETION_OPTION_LABEL[value]}
+          onToggle={toggleCompletion}
+        />
 
         {/* Trello-style inline results: while the main keyword query is
             non-empty, matching members/labels are shown directly in the main

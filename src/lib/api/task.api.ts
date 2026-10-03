@@ -31,11 +31,42 @@ interface TaskApiResponse {
 export interface CreateTaskData {
   title: string;
   description?: TaskDescription;
+  priority?: TaskPriority;
+  /** "YYYY-MM-DD". Omit or send null on create — both store NULL. */
+  dueDate?: string | null;
+  completed?: boolean;
 }
 
 export interface UpdateTaskData {
   title?: string;
   description?: TaskDescription;
+  priority?: TaskPriority;
+  /**
+   * Tri-state on the backend: "YYYY-MM-DD" sets it, null clears it, and
+   * omitting the key leaves the stored value unchanged.
+   */
+  dueDate?: string | null;
+  completed?: boolean;
+}
+
+/**
+ * Maps the camelCase request types onto the snake_case body the API expects.
+ *
+ * Sending `data` straight through would post `dueDate`, which the backend
+ * never reads — the due date would silently never change. Keys with an
+ * `undefined` value are dropped, which is what preserves PATCH's
+ * "absent means unchanged" contract.
+ */
+function toTaskPayload(
+  data: CreateTaskData | UpdateTaskData,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (data.title !== undefined) payload.title = data.title;
+  if (data.description !== undefined) payload.description = data.description;
+  if (data.priority !== undefined) payload.priority = data.priority;
+  if (data.dueDate !== undefined) payload.due_date = data.dueDate;
+  if (data.completed !== undefined) payload.completed = data.completed;
+  return payload;
 }
 
 function normalizeDescription(
@@ -79,7 +110,7 @@ export const createTask = async (
 ): Promise<Task> => {
   const response = await api.post<TaskApiResponse>(
     `/columns/${columnId}/tasks`,
-    data,
+    toTaskPayload(data),
   );
   return mapTask(response.data);
 };
@@ -88,7 +119,7 @@ export const updateTask = async (
   taskId: string,
   data: UpdateTaskData,
 ): Promise<void> => {
-  await api.patch(`/tasks/${taskId}`, data);
+  await api.patch(`/tasks/${taskId}`, toTaskPayload(data));
 };
 
 export const updateTaskPosition = async (

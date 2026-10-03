@@ -1,4 +1,17 @@
-import type { Label, Task } from "@/types/board";
+import { isOverdue, todayISO } from "@/lib/summary";
+import type { Label, Task, TaskPriority } from "@/types/board";
+import { TASK_PRIORITIES } from "@/types/board";
+
+/**
+ * When a task's due date falls, derived on the fly rather than stored.
+ *
+ * - `overdue`: dated, not completed, and the date has passed.
+ * - `scheduled`: dated and not overdue (includes completed tasks).
+ * - `unscheduled`: no due date at all.
+ */
+export type TaskDueStatus = "overdue" | "scheduled" | "unscheduled";
+
+export type TaskCompletionStatus = "completed" | "active";
 
 export interface TaskFilter {
   query: string;
@@ -6,6 +19,12 @@ export interface TaskFilter {
   assigneeEmails: string[];
   hasNoLabels: boolean;
   labelNames: string[];
+  /** Empty means "any priority". */
+  priorities: TaskPriority[];
+  /** Empty means "any due-date state". */
+  dueStatuses: TaskDueStatus[];
+  /** Empty means "either state". */
+  completion: TaskCompletionStatus[];
 }
 
 export function emptyTaskFilter(): TaskFilter {
@@ -15,7 +34,24 @@ export function emptyTaskFilter(): TaskFilter {
     assigneeEmails: [],
     hasNoLabels: false,
     labelNames: [],
+    priorities: [],
+    dueStatuses: [],
+    completion: [],
   };
+}
+
+/** The due-date bucket a task falls into for the given day. */
+export function taskDueStatus(
+  task: Task,
+  today: string = todayISO(),
+): TaskDueStatus {
+  if (!task.dueDate) return "unscheduled";
+  if (isOverdue(task, today)) return "overdue";
+  return "scheduled";
+}
+
+export function taskCompletionStatus(task: Task): TaskCompletionStatus {
+  return task.completed ? "completed" : "active";
 }
 
 export function isTaskFilterActive(filter: TaskFilter): boolean {
@@ -24,7 +60,10 @@ export function isTaskFilterActive(filter: TaskFilter): boolean {
     filter.hasNoAssignees ||
     filter.assigneeEmails.length > 0 ||
     filter.hasNoLabels ||
-    filter.labelNames.length > 0
+    filter.labelNames.length > 0 ||
+    filter.priorities.length > 0 ||
+    filter.dueStatuses.length > 0 ||
+    filter.completion.length > 0
   );
 }
 
@@ -36,6 +75,9 @@ export function taskFilterCount(filter: TaskFilter): number {
   if (filter.hasNoLabels) count += 1;
   count += filter.assigneeEmails.length;
   count += filter.labelNames.length;
+  count += filter.priorities.length;
+  count += filter.dueStatuses.length;
+  count += filter.completion.length;
   return count;
 }
 
@@ -45,6 +87,7 @@ export function clearTaskFilter(): TaskFilter {
 
 export function matchesTaskFilter(task: Task, filter: TaskFilter): boolean {
   const q = filter.query.trim().toLowerCase();
+  const today = todayISO();
 
   // Search bar: OR across title, any assignee email, any label name.
   if (q.length > 0) {
@@ -78,6 +121,20 @@ export function matchesTaskFilter(task: Task, filter: TaskFilter): boolean {
     if (!passesNoLabels && !passesSelected) return false;
   }
 
+  // Same OR-within-group rule for the metadata filters: a selection narrows the
+  // list, an empty selection matches everything.
+  if (filter.priorities.length > 0) {
+    if (!filter.priorities.includes(task.priority)) return false;
+  }
+
+  if (filter.dueStatuses.length > 0) {
+    if (!filter.dueStatuses.includes(taskDueStatus(task, today))) return false;
+  }
+
+  if (filter.completion.length > 0) {
+    if (!filter.completion.includes(taskCompletionStatus(task))) return false;
+  }
+
   return true;
 }
 
@@ -106,6 +163,22 @@ const NO_ASSIGNEES_PARAM = "no_assignees";
 const ASSIGNEES_PARAM = "assignees";
 const NO_LABELS_PARAM = "no_labels";
 const LABELS_PARAM = "labels";
+const PRIORITIES_PARAM = "priority";
+const DUE_PARAM = "due";
+const COMPLETION_PARAM = "completion";
+
+/** Every due-date state, in display order — the single source for URL parsing and the filter UI. */
+export const DUE_STATUSES: readonly TaskDueStatus[] = [
+  "overdue",
+  "scheduled",
+  "unscheduled",
+];
+
+/** Every completion state, in display order. */
+export const COMPLETION_STATUSES: readonly TaskCompletionStatus[] = [
+  "completed",
+  "active",
+];
 
 export function filterToSearchParams(
   filter: TaskFilter,
@@ -122,6 +195,16 @@ export function filterToSearchParams(
   if (filter.hasNoLabels) params[NO_LABELS_PARAM] = "1";
   if (filter.labelNames.length > 0) {
     params[LABELS_PARAM] = filter.labelNames.map(encodeURIComponent).join(",");
+  }
+  // These three hold fixed enum tokens, so they need no per-item encoding.
+  if (filter.priorities.length > 0) {
+    params[PRIORITIES_PARAM] = filter.priorities.join(",");
+  }
+  if (filter.dueStatuses.length > 0) {
+    params[DUE_PARAM] = filter.dueStatuses.join(",");
+  }
+  if (filter.completion.length > 0) {
+    params[COMPLETION_PARAM] = filter.completion.join(",");
   }
   return params;
 }
@@ -141,6 +224,23 @@ export function filterFromSearchParams(params: URLSearchParams): TaskFilter {
       .map(decodeURIComponent)
       .map((s) => s.trim())
       .filter(Boolean),
+    // Unknown tokens from a hand-edited URL are dropped so the filter can only
+    // ever hold values the rest of the code understands.
+    priorities: (params.get(PRIORITIES_PARAM) ?? "")
+      .split(",")
+      .filter((value): value is TaskPriority =>
+        (TASK_PRIORITIES as readonly string[]).includes(value),
+      ),
+    dueStatuses: (params.get(DUE_PARAM) ?? "")
+      .split(",")
+      .filter((value): value is TaskDueStatus =>
+        (DUE_STATUSES as readonly string[]).includes(value),
+      ),
+    completion: (params.get(COMPLETION_PARAM) ?? "")
+      .split(",")
+      .filter((value): value is TaskCompletionStatus =>
+        (COMPLETION_STATUSES as readonly string[]).includes(value),
+      ),
   };
 }
 

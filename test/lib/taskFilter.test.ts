@@ -17,11 +17,7 @@ import { failStorageAccess, readRawStorage } from "../helpers/storageShim";
 
 function filter(overrides: Partial<TaskFilter> = {}): TaskFilter {
   return {
-    query: "",
-    hasNoAssignees: false,
-    assigneeEmails: [],
-    hasNoLabels: false,
-    labelNames: [],
+    ...emptyTaskFilter(),
     ...overrides,
   };
 }
@@ -169,6 +165,89 @@ describe("assignee and label group matching", () => {
   });
 });
 
+describe("metadata group matching", () => {
+  const urgent = makeTask({
+    id: "urgent",
+    priority: "high",
+    dueDate: "2000-01-01",
+  });
+  const done = makeTask({
+    id: "done",
+    priority: "low",
+    dueDate: "2000-01-01",
+    completed: true,
+  });
+  const plain = makeTask({ id: "plain", priority: "none", dueDate: null });
+
+  it("an empty selection matches every task", () => {
+    for (const task of [urgent, done, plain]) {
+      expect(matchesTaskFilter(task, filter())).toBe(true);
+    }
+  });
+
+  it("priority matches only the selected values", () => {
+    expect(matchesTaskFilter(urgent, filter({ priorities: ["high"] }))).toBe(true);
+    expect(matchesTaskFilter(plain, filter({ priorities: ["high"] }))).toBe(false);
+    // Multiple values are OR-ed within the group.
+    expect(
+      matchesTaskFilter(done, filter({ priorities: ["high", "low"] })),
+    ).toBe(true);
+  });
+
+  it("due status buckets dated, overdue and undated tasks", () => {
+    expect(
+      matchesTaskFilter(urgent, filter({ dueStatuses: ["overdue"] })),
+    ).toBe(true);
+    expect(
+      matchesTaskFilter(plain, filter({ dueStatuses: ["unscheduled"] })),
+    ).toBe(true);
+    expect(
+      matchesTaskFilter(plain, filter({ dueStatuses: ["overdue"] })),
+    ).toBe(false);
+  });
+
+  it("a completed task with a past due date is scheduled, never overdue", () => {
+    expect(
+      matchesTaskFilter(done, filter({ dueStatuses: ["scheduled"] })),
+    ).toBe(true);
+    expect(
+      matchesTaskFilter(done, filter({ dueStatuses: ["overdue"] })),
+    ).toBe(false);
+  });
+
+  it("completion matches the flag", () => {
+    expect(
+      matchesTaskFilter(done, filter({ completion: ["completed"] })),
+    ).toBe(true);
+    expect(matchesTaskFilter(done, filter({ completion: ["active"] }))).toBe(false);
+    expect(matchesTaskFilter(plain, filter({ completion: ["active"] }))).toBe(true);
+  });
+
+  it("ANDs metadata groups together with the other filter groups", () => {
+    const combined = filter({
+      priorities: ["high"],
+      dueStatuses: ["overdue"],
+      completion: ["active"],
+    });
+    expect(matchesTaskFilter(urgent, combined)).toBe(true);
+    // Same priority and due state, but completed fails the completion group.
+    expect(matchesTaskFilter(done, combined)).toBe(false);
+  });
+
+  it("isTaskFilterActive and taskFilterCount see every metadata group", () => {
+    expect(isTaskFilterActive(filter({ priorities: ["high"] }))).toBe(true);
+    expect(isTaskFilterActive(filter({ dueStatuses: ["overdue"] }))).toBe(true);
+    expect(isTaskFilterActive(filter({ completion: ["completed"] }))).toBe(true);
+
+    expect(taskFilterCount(filter({ priorities: ["high", "low"] }))).toBe(2);
+    expect(
+      taskFilterCount(
+        filter({ priorities: ["high"], dueStatuses: ["overdue"], completion: ["active"] }),
+      ),
+    ).toBe(3);
+  });
+});
+
 describe("topLabelsByUsage", () => {
   const alpha = makeLabel({ id: "l1", name: "Alpha" });
   const beta = makeLabel({ id: "l2", name: "Beta" });
@@ -220,6 +299,21 @@ describe("URL serialization", () => {
       labels: "Priority%3A%20High,bug",
     });
   });
+
+  it("serializes metadata groups as bare comma-joined enum tokens", () => {
+    const params = filterToSearchParams(
+      filter({
+        priorities: ["high", "low"],
+        dueStatuses: ["overdue"],
+        completion: ["completed"],
+      }),
+    );
+    expect(params).toEqual({
+      priority: "high,low",
+      due: "overdue",
+      completion: "completed",
+    });
+  });
 });
 
 describe("URL parsing", () => {
@@ -236,6 +330,33 @@ describe("URL parsing", () => {
     expect(filterFromSearchParams(new URLSearchParams("no_assignees=true")).hasNoAssignees).toBe(false);
     expect(filterFromSearchParams(new URLSearchParams("no_assignees=1")).hasNoAssignees).toBe(true);
     expect(filterFromSearchParams(new URLSearchParams("no_labels=1")).hasNoLabels).toBe(true);
+  });
+
+  it("reads metadata tokens and drops values that are not in the closed set", () => {
+    const parsed = filterFromSearchParams(
+      new URLSearchParams(
+        "priority=high,urgent&due=overdue,whenever&completion=completed,nope",
+      ),
+    );
+    expect(parsed.priorities).toEqual(["high"]);
+    expect(parsed.dueStatuses).toEqual(["overdue"]);
+    expect(parsed.completion).toEqual(["completed"]);
+  });
+
+  it("round-trips every metadata group through serialize and parse", () => {
+    const original = filter({
+      priorities: ["high", "none"],
+      dueStatuses: ["overdue", "unscheduled"],
+      completion: ["active"],
+    });
+    expect(
+      filterFromSearchParams(new URLSearchParams(filterToSearchParams(original))),
+    ).toEqual({
+      ...emptyTaskFilter(),
+      priorities: ["high", "none"],
+      dueStatuses: ["overdue", "unscheduled"],
+      completion: ["active"],
+    });
   });
 
   it("decodes, trims, and filters empty comma-separated values", () => {
@@ -261,6 +382,9 @@ describe("URL parsing", () => {
       assigneeEmails: ["ada@example.com", "an+email@x.com"],
       hasNoLabels: true,
       labelNames: ["Priority: High", "bug"],
+      priorities: [],
+      dueStatuses: [],
+      completion: [],
     });
   });
 });

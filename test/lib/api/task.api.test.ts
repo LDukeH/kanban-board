@@ -149,6 +149,39 @@ describe("task.api mapping", () => {
     });
     expect(created.id).toBe("t1");
   });
+
+  it("createTask posts metadata as snake_case and omits absent keys", async () => {
+    const handle = createMockApiAdapter([
+      route("post", "/columns/c1/tasks", tasksPayload[0]),
+    ]);
+    mockApi(handle);
+
+    await createTask("c1", {
+      title: "Task one",
+      priority: "high",
+      dueDate: "2026-10-02",
+      completed: true,
+    });
+
+    expect(handle.requests[0].data).toEqual({
+      title: "Task one",
+      priority: "high",
+      // dueDate is mapped to the snake_case field the backend reads.
+      due_date: "2026-10-02",
+      completed: true,
+    });
+  });
+
+  it("createTask sends an explicit null due_date when no date is chosen", async () => {
+    const handle = createMockApiAdapter([
+      route("post", "/columns/c1/tasks", tasksPayload[0]),
+    ]);
+    mockApi(handle);
+
+    await createTask("c1", { title: "No date", dueDate: null });
+
+    expect(handle.requests[0].data).toEqual({ title: "No date", due_date: null });
+  });
 });
 
 describe("task.api mutations", () => {
@@ -162,6 +195,35 @@ describe("task.api mutations", () => {
       path: "/tasks/t1",
       data: { title: "Renamed" },
     });
+  });
+
+  it("updateTask maps metadata to snake_case and keeps an explicit null due_date", async () => {
+    const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
+    mockApi(handle);
+
+    await updateTask("t1", {
+      priority: "low",
+      // null is the documented "clear the date" signal, so it must survive
+      // serialization rather than being dropped like an absent key.
+      dueDate: null,
+      completed: false,
+    });
+
+    expect(handle.requests[0].data).toEqual({
+      priority: "low",
+      due_date: null,
+      completed: false,
+    });
+  });
+
+  it("updateTask drops keys that were not provided", async () => {
+    const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
+    mockApi(handle);
+
+    await updateTask("t1", { priority: "high" });
+
+    // No due_date key at all: the stored date must be left untouched.
+    expect(handle.requests[0].data).toEqual({ priority: "high" });
   });
 
   it("updateTaskPosition sends snake_case column_id", async () => {

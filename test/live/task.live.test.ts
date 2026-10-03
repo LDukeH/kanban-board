@@ -91,6 +91,65 @@ describe("live task API", () => {
     });
   });
 
+  it("creates, updates and clears task planning metadata", async () => {
+    await actingAs(chain.owner, async () => {
+      const task = await createTask(chain.columns[0].id, {
+        title: uniqueName("Metadata task"),
+        priority: "high",
+        dueDate: "2026-10-02",
+        completed: false,
+      });
+
+      expect(task.priority).toBe("high");
+      expect(task.dueDate).toBe("2026-10-02");
+      expect(task.completed).toBe(false);
+
+      await updateTask(task.id, { priority: "low", completed: true });
+      const patched = (await getColumnTasks(chain.columns[0].id)).find(
+        (t) => t.id === task.id,
+      );
+      expect(patched?.priority).toBe("low");
+      expect(patched?.completed).toBe(true);
+      // An omitted due_date leaves the stored date alone.
+      expect(patched?.dueDate).toBe("2026-10-02");
+
+      // An explicit null clears it.
+      await updateTask(task.id, { dueDate: null });
+      const cleared = (await getColumnTasks(chain.columns[0].id)).find(
+        (t) => t.id === task.id,
+      );
+      expect(cleared?.dueDate).toBeNull();
+    });
+  });
+
+  it("rejects an invalid priority with 400", async () => {
+    await actingAs(chain.owner, async () => {
+      const task = await createTask(chain.columns[0].id, { title: "Bad priority" });
+      await expectStatus(
+        updateTask(task.id, { priority: "urgent" as never }),
+        400,
+      );
+    });
+  });
+
+  it("lets a workspace member update metadata but not delete the task", async () => {
+    const task = await actingAs(chain.owner, async () =>
+      createTask(chain.columns[0].id, { title: uniqueName("Member metadata") }),
+    );
+
+    await actingAs(colleague, async () => {
+      await updateTask(task.id, { priority: "medium", completed: true });
+      const patched = (await getColumnTasks(chain.columns[0].id)).find(
+        (t) => t.id === task.id,
+      );
+      expect(patched?.priority).toBe("medium");
+      expect(patched?.completed).toBe(true);
+
+      // Delete stays owner/admin-only; a member gets 403.
+      await expectStatus(deleteTask(task.id), 403);
+    });
+  });
+
   it("persists task reordering inside a column", async () => {
     await actingAs(chain.owner, async () => {
       const t1 = await createTask(chain.columns[0].id, { title: "T1" });

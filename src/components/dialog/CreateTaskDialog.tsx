@@ -14,6 +14,8 @@ import {
 import { Plus, Loader2 } from "lucide-react";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { textToTaskDescription } from "@/lib/description";
+import { TASK_PRIORITIES, type TaskPriority } from "@/types/board";
+import { cn } from "@/lib/utils";
 
 interface CreateTaskDialogProps {
   boardId: string;
@@ -30,12 +32,19 @@ export function CreateTaskDialog({
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("none");
+  /** "YYYY-MM-DD" from <input type="date">, or "" for no due date. */
+  const [dueDate, setDueDate] = useState("");
+  const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
       setTitle("");
       setDescription("");
+      setPriority("none");
+      setDueDate("");
+      setCompleted(false);
       setError(null);
     }
     setOpen(nextOpen);
@@ -54,9 +63,16 @@ export function CreateTaskDialog({
         description: description.trim()
           ? textToTaskDescription(description)
           : undefined,
+        priority,
+        // An empty date input means "no due date"; null stores NULL on create.
+        dueDate: dueDate || null,
+        completed,
       });
       setTitle("");
       setDescription("");
+      setPriority("none");
+      setDueDate("");
+      setCompleted(false);
       setOpen(false);
     } catch (err) {
       setError("Failed to create task. Please try again.");
@@ -104,6 +120,56 @@ export function CreateTaskDialog({
               rows={3}
             />
           </div>
+
+          <div className="flex flex-col gap-2">
+            <span id="task-priority-label" className="text-sm font-medium">
+              Priority
+            </span>
+            <div
+              role="group"
+              aria-labelledby="task-priority-label"
+              className="flex flex-wrap gap-1.5"
+            >
+              {TASK_PRIORITIES.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={priority === option}
+                  onClick={() => setPriority(option)}
+                  className={cn(
+                    "rounded-md border px-2.5 py-1 text-xs font-medium capitalize transition-colors",
+                    priority === option
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-background text-muted-foreground hover:border-primary/50",
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-44 flex-1 flex-col gap-2">
+              <Label htmlFor="task-due-date">Due date (optional)</Label>
+              <Input
+                id="task-due-date"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
+              <input
+                type="checkbox"
+                checked={completed}
+                onChange={(e) => setCompleted(e.target.checked)}
+                className="size-4 accent-primary"
+              />
+              Mark as completed
+            </label>
+          </div>
+
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-2">
             <DialogClose render={<Button variant="ghost" />}>

@@ -40,6 +40,14 @@ export interface TaskAssignee {
  */
 export type TaskPriority = "none" | "low" | "medium" | "high";
 
+/** The allowed priority values, in ascending order, for pickers and filters. */
+export const TASK_PRIORITIES: readonly TaskPriority[] = [
+  "none",
+  "low",
+  "medium",
+  "high",
+];
+
 export interface Task {
   id: string;
   columnId: string;

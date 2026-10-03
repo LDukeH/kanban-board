@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogTrigger,
@@ -17,8 +18,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   AlignLeft,
+  CalendarDays,
   Check,
   Circle,
+  Flag,
   Loader2,
   MoreHorizontal,
   Pencil,
@@ -45,7 +48,8 @@ import {
   type TaskDescription,
 } from "@/lib/description";
 import { describeMutationError } from "@/lib/httpStatus";
-import type { Task } from "@/types/board";
+import { TASK_PRIORITIES, type Task, type TaskPriority } from "@/types/board";
+import { cn } from "@/lib/utils";
 
 interface EditTaskDialogProps {
   task: Task;
@@ -114,18 +118,25 @@ export function EditTaskDialog({
   const columnName =
     columns.find((c) => c.id === task.columnId)?.name ?? "Task";
 
-  // Single-draft save: one [Save] PATCHes title + description together; nothing persists until Save or flush-on-close.
+  // Single-draft save: one [Save] PATCHes title + description + metadata together; nothing persists until Save or flush-on-close.
   const savedTitle = task.title;
   const savedDescription = useMemo(
     () => normalizeSnapshotDescription(task.description),
     [task.description],
   );
+  const savedPriority = task.priority;
+  /** Empty string is the draft form of "no due date"; "" and null are equivalent. */
+  const savedDueDate = task.dueDate ?? "";
+  const savedCompleted = task.completed;
 
   const [open, setOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState(task.title);
   const [draftDescription, setDraftDescription] = useState<TaskDescription | undefined>(
     () => normalizeSnapshotDescription(task.description),
   );
+  const [draftPriority, setDraftPriority] = useState<TaskPriority>(task.priority);
+  const [draftDueDate, setDraftDueDate] = useState(savedDueDate);
+  const [draftCompleted, setDraftCompleted] = useState(task.completed);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [isMembersPickerOpen, setIsMembersPickerOpen] = useState(false);
@@ -144,7 +155,10 @@ export function EditTaskDialog({
 
   const isDirty =
     draftTitle !== savedTitle ||
-    !descriptionsEqual(draftDescription, savedDescription);
+    !descriptionsEqual(draftDescription, savedDescription) ||
+    draftPriority !== savedPriority ||
+    draftDueDate !== savedDueDate ||
+    draftCompleted !== savedCompleted;
 
   const assignedLabelIds = useMemo(
     () => new Set((task.labels ?? []).map((l) => l.id)),
@@ -156,6 +170,9 @@ export function EditTaskDialog({
   function resetDraft() {
     setDraftTitle(savedTitle);
     setDraftDescription(savedDescription);
+    setDraftPriority(savedPriority);
+    setDraftDueDate(savedDueDate);
+    setDraftCompleted(savedCompleted);
     setEditingTitle(false);
     setEditingDescription(false);
   }
@@ -166,6 +183,9 @@ export function EditTaskDialog({
     if (nextOpen) {
       setDraftTitle(task.title);
       setDraftDescription(normalizeSnapshotDescription(task.description));
+      setDraftPriority(task.priority);
+      setDraftDueDate(task.dueDate ?? "");
+      setDraftCompleted(task.completed);
       setEditingTitle(false);
       setEditingDescription(false);
       setIsMembersPickerOpen(false);
@@ -204,7 +224,14 @@ export function EditTaskDialog({
       try {
         await updateTask({
           taskId: task.id,
-          data: { title, description: draftDescription },
+          data: {
+            title,
+            description: draftDescription,
+            priority: draftPriority,
+            // "" means the user cleared the date, so send null to clear it.
+            dueDate: draftDueDate || null,
+            completed: draftCompleted,
+          },
         });
         setEditingTitle(false);
         setEditingDescription(false);
@@ -467,6 +494,77 @@ export function EditTaskDialog({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+                <div className="flex items-center gap-1.5">
+                  <Flag className="size-3.5 text-muted-foreground" aria-hidden />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Priority:
+                  </span>
+                  <div
+                    role="group"
+                    aria-label="Priority"
+                    className="flex flex-wrap gap-1"
+                  >
+                    {TASK_PRIORITIES.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={draftPriority === option}
+                        onClick={() => setDraftPriority(option)}
+                        className={cn(
+                          "rounded-md border px-2 py-0.5 text-xs font-medium capitalize transition-colors",
+                          draftPriority === option
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-muted-foreground hover:border-primary/50",
+                        )}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={draftCompleted}
+                    onChange={(e) => setDraftCompleted(e.target.checked)}
+                    className="size-3.5 accent-primary"
+                  />
+                  <span className="font-medium text-muted-foreground">
+                    Completed
+                  </span>
+                </label>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5">
+                <CalendarDays
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                  aria-hidden
+                />
+                <Label htmlFor="edit-task-due-date" className="text-xs font-medium text-muted-foreground">
+                  Due date
+                </Label>
+                <Input
+                  id="edit-task-due-date"
+                  type="date"
+                  value={draftDueDate}
+                  onChange={(e) => setDraftDueDate(e.target.value)}
+                  className="h-7 w-40 text-xs"
+                />
+                {draftDueDate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDraftDueDate("")}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Clear
+                  </Button>
                 )}
               </div>
             </div>

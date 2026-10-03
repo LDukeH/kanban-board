@@ -1,11 +1,13 @@
 import { cn } from "@/lib/utils";
 import { getDescriptionPreview } from "@/lib/description";
-import type { Task } from "@/types/board";
+import { isOverdue } from "@/lib/summary";
+import type { Task, TaskPriority } from "@/types/board";
 import { EditTaskDialog } from "@/components/dialog/EditTaskDialog";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
 import { useDragOperation } from "@dnd-kit/react";
 import { TaskAssigneeAvatars } from "@/components/board/TaskAssigneeAvatars";
+import { AlertCircle, CalendarDays, CheckCircle2, Flag } from "lucide-react";
 
 interface TaskCardProps {
   task: Task;
@@ -16,6 +18,31 @@ interface TaskCardProps {
   className?: string;
   index: number;
   isOverlay?: boolean;
+}
+
+/** Visible text per priority, so the badge never relies on colour alone. */
+const PRIORITY_LABEL: Record<TaskPriority, string> = {
+  none: "None",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+
+/**
+ * Formats a "YYYY-MM-DD" due date for display.
+ *
+ * The parts are parsed by hand and fed to the local-time Date constructor:
+ * `new Date("2026-10-02")` is parsed as UTC midnight, which renders as the
+ * previous day for anyone west of UTC.
+ */
+function formatDueDate(value: string): string {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export function TaskCard({
@@ -60,6 +87,7 @@ export function TaskCard({
     showInsertionIndicator && source.sortable.index > sortable.index;
 
   const preview = getDescriptionPreview(task.description);
+  const overdue = isOverdue(task);
 
   return (
     <div
@@ -95,14 +123,26 @@ export function TaskCard({
               trigger={
                 <button
                   type="button"
-                  className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground hover:text-primary"
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-left text-sm font-medium hover:text-primary",
+                    task.completed
+                      ? "text-muted-foreground line-through"
+                      : "text-foreground",
+                  )}
                 >
                   {task.title}
                 </button>
               }
             />
           ) : (
-            <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            <p
+              className={cn(
+                "min-w-0 flex-1 truncate text-sm font-medium",
+                task.completed
+                  ? "text-muted-foreground line-through"
+                  : "text-foreground",
+              )}
+            >
               {task.title}
             </p>
           )}
@@ -125,6 +165,51 @@ export function TaskCard({
                 title={label.name}
               />
             ))}
+          </div>
+        )}
+
+        {(task.priority !== "none" || task.dueDate || task.completed) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+            {task.priority !== "none" && (
+              <span
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 font-medium text-muted-foreground"
+                title={`Priority: ${PRIORITY_LABEL[task.priority]}`}
+              >
+                <Flag className="size-3" aria-hidden />
+                {PRIORITY_LABEL[task.priority]}
+              </span>
+            )}
+
+            {task.dueDate && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 font-medium",
+                  overdue ? "text-destructive" : "text-muted-foreground",
+                )}
+                title={
+                  overdue
+                    ? `Overdue since ${formatDueDate(task.dueDate)}`
+                    : `Due ${formatDueDate(task.dueDate)}`
+                }
+              >
+                {overdue ? (
+                  <AlertCircle className="size-3" aria-hidden />
+                ) : (
+                  <CalendarDays className="size-3" aria-hidden />
+                )}
+                {/* The word "Overdue" is the primary signal; the colour is secondary. */}
+                {overdue
+                  ? `Overdue · ${formatDueDate(task.dueDate)}`
+                  : formatDueDate(task.dueDate)}
+              </span>
+            )}
+
+            {task.completed && (
+              <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-3" aria-hidden />
+                Done
+              </span>
+            )}
           </div>
         )}
       </div>

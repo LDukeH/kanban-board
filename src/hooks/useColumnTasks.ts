@@ -224,6 +224,9 @@ export function useColumnTasks(
     }) => updateTask(taskId, data),
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
+      // PATCH answers 204 with no body, so the sent fields are merged into the
+      // cached task instead of re-fetching. `!== undefined` is what makes
+      // `dueDate: null` (clear the date) differ from an omitted key (no change).
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, columnId),
         (old) =>
@@ -237,6 +240,15 @@ export function useColumnTasks(
                         : {}),
                       ...(data.description !== undefined
                         ? { description: data.description }
+                        : {}),
+                      ...(data.priority !== undefined
+                        ? { priority: data.priority }
+                        : {}),
+                      ...(data.dueDate !== undefined
+                        ? { dueDate: data.dueDate }
+                        : {}),
+                      ...(data.completed !== undefined
+                        ? { completed: data.completed }
                         : {}),
                     }
                   : task,
