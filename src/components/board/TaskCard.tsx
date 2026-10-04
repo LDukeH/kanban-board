@@ -7,7 +7,7 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
 import { useDragOperation } from "@dnd-kit/react";
 import { TaskAssigneeAvatars } from "@/components/board/TaskAssigneeAvatars";
-import { AlertCircle, CalendarDays, CheckCircle2, Flag } from "lucide-react";
+import { AlertCircle, CalendarDays, CheckCircle2, Clock, Flag } from "lucide-react";
 
 interface TaskCardProps {
   task: Task;
@@ -28,13 +28,15 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
   high: "High",
 };
 
-/**
- * Formats a "YYYY-MM-DD" due date for display.
- *
- * The parts are parsed by hand and fed to the local-time Date constructor:
- * `new Date("2026-10-02")` is parsed as UTC midnight, which renders as the
- * previous day for anyone west of UTC.
- */
+/** Colour-coded priority chips: High = danger, Medium = warning, Low = neutral. */
+const PRIORITY_CHIP: Record<TaskPriority, string> = {
+  none: "border-border bg-muted text-muted-foreground",
+  low: "border-neutral/30 bg-neutral/10 text-neutral",
+  medium: "border-warning/30 bg-warning/10 text-warning",
+  high: "border-danger/30 bg-danger/10 text-danger",
+};
+
+/** Formats a "YYYY-MM-DD" due date for display. Parsed by hand so it never shifts a day in negative UTC offsets. */
 function formatDueDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return value;
@@ -43,6 +45,17 @@ function formatDueDate(value: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** True when a "YYYY-MM-DD" due date lands today or tomorrow — i.e. within the next 48 hours at local-midnight granularity. */
+function isDueSoon(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return false;
+  const due = new Date(year, month - 1, day).getTime();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const diffDays = Math.round((due - today) / 86_400_000);
+  return diffDays >= 0 && diffDays <= 1;
 }
 
 export function TaskCard({
@@ -56,8 +69,6 @@ export function TaskCard({
   isOverlay = false,
 }: TaskCardProps) {
   // Task-to-task drops are scoped to THIS column so dnd-kit's live reordering stays in one DOM container.
-  // Cross-column drops route through the target column's task-container droppable, which the board handler resolves into a
-  // pointer-based position; this avoids dnd-kit reparenting the card, which would break React's reconciliation.
   const { ref, isDragging, isDragSource, isDropTarget, sortable } = useSortable({
     id: task.id,
     index,
@@ -88,15 +99,19 @@ export function TaskCard({
 
   const preview = getDescriptionPreview(task.description);
   const overdue = isOverdue(task);
+  const dueSoon =
+    !task.completed && !overdue && task.dueDate
+      ? isDueSoon(task.dueDate)
+      : false;
 
   return (
     <div
       ref={ref}
       className={cn(
-        "group relative flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5 shadow-sm transition-colors hover:border-primary/30",
+        "group relative flex items-start gap-2.5 rounded-card border border-border bg-background px-3 py-2.5 transition-shadow hover:shadow-md",
         className,
         isDragging && "opacity-40",
-        isOverlay && "shadow-lg border-primary/40 rotate-1",
+        isOverlay && "rotate-1 border-primary/40 shadow-xl",
       )}
     >
       {showInsertionIndicator && (
@@ -124,7 +139,7 @@ export function TaskCard({
                 <button
                   type="button"
                   className={cn(
-                    "min-w-0 flex-1 truncate text-left text-sm font-medium hover:text-primary",
+                    "line-clamp-2 min-w-0 flex-1 text-left text-sm font-medium hover:text-primary",
                     task.completed
                       ? "text-muted-foreground line-through"
                       : "text-foreground",
@@ -137,7 +152,7 @@ export function TaskCard({
           ) : (
             <p
               className={cn(
-                "min-w-0 flex-1 truncate text-sm font-medium",
+                "line-clamp-2 min-w-0 flex-1 text-sm font-medium",
                 task.completed
                   ? "text-muted-foreground line-through"
                   : "text-foreground",
@@ -169,10 +184,13 @@ export function TaskCard({
         )}
 
         {(task.priority !== "none" || task.dueDate || task.completed) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
             {task.priority !== "none" && (
               <span
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 font-medium text-muted-foreground"
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 font-medium",
+                  PRIORITY_CHIP[task.priority],
+                )}
                 title={`Priority: ${PRIORITY_LABEL[task.priority]}`}
               >
                 <Flag className="size-3" aria-hidden />
@@ -184,28 +202,38 @@ export function TaskCard({
               <span
                 className={cn(
                   "inline-flex items-center gap-1 font-medium",
-                  overdue ? "text-destructive" : "text-muted-foreground",
+                  overdue
+                    ? "text-danger"
+                    : dueSoon
+                      ? "text-warning"
+                      : "text-muted-foreground",
                 )}
                 title={
                   overdue
                     ? `Overdue since ${formatDueDate(task.dueDate)}`
-                    : `Due ${formatDueDate(task.dueDate)}`
+                    : dueSoon
+                      ? `Due soon: ${formatDueDate(task.dueDate)}`
+                      : `Due ${formatDueDate(task.dueDate)}`
                 }
               >
                 {overdue ? (
                   <AlertCircle className="size-3" aria-hidden />
+                ) : dueSoon ? (
+                  <Clock className="size-3" aria-hidden />
                 ) : (
                   <CalendarDays className="size-3" aria-hidden />
                 )}
-                {/* The word "Overdue" is the primary signal; the colour is secondary. */}
+                {/* The text carries the state, so the colour is never the only signal. */}
                 {overdue
                   ? `Overdue · ${formatDueDate(task.dueDate)}`
-                  : formatDueDate(task.dueDate)}
+                  : dueSoon
+                    ? `Due soon · ${formatDueDate(task.dueDate)}`
+                    : formatDueDate(task.dueDate)}
               </span>
             )}
 
             {task.completed && (
-              <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1 font-medium text-success">
                 <CheckCircle2 className="size-3" aria-hidden />
                 Done
               </span>

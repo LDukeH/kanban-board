@@ -38,7 +38,7 @@ export function TaskAssigneeAvatars({
           <AvatarCircle key={assignee.user_id} assignee={assignee} />
         ))}
         {overflow > 0 && (
-          <span className="relative flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-background transition-colors group-hover/assignees:bg-primary/15">
+          <span className="relative flex size-6 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground ring-2 ring-background transition-colors group-hover/assignees:bg-primary/15">
             +{overflow}
           </span>
         )}
@@ -77,7 +77,7 @@ function AvatarCircle({
     <span
       title={assignee.email}
       className={cn(
-        "relative flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white ring-2 ring-background",
+        "relative flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white ring-2 ring-background",
         avatarGradient(assignee.user_id || assignee.email),
         className,
       )}

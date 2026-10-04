@@ -31,10 +31,7 @@ interface CreateBoardFromTemplateDialogProps {
 
 const FIRST_TEMPLATE: BoardTemplate | undefined = BOARD_TEMPLATES[0];
 
-/**
- * Board creation from a static preset (Feature 4). Kept separate from
- * `CreateBoardDialog` so plain board creation stays a single simple form.
- */
+/** Board creation from a static preset (Feature 4). */
 export function CreateBoardFromTemplateDialog({
   workspaceId,
   trigger,
@@ -43,14 +40,12 @@ export function CreateBoardFromTemplateDialog({
     useBoardTemplates(workspaceId);
 
   const [open, setOpen] = useState(false);
-  // Defaults are optional so an empty preset list degrades to an explicit
-  // "no templates" state instead of crashing on BOARD_TEMPLATES[0].
+  // Defaults are optional so an empty preset list degrades to an explicit "no templates" state instead of crashing on BOARD_TEMPLATES[0].
   const [selectedId, setSelectedId] = useState<string>(FIRST_TEMPLATE?.id ?? "");
   const [name, setName] = useState(FIRST_TEMPLATE?.name ?? "");
   const [description, setDescription] = useState(FIRST_TEMPLATE?.description ?? "");
   const [error, setError] = useState<string | null>(null);
-  // Set only when the board was created but some template rows were not; the
-  // dialog then stays open so the outcome cannot be missed.
+  // Set only when the board was created but some template rows were not; the dialog then stays open so the outcome cannot be missed.
   const [outcome, setOutcome] = useState<TemplateOutcome | null>(null);
 
   const selected = getBoardTemplate(selectedId) ?? FIRST_TEMPLATE;
@@ -70,8 +65,7 @@ export function CreateBoardFromTemplateDialog({
 
   function selectTemplate(next: BoardTemplate) {
     const previous = getBoardTemplate(selectedId);
-    // Carry the user's typed values across a switch, but swap any value that
-    // still matches the previous template's default for the new template's.
+    // Carry the user's typed values across a switch, but swap any value that still matches the previous template's default for the new template's.
     setName((current) =>
       previous && current === previous.name ? next.name : current,
     );
@@ -107,9 +101,7 @@ export function CreateBoardFromTemplateDialog({
       }
       setOutcome(nextOutcome);
     } catch (err) {
-      // materializeBoardTemplate only rejects when createBoard rejects, which
-      // happens before any column or label call — so nothing was created.
-      // describeMutationError keeps 401/403/404 and network failures distinct.
+      // materializeBoardTemplate only rejects when createBoard rejects, which happens before any column or label call — so nothing was created. describeMutationError keeps 401/403/404 and network failures distinct.
       setError(describeMutationError(err, "Failed to create board."));
       console.error("Create board from template failed:", err);
     }

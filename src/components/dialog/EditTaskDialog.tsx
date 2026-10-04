@@ -144,13 +144,10 @@ export function EditTaskDialog({
   const [isLabelMenuOpen, setIsLabelMenuOpen] = useState(false);
   const [isCreateLabelOpen, setIsCreateLabelOpen] = useState(false);
   const [togglingLabelId, setTogglingLabelId] = useState<string | null>(null);
-  // Save/label failures are reported in a banner under the header so the draft
-  // stays visible and the reason the save did not happen is never lost.
+  // Save/label failures are reported in a banner under the header so the draft stays visible and the reason the save did not happen is never lost.
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Guards double submission and lets a close attempt await an in-flight
-  // save (rapid close-while-saving re-enters the same flush path instead of
-  // firing a second PATCH).
+  // Guards double submission and lets a close attempt await an in-flight save (rapid close-while-saving re-enters the same flush path instead of firing a second PATCH).
   const pendingSaveRef = useRef<Promise<boolean> | null>(null);
 
   const isDirty =
@@ -194,16 +191,13 @@ export function EditTaskDialog({
       return;
     }
     if (pendingSaveRef.current) {
-      // Prevent the native close; a save is already in flight, so await it
-      // and then close only on success.
+      // Prevent the native close; a save is already in flight, so await it and then close only on success.
       eventDetails?.cancel();
       void flushSaveAndClose();
       return;
     }
     if (isDirty) {
-      // Prevent the native close (ESC / overlay / wrapper Close) and
-      // flush-save first. On success we close for real; on failure the modal
-      // stays open with the draft intact.
+      // Prevent the native close (ESC / overlay / wrapper Close) and flush-save first.
       eventDetails?.cancel();
       void flushSaveAndClose();
       return;
@@ -292,8 +286,7 @@ export function EditTaskDialog({
       setIsDeleteOpen(false);
       setOpen(false);
     } catch (err) {
-      // Re-throw so ConfirmDeleteDialog keeps the confirmation open and renders
-      // its own inline error, instead of closing over a silent failure.
+      // Re-throw so ConfirmDeleteDialog keeps the confirmation open and renders its own inline error, instead of closing over a silent failure.
       console.error("Delete task failed:", err);
       throw err;
     }

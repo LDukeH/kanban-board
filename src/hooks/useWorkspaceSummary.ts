@@ -21,17 +21,7 @@ export function workspaceSummaryQueryKey(workspaceId: string) {
   return ["workspaces", workspaceId, "task-summary"] as const;
 }
 
-/**
- * Client-derived workspace progress/workload summary (Feature 5).
- *
- * Enumerates boards -> columns -> tasks, the same cascade
- * `findBoardIdForTask` uses, because the backend exposes no aggregate
- * endpoint. Every task counted belongs to a board in this workspace, so the
- * summary cannot leak another workspace's data.
- *
- * The query has the default staleTime, so it re-reads whenever the workspace
- * page is (re)visited after edits elsewhere.
- */
+/** Client-derived workspace progress/workload summary (Feature 5). */
 export function useWorkspaceSummary(workspaceId: string | undefined) {
   const query = useQuery({
     queryKey: workspaceSummaryQueryKey(workspaceId ?? ""),

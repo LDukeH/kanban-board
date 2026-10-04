@@ -11,14 +11,7 @@ export interface BoardTemplateLabel {
   color: string;
 }
 
-/**
- * A static, frontend-owned board preset.
- *
- * The backend has no template resource (see Feature 4 in docs/plan/plan.md), so a
- * template only describes the shape of the board it creates. It is materialised
- * through the ordinary board/column/label endpoints — never through a template
- * payload the server would understand.
- */
+/** A static, frontend-owned board preset. */
 export interface BoardTemplate {
   id: string;
   name: string;
@@ -27,12 +20,7 @@ export interface BoardTemplate {
   labels: BoardTemplateLabel[];
 }
 
-/**
- * Exactly what a materialisation created. Board creation either succeeds (and
- * this is returned) or throws; column and label failures are collected rather
- * than thrown, so the caller can tell the user what exists instead of leaving
- * them guessing after a partial failure.
- */
+/** Exactly what a materialisation created. */
 export interface TemplateMaterializeResult {
   board: Board;
   createdColumns: Column[];

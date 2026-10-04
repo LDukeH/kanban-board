@@ -24,6 +24,26 @@ export function getGradient(id: string): string {
   return GRADIENTS[index];
 }
 
+/** Deterministic single-hue identity color per board. */
+export const BOARD_COLORS: readonly string[] = [
+  "#059669", // emerald
+  "#0284c7", // sky
+  "#7c3aed", // violet
+  "#d97706", // amber
+  "#e11d48", // rose
+  "#4f46e5", // indigo
+  "#0891b2", // cyan
+  "#c026d3", // fuchsia
+];
+
+/** The app's primary blue — used when a board has no id to derive a color from. */
+export const BOARD_COLOR_FALLBACK = "#4f46e5";
+
+export function getBoardColor(id?: string | null): string {
+  if (!id) return BOARD_COLOR_FALLBACK;
+  return BOARD_COLORS[hashString(id) % BOARD_COLORS.length];
+}
+
 export const LABEL_COLORS: readonly string[] = [
   "#e11941", // red
   "#f4881f", // orange (Trello orange ~#f4881f)

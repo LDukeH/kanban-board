@@ -9,13 +9,7 @@ const PURPLE = LABEL_COLORS[5];
 const VIOLET = LABEL_COLORS[6];
 const FUCHSIA = LABEL_COLORS[7];
 
-/**
- * Built-in board templates.
- *
- * Versioned by the `id` string: rename columns freely (they are plain data at
- * creation time), but never reuse or change an id, since it is the stable handle
- * the picker and any future URL/navigation state refer to.
- */
+/** Built-in board templates. */
 export const BOARD_TEMPLATES: readonly BoardTemplate[] = [
   {
     id: "basic-kanban",

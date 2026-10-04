@@ -6,14 +6,7 @@ import {
 } from "@/hooks/useColumnTasks";
 import { computeTaskSummary, type TaskSummary } from "@/lib/summary";
 
-/**
- * Client-derived progress/workload summary for one board (Feature 5).
- *
- * Subscribes to the very same per-column task queries the board page already
- * runs, so it adds no extra requests and updates live as tasks are created,
- * moved or completed. Because there is no aggregate endpoint, every number is a
- * roll-up of data the client has already loaded and must be labelled as such.
- */
+/** Client-derived progress/workload summary for one board (Feature 5). */
 export function useBoardSummary(boardId: string | undefined) {
   const {
     columns,
@@ -48,6 +41,8 @@ export function useBoardSummary(boardId: string | undefined) {
 
   return {
     summary,
+    // Every task on the board, flattened across columns, so the filter UI can count without a second subscription.
+    tasks,
     isLoadingSummary: isLoading,
     isSummaryError: isError,
     summaryError: error,

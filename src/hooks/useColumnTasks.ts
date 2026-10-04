@@ -106,15 +106,7 @@ export function columnTasksQueryKey(boardId: string, columnId: string) {
   return ["boards", boardId, "columns", columnId, "tasks"] as const;
 }
 
-/**
- * The single implementation behind a column's task query, exported so another
- * observer of the same key (see useBoardSummary) runs the identical
- * reconciliation.
- *
- * It matters because React Query lets any observer for a key set that query's
- * options: if two observers supplied different functions, a background refetch
- * could swap in the simpler one and silently drop in-flight position moves.
- */
+/** The single implementation behind a column's task query, exported so another observer of the same key (see useBoardSummary) runs the identical reconciliation. */
 export function columnTasksQueryFn(
   boardId: string | undefined,
   columnId: string | undefined,
@@ -224,9 +216,7 @@ export function useColumnTasks(
     }) => updateTask(taskId, data),
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
-      // PATCH answers 204 with no body, so the sent fields are merged into the
-      // cached task instead of re-fetching. `!== undefined` is what makes
-      // `dueDate: null` (clear the date) differ from an omitted key (no change).
+      // PATCH answers 204 with no body, so the sent fields are merged into the cached task instead of re-fetching.
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, columnId),
         (old) =>
@@ -270,8 +260,6 @@ export function useColumnTasks(
       columnId: string;
       position: number;
     }) => {
-      // Start the PATCH immediately. Optimistic cache updates happen in
-      // onMutate and do not need to block this request.
       return updateTaskPosition(taskId, {
         columnId: targetColumnId,
         position,

@@ -37,27 +37,14 @@ export function todayISO(date: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-/**
- * Overdue means a due date has passed and the task is not finished. Both
- * fields are compared as "YYYY-MM-DD" strings, which sort correctly
- * lexicographically, and a completed task is never overdue.
- *
- * `today` is injectable so tests are not clock-dependent.
- */
+/** Overdue means a due date has passed and the task is not finished. */
 export function isOverdue(task: Task, today: string = todayISO()): boolean {
   if (task.completed) return false;
   if (!task.dueDate) return false;
   return task.dueDate < today;
 }
 
-/**
- * Pure client-side roll-up of a set of tasks (Feature 5).
- *
- * There is no aggregate endpoint, so this derives every number from tasks the
- * client already has — never from a second server-side model. `columns` only
- * shapes the `byColumn` breakdown; totals ignore it, so a task in an
- * unrecognised column still counts towards `total`.
- */
+/** Pure client-side roll-up of a set of tasks (Feature 5). */
 export function computeTaskSummary(
   tasks: Task[],
   columns: Column[],
@@ -87,8 +74,7 @@ export function computeTaskSummary(
     if (assignees.length === 0) {
       unassigned += 1;
     } else {
-      // A task shared by two people counts once for each of them: this is a
-      // workload view, not a partition of the task list.
+      // A task shared by two people counts once for each of them: this is a workload view, not a partition of the task list.
       for (const assignee of assignees) {
         const entry = assigneeTotals.get(assignee.email) ?? {
           total: 0,
@@ -118,13 +104,7 @@ export function computeTaskSummary(
   };
 }
 
-/**
- * Folds per-board summaries into one workspace roll-up.
- *
- * `byColumn` is intentionally dropped: column names are board-scoped, so a
- * merged column list would claim distinctions that do not exist across boards.
- * Per-board rows carry that detail instead.
- */
+/** Folds per-board summaries into one workspace roll-up. */
 export function mergeTaskSummaries(summaries: TaskSummary[]): TaskSummary {
   const assignees = new Map<string, { total: number; completed: number }>();
 
@@ -172,12 +152,7 @@ export async function collectBoardTasks(
   return { columns, tasks: taskLists.flat() };
 }
 
-/**
- * Walks workspace -> boards -> columns -> tasks, the same cascade
- * `findBoardIdForTask` uses. Boards are visited one at a time (with each
- * board's columns fetched in parallel) so a large workspace does not open one
- * request per column all at once.
- */
+/** Walks workspace -> boards -> columns -> tasks, the same cascade `findBoardIdForTask` uses. */
 export async function collectWorkspaceBoardTasks(
   workspaceId: string,
 ): Promise<{ board: Board; columns: Column[]; tasks: Task[] }[]> {

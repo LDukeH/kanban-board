@@ -2,13 +2,7 @@ import { isOverdue, todayISO } from "@/lib/summary";
 import type { Label, Task, TaskPriority } from "@/types/board";
 import { TASK_PRIORITIES } from "@/types/board";
 
-/**
- * When a task's due date falls, derived on the fly rather than stored.
- *
- * - `overdue`: dated, not completed, and the date has passed.
- * - `scheduled`: dated and not overdue (includes completed tasks).
- * - `unscheduled`: no due date at all.
- */
+/** When a task's due date falls, derived on the fly rather than stored. */
 export type TaskDueStatus = "overdue" | "scheduled" | "unscheduled";
 
 export type TaskCompletionStatus = "completed" | "active";
@@ -121,8 +115,7 @@ export function matchesTaskFilter(task: Task, filter: TaskFilter): boolean {
     if (!passesNoLabels && !passesSelected) return false;
   }
 
-  // Same OR-within-group rule for the metadata filters: a selection narrows the
-  // list, an empty selection matches everything.
+  // Same OR-within-group rule for the metadata filters: a selection narrows the list, an empty selection matches everything.
   if (filter.priorities.length > 0) {
     if (!filter.priorities.includes(task.priority)) return false;
   }
@@ -224,8 +217,7 @@ export function filterFromSearchParams(params: URLSearchParams): TaskFilter {
       .map(decodeURIComponent)
       .map((s) => s.trim())
       .filter(Boolean),
-    // Unknown tokens from a hand-edited URL are dropped so the filter can only
-    // ever hold values the rest of the code understands.
+    // Unknown tokens from a hand-edited URL are dropped so the filter can only ever hold values the rest of the code understands.
     priorities: (params.get(PRIORITIES_PARAM) ?? "")
       .split(",")
       .filter((value): value is TaskPriority =>

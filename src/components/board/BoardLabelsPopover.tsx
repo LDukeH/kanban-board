@@ -45,11 +45,12 @@ export function BoardLabelsPopover({ boardId }: BoardLabelsPopoverProps) {
   return (
     <>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger>
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground hover:bg-muted py-1 px-2 rounded-md transition-colors cursor-pointer">
-            <Tags className="size-3.5" />
-            Labels
-          </span>
+        <DropdownMenuTrigger
+          className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          title="Board labels"
+        >
+          <Tags className="size-4" aria-hidden />
+          Labels
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuGroup>
@@ -75,7 +76,7 @@ export function BoardLabelsPopover({ boardId }: BoardLabelsPopoverProps) {
                   >
                     <LabelBadge
                       label={label}
-                      className="flex-1 justify-start text-[11px]"
+                      className="flex-1 justify-start text-xs"
                     />
                     <Button
                       variant="ghost"

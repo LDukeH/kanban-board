@@ -8,26 +8,7 @@ import type {
   TemplateOutcome,
 } from "./types";
 
-/**
- * Creates a board from a template using only existing endpoints:
- *
- *   POST /workspaces/{id}/boards
- *   POST /boards/{id}/columns   (once per template column, in order)
- *   POST /boards/{id}/labels    (once per template label, in order)
- *
- * There is no template endpoint and no transaction, so this is deliberately
- * sequential and non-atomic:
- *
- * - A `createBoard` failure throws, and **nothing else is attempted** — because
- *   every later call needs the board id, a throw here always means "nothing was
- *   created", which lets the caller show a plain failure message.
- * - Column and label failures are caught and collected instead of thrown. The
- *   call keeps going so one bad row does not abandon the rest, and the returned
- *   result enumerates exactly what succeeded and what failed.
- *
- * Sequential rather than parallel so the server assigns positions/creation order
- * predictably and a transient failure does not open N concurrent writes.
- */
+/** Creates a board from a template using only the existing board/column/label endpoints, sequentially and non-atomically. */
 export async function materializeBoardTemplate(
   workspaceId: string,
   template: BoardTemplate,
@@ -72,13 +53,7 @@ export async function materializeBoardTemplate(
   };
 }
 
-/**
- * Turns a materialisation result into the message shown to the user.
- *
- * The wording always states what now exists on the server, so a partial failure
- * never leaves the user guessing whether the board, its columns or its labels
- * were created.
- */
+/** Turns a materialisation result into the message shown to the user. */
 export function describeTemplateOutcome(
   result: TemplateMaterializeResult,
 ): TemplateOutcome {

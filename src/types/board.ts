@@ -33,11 +33,7 @@ export interface TaskAssignee {
   email: string;
 }
 
-/**
- * Closed set of task priorities. Mirrors the backend's `tasks_priority_check`
- * constraint (migrations/019_add_task_metadata.sql) — reject anything else
- * client-side, since the API answers 400 for an unknown value.
- */
+/** Closed set of task priorities, mirroring the backend's tasks_priority_check constraint. */
 export type TaskPriority = "none" | "low" | "medium" | "high";
 
 /** The allowed priority values, in ascending order, for pickers and filters. */
@@ -53,7 +49,6 @@ export interface Task {
   columnId: string;
   title: string;
   // Canonical format is a Tiptap JSON document ({ type: "doc", ... }) persisted as PostgreSQL JSONB.
-  // Kept as `TaskDescription | string` during the backend transition so legacy plain-text rows keep rendering.
   description?: TaskDescription | string;
   position: number;
   createdAt: string;

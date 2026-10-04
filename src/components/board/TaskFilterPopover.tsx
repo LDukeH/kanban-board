@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ListFilter, Search, X, Loader2, ArrowLeft } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ListFilter, Search, X, Loader2, ArrowLeft, Check } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -37,20 +37,37 @@ interface TaskFilterPopoverProps {
   onChange: (filter: TaskFilter) => void;
   boardId: string;
   workspaceId?: string;
+  /** Board-wide tasks matching the current filter, and the board total. */
+  matchedCount: number;
+  totalCount: number;
+  /** True while the board's task queries are still resolving. */
+  isLoadingCount: boolean;
 }
 
-function stateLabel(
-  { empty, selected }: { empty: boolean; selected: string[] },
-  { none, singular, plural, all }: { none: string; singular: string; plural: string; all: string },
+/** Section headings are deliberately NOT styled like menu rows: no hover, no chevron, no border. */
+const HEADING_CLASS =
+  "px-1.5 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/80";
+
+/** Controls nest one indent step in from their heading. */
+const CONTROL_INDENT = "px-1.5 pl-4";
+
+/** Summarises a selection as "Lee" / "Lee +2". */
+function namedSelection(
+  values: string[],
+  nameFor: (value: string) => string,
 ): string {
-  if (empty) return none;
-  if (selected.length === 1) return `1 ${singular}`;
-  if (selected.length > 1) return `${selected.length} ${plural}`;
-  return all;
+  if (values.length === 0) return "All";
+  const [first, ...rest] = values;
+  const name = nameFor(first);
+  return rest.length === 0 ? name : `${name} +${rest.length}`;
 }
 
-const ASSIGNEE_WORDS = { none: "Unassigned", singular: "assignee", plural: "assignees", all: "All assignees" };
-const LABEL_WORDS = { none: "No labels", singular: "label", plural: "labels", all: "All labels" };
+/** Workspace members are only ever available as emails, so the local part stands in for a name. */
+function assigneeName(email: string): string {
+  const local = email.split("@")[0] ?? email;
+  if (!local) return email;
+  return local.charAt(0).toUpperCase() + local.slice(1);
+}
 
 /** Visible text per option for the metadata filter rows. */
 const PRIORITY_OPTION_LABEL: Record<TaskPriority, string> = {
@@ -69,22 +86,6 @@ const COMPLETION_OPTION_LABEL: Record<TaskCompletionStatus, string> = {
   active: "Active",
 };
 
-/**
- * Summarises a metadata selection for its row trigger.
- *
- * Unlike the assignee/label rows (which can only count), these groups have
- * short closed value sets, so naming the single selection is more useful than
- * "1 priority".
- */
-function enumSummary<T>(
-  selected: T[],
-  { all, label, plural }: { all: string; label: (value: T) => string; plural: string },
-): string {
-  if (selected.length === 0) return all;
-  if (selected.length === 1) return label(selected[0]);
-  return `${selected.length} ${plural}`;
-}
-
 /** Toggles one value in a metadata group's selection list. */
 function toggleEnumValue<T>(selected: T[], value: T): T[] {
   return selected.includes(value)
@@ -92,58 +93,96 @@ function toggleEnumValue<T>(selected: T[], value: T): T[] {
     : [...selected, value];
 }
 
-/**
- * One metadata filter row: a trigger showing the current selection, expanding
- * into a multi-select of the group's closed value set. Mirrors the Assignee and
- * Label rows so the three metadata rows stay visually identical.
- */
-function FilterSubMenu<T extends string>({
-  title,
-  summary,
-  active,
+/** One selectable chip. Stays a DropdownMenuCheckboxItem so Base UI's arrow-key navigation still reaches it. */
+function FilterChip({
+  checked,
+  label,
+  onToggle,
+}: {
+  checked: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <DropdownMenuCheckboxItem
+      checked={checked}
+      onCheckedChange={onToggle}
+      closeOnClick={false}
+      className={cn(
+        "w-auto justify-start gap-1 rounded-full border py-1 pl-2 pr-2 text-xs",
+        "[&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden",
+        checked
+          ? "border-primary bg-primary/10 font-medium text-primary"
+          : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground focus:text-foreground",
+      )}
+    >
+      {checked && <Check className="size-3 shrink-0" aria-hidden />}
+      <span className="truncate">{label}</span>
+    </DropdownMenuCheckboxItem>
+  );
+}
+
+/** A fixed-option filter rendered as a horizontal row of inline chips, so the common values are one click away instead of behind a submenu. */
+function FilterChips<T extends string>({
   options,
   selected,
   labelFor,
   onToggle,
+  onClear,
 }: {
-  title: string;
-  summary: string;
-  active: boolean;
   options: readonly T[];
   selected: T[];
   labelFor: (value: T) => string;
   onToggle: (value: T) => void;
+  onClear: () => void;
 }) {
   return (
-    <DropdownMenuGroup>
-      <DropdownMenuLabel>{title}</DropdownMenuLabel>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>
-          <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-            <span className={cn(active && "font-medium text-primary")}>
-              {summary}
-            </span>
-          </span>
-        </DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-56">
-          <DropdownMenuLabel className="flex items-center gap-1.5">
-            <ArrowLeft className="size-3.5 text-muted-foreground" />
-            {title}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {options.map((option) => (
-            <DropdownMenuCheckboxItem
-              key={option}
-              checked={selected.includes(option)}
-              onCheckedChange={() => onToggle(option)}
-              closeOnClick={false}
-            >
-              <span className="text-sm">{labelFor(option)}</span>
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-    </DropdownMenuGroup>
+    <div className={cn("flex flex-wrap gap-1", CONTROL_INDENT)}>
+      <FilterChip
+        checked={selected.length === 0}
+        label="Any"
+        onToggle={onClear}
+      />
+      {options.map((option) => (
+        <FilterChip
+          key={option}
+          checked={selected.includes(option)}
+          label={labelFor(option)}
+          onToggle={() => onToggle(option)}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** The Assignee/Label control: one row showing the current selection, indented under its heading, plus a muted hint of how many options the submenu holds so it can be judged before opening. */
+function SubmenuFilterRow({
+  summary,
+  active,
+  hint,
+  children,
+}: {
+  summary: string;
+  active: boolean;
+  hint: string;
+  children: ReactNode;
+}) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger className={cn(CONTROL_INDENT, "gap-2 py-1.5")}>
+        {active && <Check className="size-3.5 shrink-0 text-primary" aria-hidden />}
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm",
+            active && "font-medium text-primary",
+          )}
+        >
+          {summary}
+        </span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">{hint}</span>
+      </DropdownMenuSubTrigger>
+      {children}
+    </DropdownMenuSub>
   );
 }
 
@@ -153,6 +192,9 @@ export function TaskFilterPopover({
   onChange,
   boardId,
   workspaceId,
+  matchedCount,
+  totalCount,
+  isLoadingCount,
 }: TaskFilterPopoverProps) {
   const [open, setOpen] = useState(false);
 
@@ -169,38 +211,27 @@ export function TaskFilterPopover({
     filter.hasNoAssignees || filter.assigneeEmails.length > 0;
   const labelActive = filter.hasNoLabels || filter.labelNames.length > 0;
 
-  const assigneeSummary = stateLabel(
-    { empty: filter.hasNoAssignees, selected: filter.assigneeEmails },
-    ASSIGNEE_WORDS,
-  );
-  const labelSummary = stateLabel(
-    { empty: filter.hasNoLabels, selected: filter.labelNames },
-    LABEL_WORDS,
-  );
-
-  const prioritySummary = enumSummary(filter.priorities, {
-    all: "Any priority",
-    label: (value) => PRIORITY_OPTION_LABEL[value],
-    plural: "priorities",
-  });
-  const dueSummary = enumSummary(filter.dueStatuses, {
-    all: "Any due date",
-    label: (value) => DUE_OPTION_LABEL[value],
-    plural: "due dates",
-  });
-  const completionSummary = enumSummary(filter.completion, {
-    all: "Any status",
-    label: (value) => COMPLETION_OPTION_LABEL[value],
-    plural: "statuses",
-  });
+  const assigneeSummary = filter.hasNoAssignees
+    ? "Unassigned"
+    : namedSelection(filter.assigneeEmails, assigneeName);
+  const labelSummary = filter.hasNoLabels
+    ? "No labels"
+    : namedSelection(filter.labelNames, (name) => name);
 
   const sortedLabels = useMemo(
     () => [...labels].sort((a, b) => a.name.localeCompare(b.name)),
     [labels],
   );
 
+  // How many choices each submenu actually holds, so the row can advertise its contents without being opened.
+  const assigneeHint = isLoadingMembers
+    ? "Loading…"
+    : `${members.length} ${members.length === 1 ? "member" : "members"}`;
+  const labelHint = `${sortedLabels.length} ${sortedLabels.length === 1 ? "label" : "labels"}`;
+
   // Trello-style search narrows the visible label/member options but never mutates existing selections.
-  const query = filter.query.trim().toLowerCase();
+  const rawQuery = filter.query.trim();
+  const query = rawQuery.toLowerCase();
   const isSearching = query.length > 0;
   const visibleLabels = useMemo(
     () =>
@@ -279,6 +310,19 @@ export function TaskFilterPopover({
     update({ completion: toggleEnumValue(filter.completion, value) });
   }
 
+  // "Any" on a chip row clears that group.
+  function clearPriorities() {
+    update({ priorities: [] });
+  }
+
+  function clearDueStatuses() {
+    update({ dueStatuses: [] });
+  }
+
+  function clearCompletion() {
+    update({ completion: [] });
+  }
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger>
@@ -301,54 +345,59 @@ export function TaskFilterPopover({
 
       <DropdownMenuContent
         align="end"
-        className="w-72"
+        className="w-80"
         style={{ maxHeight: "min(70vh, 480px)" }}
       >
-        <div className="relative px-1 pb-1 pt-1.5">
-          <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            ref={searchInputRef}
-            className="h-8 pl-8 pr-7"
-            placeholder="Search title, assignee, label..."
-            value={filter.query}
-            onChange={(e) => onChange({ ...filter, query: e.target.value })}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-            }}
-          />
-          {filter.query.length > 0 && (
-            <button
-              type="button"
-              tabIndex={-1}
-              aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              onMouseDown={(e) => {
-                // Prevent the input from losing focus before clearing.
-                e.preventDefault();
+        <div className="px-1 pb-1 pt-1.5">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              className="h-8 pl-8 pr-7"
+              placeholder="Filter tasks…"
+              value={filter.query}
+              onChange={(e) => onChange({ ...filter, query: e.target.value })}
+              onKeyDown={(e) => {
                 e.stopPropagation();
               }}
-              onClick={(e) => {
-                e.stopPropagation();
-                clearSearch();
-              }}
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
+            />
+            {filter.query.length > 0 && (
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                onMouseDown={(e) => {
+                  // Prevent the input from losing focus before clearing.
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearSearch();
+                }}
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* The search does two jobs, so say so rather than leaving the placeholder to imply it. */}
+          <p className="mt-1.5 px-1 text-[11px] leading-snug text-muted-foreground">
+            Filters tasks by title, assignee or label, and narrows the member
+            and label choices below.
+          </p>
         </div>
 
+        <DropdownMenuSeparator />
+
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Assignee</DropdownMenuLabel>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span
-                  className={cn(assigneeActive && "font-medium text-primary")}
-                >
-                  {assigneeSummary}
-                </span>
-              </span>
-            </DropdownMenuSubTrigger>
+          <DropdownMenuLabel className={HEADING_CLASS}>Assignee</DropdownMenuLabel>
+          <SubmenuFilterRow
+            summary={assigneeSummary}
+            active={assigneeActive}
+            hint={assigneeHint}
+          >
             <DropdownMenuSubContent className="w-64">
               <DropdownMenuLabel className="flex items-center gap-1.5">
                 <ArrowLeft className="size-3.5 text-muted-foreground" />
@@ -398,19 +447,18 @@ export function TaskFilterPopover({
                 })
               )}
             </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          </SubmenuFilterRow>
         </DropdownMenuGroup>
 
+        <DropdownMenuSeparator />
+
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Label</DropdownMenuLabel>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span className={cn(labelActive && "font-medium text-primary")}>
-                  {labelSummary}
-                </span>
-              </span>
-            </DropdownMenuSubTrigger>
+          <DropdownMenuLabel className={HEADING_CLASS}>Label</DropdownMenuLabel>
+          <SubmenuFilterRow
+            summary={labelSummary}
+            active={labelActive}
+            hint={labelHint}
+          >
             <DropdownMenuSubContent className="w-64">
               <DropdownMenuLabel className="flex items-center gap-1.5">
                 <ArrowLeft className="size-3.5 text-muted-foreground" />
@@ -443,48 +491,56 @@ export function TaskFilterPopover({
                 ))
               )}
             </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          </SubmenuFilterRow>
         </DropdownMenuGroup>
 
-        <FilterSubMenu
-          title="Priority"
-          summary={prioritySummary}
-          active={filter.priorities.length > 0}
-          options={TASK_PRIORITIES}
-          selected={filter.priorities}
-          labelFor={(value) => PRIORITY_OPTION_LABEL[value]}
-          onToggle={togglePriority}
-        />
+        <DropdownMenuSeparator />
 
-        <FilterSubMenu
-          title="Due date"
-          summary={dueSummary}
-          active={filter.dueStatuses.length > 0}
-          options={DUE_STATUSES}
-          selected={filter.dueStatuses}
-          labelFor={(value) => DUE_OPTION_LABEL[value]}
-          onToggle={toggleDueStatus}
-        />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className={HEADING_CLASS}>Priority</DropdownMenuLabel>
+          <FilterChips
+            options={TASK_PRIORITIES}
+            selected={filter.priorities}
+            labelFor={(value) => PRIORITY_OPTION_LABEL[value]}
+            onToggle={togglePriority}
+            onClear={clearPriorities}
+          />
+        </DropdownMenuGroup>
 
-        <FilterSubMenu
-          title="Status"
-          summary={completionSummary}
-          active={filter.completion.length > 0}
-          options={COMPLETION_STATUSES}
-          selected={filter.completion}
-          labelFor={(value) => COMPLETION_OPTION_LABEL[value]}
-          onToggle={toggleCompletion}
-        />
+        <DropdownMenuSeparator />
 
-        {/* Trello-style inline results: while the main keyword query is
-            non-empty, matching members/labels are shown directly in the main
-            popover body. The query only controls visibility — existing
-            selections are never mutated. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className={HEADING_CLASS}>Due date</DropdownMenuLabel>
+          <FilterChips
+            options={DUE_STATUSES}
+            selected={filter.dueStatuses}
+            labelFor={(value) => DUE_OPTION_LABEL[value]}
+            onToggle={toggleDueStatus}
+            onClear={clearDueStatuses}
+          />
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className={HEADING_CLASS}>Status</DropdownMenuLabel>
+          <FilterChips
+            options={COMPLETION_STATUSES}
+            selected={filter.completion}
+            labelFor={(value) => COMPLETION_OPTION_LABEL[value]}
+            onToggle={toggleCompletion}
+            onClear={clearCompletion}
+          />
+        </DropdownMenuGroup>
+
+        {/* Trello-style inline results: while the main keyword query is non-empty, matching members/labels are shown directly in the main popover body. */}
         {isSearching && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Members</DropdownMenuLabel>
+              <DropdownMenuLabel className={HEADING_CLASS}>
+                {`Members matching “${rawQuery}”`}
+              </DropdownMenuLabel>
               {isLoadingMembers ? (
                 <div className="flex justify-center py-4">
                   <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -522,7 +578,9 @@ export function TaskFilterPopover({
             </DropdownMenuGroup>
 
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Labels</DropdownMenuLabel>
+              <DropdownMenuLabel className={HEADING_CLASS}>
+                {`Labels matching “${rawQuery}”`}
+              </DropdownMenuLabel>
               {visibleLabels.length === 0 ? (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">
                   No matching labels.
@@ -545,9 +603,34 @@ export function TaskFilterPopover({
         )}
 
         <DropdownMenuSeparator />
+
+        {/* Result count from the same matchesTaskFilter the columns use, announced politely. */}
+        <p
+          aria-live="polite"
+          className="px-2 py-1.5 text-xs text-muted-foreground"
+        >
+          {isLoadingCount ? (
+            "Counting tasks…"
+          ) : (
+            <>
+              <span className="font-semibold tabular-nums text-foreground">
+                {matchedCount}
+              </span>
+              {" of "}
+              <span className="tabular-nums">{totalCount}</span>
+              {" tasks"}
+            </>
+          )}
+        </p>
+
         <DropdownMenuItem
           disabled={!filterActive}
           onClick={() => onChange(clearTaskFilter())}
+          className={cn(
+            "gap-2",
+            // Active state is carried by weight and background, not colour alone, and never destructive — clearing is not a dangerous action.
+            filterActive && "bg-accent font-medium text-foreground",
+          )}
         >
           <X className="size-3.5" />
           Clear filters

@@ -41,12 +41,9 @@ export default function WorkspacePage() {
 
   const workspaceSummary = useWorkspaceSummary(workspaceId);
 
-  // The detail route is the authoritative source for the header name and the
-  // workspace description, and the workspace mutations keep it in sync. The list
-  // entry is the fallback while the detail read is still in flight.
+  // The detail route is the authoritative source for the header name and the workspace description, and the workspace mutations keep it in sync.
   const workspaceDetail = useWorkspaceDetail(workspaceId, {
-    // Skip a request the backend is guaranteed to reject: the route answers 403
-    // for non-members, and `role` stays undefined without a membership.
+    // Skip a request the backend is guaranteed to reject: the route answers 403 for non-members, and `role` stays undefined without a membership.
     enabled: !isLoadingRole && role !== undefined,
   });
 
@@ -84,15 +81,13 @@ export default function WorkspacePage() {
                 : (workspace?.name ?? "Workspace")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {/* `description` is a plain string; an empty one falls back to
-                  the generic subtitle. */}
+              {/* `description` is a plain string; an empty one falls back to the generic subtitle. */}
               {workspace?.description || "Boards in this workspace."}
             </p>
           </div>
         </div>
 
-        {/* Member management lives in the dashboard header (opposite the title),
-            not buried in the sidebar. */}
+        {/* Member management lives in the dashboard header (opposite the title), not buried in the sidebar. */}
         <div className="flex items-center gap-3">
           {workspaceId && (
             <>
@@ -106,7 +101,7 @@ export default function WorkspacePage() {
                   <span
                     key={member.id}
                     className={cn(
-                      "flex size-7 items-center justify-center rounded-full bg-linear-to-br text-[11px] font-semibold text-white ring-2 ring-background transition-transform hover:-translate-y-0.5",
+                      "flex size-7 items-center justify-center rounded-full bg-linear-to-br text-xs font-semibold text-white ring-2 ring-background transition-transform hover:-translate-y-0.5",
                       avatarGradient(member.userId || member.email),
                     )}
                   >
@@ -114,7 +109,7 @@ export default function WorkspacePage() {
                   </span>
                 ))}
                 {members.length > MAX_AVATARS && (
-                  <span className="flex size-7 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground ring-2 ring-background">
+                  <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground ring-2 ring-background">
                     +{members.length - MAX_AVATARS}
                   </span>
                 )}
@@ -134,27 +129,6 @@ export default function WorkspacePage() {
       </header>
 
       <div className="flex-1 p-6">
-        <FeaturedSection />
-
-        <ProgressSummary
-          heading="Workspace progress"
-          isLoading={workspaceSummary.isLoadingSummary}
-          isError={workspaceSummary.isSummaryError}
-          error={workspaceSummary.summaryError}
-          onRetry={workspaceSummary.refetchSummary}
-          totals={workspaceSummary.summary?.totals}
-          breakdown={(workspaceSummary.summary?.boards ?? []).map(
-            ({ board, summary }) => ({
-              id: board.id,
-              label: board.name,
-              total: summary.total,
-              completed: summary.completed,
-            }),
-          )}
-          note="Computed in your browser from loaded tasks"
-          className="mb-5"
-        />
-
         {isLoadingBoards ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
@@ -189,6 +163,11 @@ export default function WorkspacePage() {
             </h2>
             <BoardGrid
               boards={boards}
+              taskCounts={Object.fromEntries(
+                (workspaceSummary.summary?.boards ?? []).map(
+                  ({ board, summary }) => [board.id, summary.total],
+                ),
+              )}
               canEdit={canManageBoards && !isLoadingRole}
               canDelete={canManageBoards && !isLoadingRole}
               workspaceId={workspaceId}
@@ -196,6 +175,28 @@ export default function WorkspacePage() {
             />
           </>
         )}
+
+        <ProgressSummary
+          heading="Workspace progress"
+          isLoading={workspaceSummary.isLoadingSummary}
+          isError={workspaceSummary.isSummaryError}
+          error={workspaceSummary.summaryError}
+          onRetry={workspaceSummary.refetchSummary}
+          totals={workspaceSummary.summary?.totals}
+          rows={(workspaceSummary.summary?.boards ?? []).map(
+            ({ board, summary }) => ({
+              id: board.id,
+              label: board.name,
+              total: summary.total,
+              completed: summary.completed,
+              href: `/boards/${board.id}`,
+            }),
+          )}
+          storageKey={`kanban-summary:workspace:${workspaceId}`}
+          className="mt-5"
+        />
+
+        <FeaturedSection className="mt-5" />
       </div>
 
       {workspaceId && (

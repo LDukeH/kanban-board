@@ -25,6 +25,10 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-neutral: var(--neutral);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -46,6 +50,9 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Two canonical corners: cards (10px) and chips/buttons (6px). */
+  --radius-card: 10px;
+  --radius-control: 6px;
 }
 
 :root {
@@ -77,6 +84,12 @@
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
+  /* Semantic States — text-safe shades (WCAG AA on --background / --card). */
+  --danger: #dc2626;
+  --warning: #b45309;
+  --success: #047857;
+  --neutral: #64748b;
+
   /* Borders & Inputs */
   --border: #e2e8f0;
   --input: #e2e8f0;
@@ -105,7 +118,7 @@
   --heading: system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
+  font: 16px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light; /* Ensure light mode forces system scrollbars to light */
   color: var(--foreground);
@@ -114,10 +127,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
 .dark {
@@ -142,6 +151,12 @@
 
   --destructive: #f87171;
   --destructive-foreground: #0f1115;
+
+  /* Semantic States — lightened for AA on the dark surfaces. */
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --success: #34d399;
+  --neutral: #9aa1ab;
 
   --border: #2a2f3a;
   --input: #2a2f3a;
@@ -175,11 +190,16 @@
   }
 }
 
-/* -------------------------------------------------------------------
- * React-Toastify — route the toast tokens through the app design tokens.
- * The `.dark` class lives on <html> and custom properties cascade, so a
- * single "light" theme adapts to both light and dark modes automatically.
- * ------------------------------------------------------------------- */
+/* Hide scrollbars while keeping the element scrollable (board X / column Y). */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* React-Toastify — route the toast tokens through the app design tokens. */
 :root {
   --toastify-toast-width: 18rem;
   --toastify-toast-bd-radius: var(--radius);

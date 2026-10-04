@@ -7,6 +7,8 @@ import type { Board } from "@/types/board";
 
 interface BoardGridProps {
   boards: Board[];
+  /** Total tasks per board id, when the workspace summary is available. */
+  taskCounts?: Record<string, number>;
   canEdit?: boolean;
   canDelete?: boolean;
   workspaceId?: string;
@@ -14,49 +16,46 @@ interface BoardGridProps {
   className?: string;
 }
 
-/**
- * The dashed "create" tile body shared by the blank-board and from-template
- * entry points, so both tiles keep the same shape and height as a real card,
- * with or without sibling cards to stretch against.
- */
+/** The dashed "create" tile body shared by the blank-board and from-template entry points, so both tiles keep the same shape and height as a real card, with or without sibling cards to stretch against. */
 function CreateTile({
   icon,
   label,
-}: {
+  ref,
+  type = "button",
+  className,
+  ...props
+}: Omit<React.ComponentPropsWithRef<"button">, "children"> & {
   icon: React.ReactNode;
   label: string;
 }) {
   return (
     <button
-      type="button"
-      className="group flex h-full min-h-32 cursor-pointer flex-col overflow-hidden rounded-xl border-2 border-dashed border-border bg-card/40 text-muted-foreground transition-all duration-200 hover:-translate-y-1 hover:border-primary/50 hover:text-primary hover:shadow-md"
+      ref={ref}
+      type={type}
+      {...props}
+      className={cn(
+        "group flex h-full min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-border bg-card/40 p-4 text-center text-muted-foreground outline-none transition-colors duration-200 hover:border-primary/50 hover:bg-muted/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring",
+        className,
+      )}
     >
-      {/* Slot band — mirrors the BoardCard identity band. */}
-      <span className="flex h-16 items-center justify-center border-b-2 border-dashed border-border transition-colors group-hover:border-primary/50">
-        <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-          {icon}
-        </span>
+      <span className="flex size-10 items-center justify-center rounded-control bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+        {icon}
       </span>
-      <span className="flex flex-1 items-center justify-center px-4 py-5 text-center text-sm font-semibold">
-        {label}
-      </span>
+      <span className="text-sm font-semibold">{label}</span>
     </button>
   );
 }
 
 export function BoardGrid({
   boards,
+  taskCounts,
   canEdit = false,
   canDelete = false,
   workspaceId,
   canCreate = false,
   className,
 }: BoardGridProps) {
-  // With no boards, the create tile is the only grid item. A responsive
-  // multi-column grid would squeeze it into the first column track —
-  // and in the workspace empty state the grid sits inside a narrow
-  // centered box, so the tile would render tiny and off-center. Collapse
-  // to a single column so the tile renders card-sized.
+  // With no boards, the create tile is the only grid item.
   const isEmpty = boards.length === 0;
 
   return (
@@ -71,6 +70,7 @@ export function BoardGrid({
         <BoardCard
           key={board.id}
           board={board}
+          taskCount={taskCounts?.[board.id]}
           canEdit={canEdit}
           canDelete={canDelete}
         />

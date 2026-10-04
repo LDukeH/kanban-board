@@ -14,12 +14,7 @@ interface CreateFromTemplateVariables {
   description?: string;
 }
 
-/**
- * Owns "create a board from a template" (Feature 4).
- *
- * Kept separate from `useBoards` because it is a multi-request flow with its own
- * partial-failure semantics, while `createBoard` stays a single simple request.
- */
+/** Owns "create a board from a template" (Feature 4). */
 export function useBoardTemplates(workspaceId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -31,8 +26,7 @@ export function useBoardTemplates(workspaceId: string | undefined) {
     mutationFn: ({ template, name, description }) =>
       materializeBoardTemplate(workspaceId!, template, name, description),
     onSuccess: (result) => {
-      // The board exists even when a later column/label call failed, so it must
-      // appear in the workspace list either way.
+      // The board exists even when a later column/label call failed, so it must appear in the workspace list either way.
       queryClient.setQueryData<Board[]>(
         ["workspaces", workspaceId, "boards"],
         (old) => (old ? [...old, result.board] : [result.board]),
@@ -43,9 +37,7 @@ export function useBoardTemplates(workspaceId: string | undefined) {
         workspaceId: result.board.workspaceId,
       });
 
-      // Columns and labels are only read when the board is opened. Drop any
-      // cached copies so that first read reflects exactly what was created
-      // rather than a half-built snapshot.
+      // Drop the columns/labels caches so the board's first read shows exactly what was created.
       queryClient.removeQueries({
         queryKey: ["boards", result.board.id, "columns"],
       });
@@ -56,11 +48,7 @@ export function useBoardTemplates(workspaceId: string | undefined) {
   });
 
   return {
-    /**
-     * Resolves with the full materialisation result — including any per-row
-     * failures — so the caller can report exactly what was created. It rejects
-     * only when board creation itself failed, in which case nothing was created.
-     */
+    /** Resolves with the full materialisation result — including any per-row failures — so the caller can report exactly what was created. */
     createBoardFromTemplate: createFromTemplateMutation.mutateAsync,
     isCreatingFromTemplate: createFromTemplateMutation.isPending,
     describeOutcome: describeTemplateOutcome,

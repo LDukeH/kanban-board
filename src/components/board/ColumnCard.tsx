@@ -1,4 +1,4 @@
-﻿import { Fragment, useState } from "react";
+import { Fragment, useState } from "react";
 import { cn } from "@/lib/utils";
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import type { Column } from "@/types/board";
@@ -35,7 +35,7 @@ function TaskDropPlaceholder() {
   return (
     <div
       aria-hidden
-      className="flex min-h-10 items-center justify-center rounded-lg border-2 border-dashed border-primary/40 bg-primary/5"
+      className="flex min-h-10 items-center justify-center rounded-control border-2 border-dashed border-primary/40 bg-primary/5"
     >
       <span className="h-0.5 w-6 rounded-full bg-primary/40" />
     </div>
@@ -110,15 +110,7 @@ export function ColumnCard({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // While a task from ANOTHER column is dragged over this column, compute the
-  // live insertion index from the pointer so an in-list placeholder can "push"
-  // this column's tasks apart and preview exactly where the task will land.
-  // This deliberately keeps cross-column task cards as non-targets: letting
-  // dnd-kit's sortable run across columns would physically reparent the card
-  // into this column's DOM, which conflicts with React's reconciliation
-  // ("node to be removed is not a child of this node"). The placeholder only
-  // re-renders this column's list, and the index matches the one the board
-  // drop handler computes on drop.
+  // While a task from ANOTHER column is dragged over this column, compute the live insertion index from the pointer so an in-list placeholder can "push" this column's tasks apart and preview exactly where the task will land.
   const manager = useDragDropManager();
   const { value: foreignTaskInsertionIndex } = useComputed(() => {
     if (!manager) return -1;
@@ -147,17 +139,17 @@ export function ColumnCard({
     <div
       ref={ref}
       className={cn(
-        "flex h-full w-72 shrink-0 flex-col rounded-xl border border-border bg-card",
+        "flex max-h-full min-h-32 w-80 shrink-0 flex-col rounded-card border border-border bg-card",
         className,
         isDragging && "opacity-50",
       )}
     >
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
-        <span className="size-2 shrink-0 rounded-full bg-primary" />
+        <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden />
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
           {column.name}
         </h3>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        <span className="rounded-control bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
           {filterActive
             ? `${visibleTasks.length} / ${tasks.length}`
             : tasks.length}
@@ -165,7 +157,10 @@ export function ColumnCard({
 
         {(canEdit || canDelete) && (
           <DropdownMenu>
-            <DropdownMenuTrigger>
+            <DropdownMenuTrigger
+              className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-control text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Column actions for ${column.name}`}
+            >
               <MoreHorizontal className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -202,7 +197,7 @@ export function ColumnCard({
         data-column-id={column.id}
         ref={taskDropRef}
         className={cn(
-          "flex h-full min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain p-3 pt-6 transition-colors",
+          "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain scrollbar-none p-3 transition-colors",
           isDropTarget && "bg-primary/5",
         )}
       >
@@ -212,7 +207,7 @@ export function ColumnCard({
             <span className="sr-only">Loading tasks…</span>
           </div>
         ) : isTasksError ? (
-          <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-4 text-center">
+          <div className="flex flex-col items-center justify-center gap-2 rounded-control border border-dashed border-border p-4 text-center">
             <p className="text-xs text-muted-foreground">
               Couldn't load tasks.
             </p>
@@ -231,9 +226,19 @@ export function ColumnCard({
           foreignTaskInsertionIndex >= 0 ? (
             <TaskDropPlaceholder />
           ) : (
-            <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
-              {filterActive ? "No matching tasks" : "No tasks yet"}
-            </p>
+            <div className="rounded-control border border-dashed border-border p-3 text-center">
+              <p className="text-xs text-muted-foreground">
+                {filterActive ? "No matching tasks" : "No tasks yet"}
+              </p>
+              {canCreateTask && (
+                <div className="mt-2">
+                  <CreateTaskDialog
+                    boardId={column.boardId}
+                    columnId={column.id}
+                  />
+                </div>
+              )}
+            </div>
           )
         ) : (
           <>
@@ -256,15 +261,14 @@ export function ColumnCard({
             {foreignTaskInsertionIndex >= visibleTasks.length && (
               <TaskDropPlaceholder />
             )}
+
+            {/* "Add task" sits directly beneath the last card — a ghost button that flows with the content instead of being pinned to the bottom of a tall column. */}
+            {canCreateTask && (
+              <CreateTaskDialog boardId={column.boardId} columnId={column.id} />
+            )}
           </>
         )}
       </div>
-
-      {canCreateTask && (
-        <div className="shrink-0 border-t border-border p-2">
-          <CreateTaskDialog boardId={column.boardId} columnId={column.id} />
-        </div>
-      )}
 
       {/* Dialogs rendered outside the unmounting menu */}
       {canEdit && (

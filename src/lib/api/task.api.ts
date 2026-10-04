@@ -19,8 +19,7 @@ interface TaskApiResponse {
   position: number;
   created_at: string;
   updated_at: string;
-  // Planning metadata added by migration 019. Always present in current backend
-  // responses; optional here so a pre-019 server cannot blow up the mapper.
+  // Planning metadata added by migration 019; optional so a pre-019 server cannot break the mapper.
   priority?: TaskPriority;
   due_date?: string | null;
   completed?: boolean;
@@ -41,22 +40,12 @@ export interface UpdateTaskData {
   title?: string;
   description?: TaskDescription;
   priority?: TaskPriority;
-  /**
-   * Tri-state on the backend: "YYYY-MM-DD" sets it, null clears it, and
-   * omitting the key leaves the stored value unchanged.
-   */
+  /** Tri-state on the backend: "YYYY-MM-DD" sets it, null clears it, and omitting the key leaves the stored value unchanged. */
   dueDate?: string | null;
   completed?: boolean;
 }
 
-/**
- * Maps the camelCase request types onto the snake_case body the API expects.
- *
- * Sending `data` straight through would post `dueDate`, which the backend
- * never reads — the due date would silently never change. Keys with an
- * `undefined` value are dropped, which is what preserves PATCH's
- * "absent means unchanged" contract.
- */
+/** Maps the camelCase request types onto the snake_case body the API expects (`dueDate` -> `due_date`). */
 function toTaskPayload(
   data: CreateTaskData | UpdateTaskData,
 ): Record<string, unknown> {
@@ -86,9 +75,7 @@ function mapTask(raw: TaskApiResponse): Task {
     description: normalizeDescription(raw.description),
     position: raw.position,
     createdAt: raw.created_at,
-    // The backend guarantees these three keys; the fallbacks only guard against
-    // a pre-019 server so the UI degrades to the neutral values instead of
-    // undefined. Raw snake_case never leaves this module.
+    // The backend guarantees these three keys; the fallbacks only guard against a pre-019 server so the UI degrades to the neutral values instead of undefined.
     priority: raw.priority ?? "none",
     dueDate: raw.due_date ?? null,
     completed: raw.completed ?? false,
