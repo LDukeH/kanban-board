@@ -442,7 +442,7 @@ function BoardContent({ boardId }: { boardId: string }) {
 
       {/* Toolbar directly above the columns: Filters and Labels moved here from the header and restyled as ghost buttons. */}
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 px-6 pt-2">
-        <TaskFilt
+        <TaskFilterPopover
           filter={taskFilter}
           onChange={updateTaskFilter}
           boardId={boardId}
