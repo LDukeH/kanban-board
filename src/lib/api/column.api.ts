@@ -8,6 +8,8 @@ interface ColumnApiResponse {
   position: number;
   created_at: string;
   updated_at: string;
+  /** Optimistic-concurrency version; optional only so a pre-OCC server still maps — treated as 1. */
+  version?: number;
 }
 
 function mapColumn(raw: ColumnApiResponse): Column {
@@ -16,6 +18,8 @@ function mapColumn(raw: ColumnApiResponse): Column {
     boardId: raw.board_id,
     name: raw.name,
     position: raw.position,
+    // OCC version comes from the response; fallback 1 only guards a pre-OCC server.
+    version: raw.version ?? 1,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -41,7 +45,8 @@ export const createColumn = async (
 
 export const updateColumn = async (
   columnId: string,
-  data: { name?: string },
+  // OCC: rename carries the version read with the column; 409 means it changed underneath.
+  data: { name?: string; version: number },
 ): Promise<Column> => {
   const response = await api.patch<ColumnApiResponse>(
     `/columns/${columnId}`,
@@ -52,15 +57,22 @@ export const updateColumn = async (
 
 export const updateColumnPosition = async (
   columnId: string,
-  position: number,
+  data: { position: number; version: number },
 ): Promise<Column> => {
   const response = await api.patch<ColumnApiResponse>(
     `/columns/${columnId}/position`,
-    { position },
+    {
+      position: data.position,
+      version: data.version,
+    },
   );
   return mapColumn(response.data);
 };
 
-export const deleteColumn = async (columnId: string): Promise<void> => {
-  await api.delete(`/columns/${columnId}`);
+export const deleteColumn = async (
+  columnId: string,
+  version: number,
+): Promise<void> => {
+  // OCC contract: DELETE /columns/{id}?version=N as a query parameter.
+  await api.delete(`/columns/${columnId}`, { params: { version } });
 };

@@ -285,7 +285,9 @@ export function ColumnCard({
           onOpenChange={setIsDeleteDialogOpen}
           title="Delete Column"
           description={`Are you sure you want to delete "${column.name}"? This will permanently delete all tasks within this column.`}
-          onConfirm={() => deleteColumn(column.id)}
+          onConfirm={() =>
+            deleteColumn({ columnId: column.id, version: column.version })
+          }
           isLoading={isDeletingColumn}
         />
       )}
