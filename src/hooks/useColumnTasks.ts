@@ -87,7 +87,10 @@ function writeStoredTaskMoves(moves: StoredTaskMove[]) {
     if (moves.length === 0) {
       sessionStorage.removeItem(PENDING_TASK_MOVE_STORAGE_KEY);
     } else {
-      sessionStorage.setItem(PENDING_TASK_MOVE_STORAGE_KEY, JSON.stringify(moves));
+      sessionStorage.setItem(
+        PENDING_TASK_MOVE_STORAGE_KEY,
+        JSON.stringify(moves),
+      );
     }
   } catch {
     // Storage can be unavailable in restricted browser contexts.
@@ -250,8 +253,7 @@ export function useColumnTasks(
     enabled,
   });
   const createTaskMutation = useMutation({
-    mutationFn: (data: CreateTaskData) =>
-      createTask(columnId!, data),
+    mutationFn: (data: CreateTaskData) => createTask(columnId!, data),
     onSuccess: (newTask) => {
       if (!boardId || !columnId) return;
       // Optimistic append; invalidate because the create response may omit the server-assigned position.
@@ -636,8 +638,6 @@ export function useColumnTasks(
           refetchError = error;
         }
       }
-      // A queued follow-up move must not PATCH against a cache that failed to
-      // resync. The false result prevents it from sending a stale version.
       context?.gate?.release(refetchError === undefined);
       if (
         context?.gate &&
@@ -645,8 +645,6 @@ export function useColumnTasks(
       ) {
         taskMoveGatePromises.delete(variables.taskId);
       }
-      // Release the column gates this move owned, but only if no newer move
-      // has already taken them over.
       if (settledBoardId && context?.gate) {
         for (const columnId of touchedColumns) {
           const key = columnGateKey(settledBoardId, columnId);

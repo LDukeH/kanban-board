@@ -17,17 +17,14 @@ import { reorderColumns } from "@/lib/dragDrop";
 import { isStaleError } from "@/lib/httpStatus";
 import type { Column, Label, Task } from "@/types/board";
 
-export function boardLabelsQueryKey(boardId: string): readonly [
-  "boards",
-  string,
-  "labels",
-] {
+export function boardLabelsQueryKey(
+  boardId: string,
+): readonly ["boards", string, "labels"] {
   return ["boards", boardId, "labels"];
 }
 
-// Per-column queue for position PATCHes: onMutate records the predecessor gate, mutationFn waits on it before PATCHing, and onSettled releases it — a rapid second drop never re-sends the version the first one already bumped (self-409).
-const columnMoveGatePromises = new Map<string, Promise<void>>();
-const columnMovePredecessors = new Map<string, Promise<void>>();
+const boardMoveGatePromises = new Map<string, Promise<void>>();
+const boardMovePredecessors = new Map<string, Promise<void>>();
 
 function createColumnMoveGate() {
   let release!: () => void;
@@ -69,7 +66,10 @@ export function useBoard(boardId: string | undefined) {
       .forEach((query) => {
         queryClient.setQueryData<Task[]>(query.queryKey, (old) =>
           old
-            ? old.map((task) => ({ ...task, labels: transform(task.labels ?? []) }))
+            ? old.map((task) => ({
+                ...task,
+                labels: transform(task.labels ?? []),
+              }))
             : old,
         );
       });
@@ -122,8 +122,13 @@ export function useBoard(boardId: string | undefined) {
   });
 
   const deleteColumnMutation = useMutation({
-    mutationFn: ({ columnId, version }: { columnId: string; version: number }) =>
-      deleteColumn(columnId, version),
+    mutationFn: ({
+      columnId,
+      version,
+    }: {
+      columnId: string;
+      version: number;
+    }) => deleteColumn(columnId, version),
     onSuccess: (_data, { columnId: deletedColumnId }) => {
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
@@ -138,7 +143,6 @@ export function useBoard(boardId: string | undefined) {
     },
     onError: (error) => {
       if (boardId && isStaleError(error)) {
-        // 409 (edited elsewhere) / 404 (already gone): resync the column list so the UI matches the server.
         queryClient.invalidateQueries({
           queryKey: ["boards", boardId, "columns"],
         });
@@ -156,12 +160,12 @@ export function useBoard(boardId: string | undefined) {
       position: number;
       version: number;
     }) => {
-      // Wait for the in-flight move of this column to fully settle (its onSuccess writes the fresh version) so a rapid second drop never re-sends the pre-move version and self-triggers a 409.
-      const predecessor = columnMovePredecessors.get(columnId);
-      columnMovePredecessors.delete(columnId);
+      const predecessor = boardId
+        ? boardMovePredecessors.get(boardId)
+        : undefined;
+      if (boardId) boardMovePredecessors.delete(boardId);
 
       return (predecessor ?? Promise.resolve()).then(() => {
-        // Prefer the version the cache holds now (onSuccess wrote the response) over the one captured at drag time.
         const cachedVersion = queryClient
           .getQueryData<Column[]>(["boards", boardId, "columns"])
           ?.find((column) => column.id === columnId)?.version;
@@ -172,11 +176,12 @@ export function useBoard(boardId: string | undefined) {
       });
     },
     onMutate: async ({ columnId, position }) => {
-      // Queue behind any in-flight move of the same column; mutationFn waits on this before PATCHing.
-      columnMovePredecessors.set(
-        columnId,
-        columnMoveGatePromises.get(columnId) ?? Promise.resolve(),
-      );
+      if (boardId) {
+        boardMovePredecessors.set(
+          boardId,
+          boardMoveGatePromises.get(boardId) ?? Promise.resolve(),
+        );
+      }
 
       await queryClient.cancelQueries({
         queryKey: ["boards", boardId, "columns"],
@@ -187,7 +192,7 @@ export function useBoard(boardId: string | undefined) {
         [];
 
       const gate = createColumnMoveGate();
-      columnMoveGatePromises.set(columnId, gate.settled);
+      if (boardId) boardMoveGatePromises.set(boardId, gate.settled);
 
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
@@ -214,19 +219,18 @@ export function useBoard(boardId: string | undefined) {
         );
       }
     },
-    onSettled: (_data, _error, variables, context) => {
-      // Open the per-column gate after the success write / rollback so a queued drop reads post-settle state.
+    onSettled: async (_data, _error, _variables, context) => {
+      await queryClient.refetchQueries({
+        queryKey: ["boards", boardId, "columns"],
+      });
       context?.gate?.release();
       if (
         context?.gate &&
-        columnMoveGatePromises.get(variables.columnId) === context.gate.settled
+        boardId &&
+        boardMoveGatePromises.get(boardId) === context.gate.settled
       ) {
-        columnMoveGatePromises.delete(variables.columnId);
+        boardMoveGatePromises.delete(boardId);
       }
-      // Refetch so columns shifted by the reorder pick up their bumped versions (contract §5.2).
-      queryClient.invalidateQueries({
-        queryKey: ["boards", boardId, "columns"],
-      });
     },
   });
 
@@ -234,9 +238,8 @@ export function useBoard(boardId: string | undefined) {
     mutationFn: (data: { name: string; color: string }) =>
       createLabel(boardId!, data),
     onSuccess: (newLabel) => {
-      queryClient.setQueryData<Label[]>(
-        ["boards", boardId, "labels"],
-        (old) => (old ? [...old, newLabel] : [newLabel]),
+      queryClient.setQueryData<Label[]>(["boards", boardId, "labels"], (old) =>
+        old ? [...old, newLabel] : [newLabel],
       );
     },
   });
@@ -299,9 +302,8 @@ export function useBoard(boardId: string | undefined) {
       const previousLabels =
         queryClient.getQueryData<Label[]>(["boards", boardId, "labels"]) ?? [];
 
-      queryClient.setQueryData<Label[]>(
-        ["boards", boardId, "labels"],
-        (old) => (old ? old.filter((label) => label.id !== labelId) : []),
+      queryClient.setQueryData<Label[]>(["boards", boardId, "labels"], (old) =>
+        old ? old.filter((label) => label.id !== labelId) : [],
       );
 
       updateBoardTaskLabels((labels) =>
