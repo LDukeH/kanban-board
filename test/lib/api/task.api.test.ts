@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { api } from "@/lib/api/axios";
 import type { TaskDescription } from "@/lib/description";
+import { describeTaskMoveError, getHttpStatus, isStaleError } from "@/lib/httpStatus";
 import {
   assignUserToTask,
   createTask,
@@ -36,6 +37,7 @@ const tasksPayload = [
     title: "Task one",
     description: taskDoc,
     position: 0,
+    version: 7,
     created_at: "2026-01-01T00:00:00.000Z",
     labels: [
       {
@@ -90,6 +92,9 @@ describe("task.api mapping", () => {
     });
     expect(tasks).toHaveLength(4);
     expect(tasks[0].id).toBe("t1");
+    // OCC version maps from the payload when present, defaults to 1 when absent (legacy rows).
+    expect(tasks[0].version).toBe(7);
+    expect(tasks[1].version).toBe(1);
     expect(tasks[0].description).toEqual(taskDoc);
     expect(tasks[0].labels).toEqual([
       {
@@ -201,43 +206,58 @@ describe("task.api mapping", () => {
 });
 
 describe("task.api mutations", () => {
-  it("updateTask patches only the provided fields", async () => {
-    const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
+  it("updateTask sends the version and maps the authoritative response", async () => {
+    const handle = createMockApiAdapter([
+      route("patch", "/tasks/t1", tasksPayload[0]),
+    ]);
     mockApi(handle);
 
-    await expect(
-      updateTask("t1", { title: "Renamed" }),
-    ).resolves.toBeUndefined();
+    const updated = await updateTask("t1", { title: "Renamed", version: 7 });
+
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/tasks/t1",
-      data: { title: "Renamed" },
+      data: { title: "Renamed", version: 7 },
     });
+    expect(updated.id).toBe("t1");
+    expect(updated.title).toBe("Task one");
+    expect(updated.version).toBe(7);
   });
 
-  it("updateTaskPosition sends snake_case column_id", async () => {
+  it("updateTaskPosition sends the version and maps the move response", async () => {
+    const moveResponse = {
+      id: "t1",
+      column_id: "c2",
+      position: 2,
+      version: 7,
+    };
     const handle = createMockApiAdapter([
-      noContentRoute("patch", "/tasks/t1/position"),
+      route("patch", "/tasks/t1/position", moveResponse),
     ]);
     mockApi(handle);
 
     await expect(
-      updateTaskPosition("t1", { columnId: "c2", position: 2 }),
-    ).resolves.toBeUndefined();
+      updateTaskPosition("t1", { columnId: "c2", position: 2, version: 7 }),
+    ).resolves.toEqual(moveResponse);
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/tasks/t1/position",
-      data: { column_id: "c2", position: 2 },
+      data: { column_id: "c2", position: 2, version: 7 },
     });
   });
 
-  it("deleteTask issues a DELETE and resolves", async () => {
+  it("deleteTask sends the version as a query parameter", async () => {
     const handle = createMockApiAdapter([
       noContentRoute("delete", "/tasks/t1"),
     ]);
     mockApi(handle);
 
-    await expect(deleteTask("t1")).resolves.toBeUndefined();
+    await expect(deleteTask("t1", 7)).resolves.toBeUndefined();
+    expect(handle.requests[0]).toMatchObject({
+      method: "delete",
+      path: "/tasks/t1",
+      params: { version: 7 },
+    });
   });
 
   it("getTaskAssignees returns the raw assignee list", async () => {
@@ -348,5 +368,29 @@ describe("findBoardIdForTask", () => {
     const requestsAfterFirst = handle.requests.length;
     await expect(findBoardIdForTask("missing-task")).resolves.toBeUndefined();
     expect(handle.requests.length).toBe(requestsAfterFirst);
+  });
+
+  it("updateTaskPosition surfaces a 409 as a stale conflict", async () => {
+    const handle = createMockApiAdapter([
+      route("patch", "/tasks/t1/position", "conflict", 409),
+    ]);
+    mockApi(handle);
+
+    const error = await updateTaskPosition("t1", {
+      columnId: "c2",
+      position: 2,
+      version: 7,
+    }).then(
+      () => undefined,
+      (err: unknown) => err,
+    );
+
+    expect(error).toBeDefined();
+    expect(getHttpStatus(error)).toBe(409);
+    // The hook's rollback/drop path keys off isStaleError; the user-facing copy must not leak the bare body.
+    expect(isStaleError(error)).toBe(true);
+    expect(describeTaskMoveError(error, "fallback")).toMatch(
+      /Another session changed this task/,
+    );
   });
 });

@@ -8,6 +8,21 @@ export function getHttpStatus(error: unknown): number | undefined {
   return isAxiosErrorLike(error) ? error.response?.status : undefined;
 }
 
+/** OCC conflict (HTTP 409). The contract answers with a plain-text "conflict" body, so detect by status only. */
+export function isConflictError(error: unknown): boolean {
+  return getHttpStatus(error) === 409;
+}
+
+/** The row is gone (HTTP 404) — on a mutation with a version this is a stale snapshot too, so callers treat it like a conflict. */
+export function isNotFoundError(error: unknown): boolean {
+  return getHttpStatus(error) === 404;
+}
+
+/** Stale snapshot: version mismatch (409) or deleted row (404) → rollback + refetch. */
+export function isStaleError(error: unknown): boolean {
+  return isConflictError(error) || isNotFoundError(error);
+}
+
 export function describeLoadError(error: unknown): string {
   const status = getHttpStatus(error);
   switch (status) {
@@ -47,6 +62,47 @@ export function describeMutationError(
     }
   }
   return fallback;
+}
+
+/**
+ * Move-specific messaging for OCC: a 409 (version moved on) or 404 (row deleted) means the
+ * board changed elsewhere — the hooks already rolled back and refetched, so say that instead
+ * of surfacing the backend's bare "conflict" body. Network and 5xx failures get their own copy
+ * because the move was reverted locally in those cases too.
+ */
+function describeMoveError(
+  error: unknown,
+  fallback: string,
+  noun: "task" | "column",
+): string {
+  if (isConflictError(error)) {
+    return `Another session changed this ${noun} first — the board has been refreshed with the latest data. Please try the move again.`;
+  }
+  if (isNotFoundError(error)) {
+    return `This ${noun} no longer exists — the board has been refreshed.`;
+  }
+  if (isAxiosErrorLike(error) && !error.response) {
+    return "Could not reach the server — the move was reverted. Check your connection and try again.";
+  }
+  const status = getHttpStatus(error);
+  if (status !== undefined && status >= 500) {
+    return "The server had a problem — the move was reverted. Please try again.";
+  }
+  return describeMutationError(error, fallback);
+}
+
+export function describeTaskMoveError(
+  error: unknown,
+  fallback: string,
+): string {
+  return describeMoveError(error, fallback, "task");
+}
+
+export function describeColumnMoveError(
+  error: unknown,
+  fallback: string,
+): string {
+  return describeMoveError(error, fallback, "column");
 }
 
 /** Backend error bodies may be a string or a `{ message | error }` object. */

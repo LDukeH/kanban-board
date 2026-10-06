@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   describeAuthFormError,
+  describeColumnMoveError,
   describeLoadError,
   describeMutationError,
+  describeTaskMoveError,
   getHttpStatus,
+  isConflictError,
+  isNotFoundError,
+  isStaleError,
 } from "@/lib/httpStatus";
 
 describe("getHttpStatus", () => {
@@ -140,5 +145,72 @@ describe("describeAuthFormError", () => {
         "Create account",
       ),
     ).toBe("Email already taken");
+  });
+});
+
+describe("isConflictError / isNotFoundError / isStaleError", () => {
+  it("flags 409 as a conflict and a stale snapshot", () => {
+    const error = { isAxiosError: true, response: { status: 409, data: "conflict" } };
+    expect(isConflictError(error)).toBe(true);
+    expect(isNotFoundError(error)).toBe(false);
+    expect(isStaleError(error)).toBe(true);
+  });
+
+  it("flags 404 as a stale snapshot (row deleted elsewhere)", () => {
+    const error = { isAxiosError: true, response: { status: 404 } };
+    expect(isConflictError(error)).toBe(false);
+    expect(isNotFoundError(error)).toBe(true);
+    expect(isStaleError(error)).toBe(true);
+  });
+
+  it("does not flag other statuses or missing responses", () => {
+    expect(isStaleError({ isAxiosError: true, response: { status: 500 } })).toBe(false);
+    expect(isStaleError({ isAxiosError: true, response: { status: 400 } })).toBe(false);
+    expect(isStaleError({ isAxiosError: true })).toBe(false);
+    expect(isStaleError(new Error("boom"))).toBe(false);
+  });
+});
+
+describe("describeTaskMoveError / describeColumnMoveError", () => {
+  const conflict = { isAxiosError: true, response: { status: 409, data: "conflict" } };
+
+  it("explains a 409 without leaking the bare backend conflict body", () => {
+    expect(describeTaskMoveError(conflict, "fallback")).toBe(
+      "Another session changed this task first — the board has been refreshed with the latest data. Please try the move again.",
+    );
+    expect(describeColumnMoveError(conflict, "fallback")).toBe(
+      "Another session changed this column first — the board has been refreshed with the latest data. Please try the move again.",
+    );
+  });
+
+  it("explains a 404 as a deleted row", () => {
+    expect(
+      describeTaskMoveError({ isAxiosError: true, response: { status: 404 } }, "fallback"),
+    ).toBe("This task no longer exists — the board has been refreshed.");
+    expect(
+      describeColumnMoveError({ isAxiosError: true, response: { status: 404 } }, "fallback"),
+    ).toBe("This column no longer exists — the board has been refreshed.");
+  });
+
+  it("explains network failures as a reverted move", () => {
+    expect(describeTaskMoveError({ isAxiosError: true }, "fallback")).toBe(
+      "Could not reach the server — the move was reverted. Check your connection and try again.",
+    );
+  });
+
+  it("explains 5xx failures as a reverted move", () => {
+    expect(
+      describeColumnMoveError({ isAxiosError: true, response: { status: 503 } }, "fallback"),
+    ).toBe("The server had a problem — the move was reverted. Please try again.");
+  });
+
+  it("delegates to describeMutationError for anything else", () => {
+    expect(describeTaskMoveError(new Error("boom"), "fallback")).toBe("fallback");
+    expect(
+      describeColumnMoveError(
+        { isAxiosError: true, response: { status: 403, data: "no access" } },
+        "fallback",
+      ),
+    ).toBe("no access");
   });
 });

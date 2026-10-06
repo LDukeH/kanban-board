@@ -156,7 +156,11 @@ describe("live task API", () => {
       const t2 = await createTask(chain.columns[0].id, { title: "T2" });
       const t3 = await createTask(chain.columns[0].id, { title: "T3" });
 
-      await updateTaskPosition(t3.id, { columnId: chain.columns[0].id, position: 0 });
+      await updateTaskPosition(t3.id, {
+        columnId: chain.columns[0].id,
+        position: 0,
+        version: t3.version,
+      });
 
       const tasks = await getColumnTasks(chain.columns[0].id);
       const order = tasks
@@ -170,7 +174,11 @@ describe("live task API", () => {
     await actingAs(chain.owner, async () => {
       const task = await createTask(chain.columns[0].id, { title: "Mover" });
 
-      await updateTaskPosition(task.id, { columnId: doneColumn.id, position: 0 });
+      await updateTaskPosition(task.id, {
+        columnId: doneColumn.id,
+        position: 0,
+        version: task.version,
+      });
 
       const source = await getColumnTasks(chain.columns[0].id);
       const target = await getColumnTasks(doneColumn.id);
