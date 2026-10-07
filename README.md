@@ -42,6 +42,21 @@ is no `/api/v1` prefix), so point it directly at the server root. Auth is
 cookie-based (HTTP-only cookie), which is why the client sets
 `withCredentials: true`.
 
+## Testing
+
+```bash
+npm test          # offline unit suite (vitest run) — 28 files / 283 tests, no backend needed
+npm run test:types # type-check the test project (tsconfig.test.json)
+npm run test:api  # live API suite (vitest.live.config.ts, test/live/**) — requires the Go Kanban API backend
+```
+
+The live suite runs the production `src/lib/api/` client against the real
+backend. Point it at the backend with `LIVE_API_BASE_URL`, otherwise it falls
+back to the built `VITE_API_URL` and then `http://localhost:3000`
+(see `test/live/helpers/env.ts`). It owns real sessions/cookies, so it runs
+serially (`fileParallelism: false`) and writes machine-readable reports to
+`test-results/` (gitignored, local-only).
+
 ## Development
 
 ```bash

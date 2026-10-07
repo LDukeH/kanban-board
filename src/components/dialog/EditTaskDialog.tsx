@@ -40,14 +40,16 @@ import { CreateLabelDialog } from "@/components/dialog/CreateLabelDialog";
 import { EditTaskAssigneePicker } from "@/components/picker/EditTaskAssigneePicker";
 import { TaskComments } from "@/components/task/TaskComments";
 import { TaskDescriptionEditor } from "@/components/task/TaskDescriptionEditor";
+import { isEmptyDescription, type TaskDescription } from "@/lib/description";
 import {
-  descriptionsEqual,
-  isEmptyDescription,
-  isTaskDescriptionDoc,
-  textToTaskDescription,
-  type TaskDescription,
-} from "@/lib/description";
-import { describeMutationError } from "@/lib/httpStatus";
+  buildTaskUpdatePayload,
+  createTaskDraft,
+  isTaskDraftDirty,
+  normalizeSnapshotDescription,
+  resolveCloseAction,
+  validateTaskDraft,
+} from "@/lib/taskDraft";
+import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
 import { TASK_PRIORITIES, type Task, type TaskPriority } from "@/types/board";
 import { cn } from "@/lib/utils";
 
@@ -57,17 +59,6 @@ interface EditTaskDialogProps {
   canDelete?: boolean;
   trigger: React.ReactElement;
 }
-function normalizeSnapshotDescription(
-  description: TaskDescription | string | undefined,
-): TaskDescription | undefined {
-  if (!description) return undefined;
-  if (typeof description === "string") {
-    return description.trim() ? textToTaskDescription(description) : undefined;
-  }
-  if (isTaskDescriptionDoc(description)) return description;
-  return undefined;
-}
-
 function ActionButton({
   icon,
   label,
@@ -124,10 +115,8 @@ export function EditTaskDialog({
     () => normalizeSnapshotDescription(task.description),
     [task.description],
   );
-  const savedPriority = task.priority;
   /** Empty string is the draft form of "no due date"; "" and null are equivalent. */
   const savedDueDate = task.dueDate ?? "";
-  const savedCompleted = task.completed;
 
   const [open, setOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState(task.title);
@@ -150,12 +139,16 @@ export function EditTaskDialog({
   // Guards double submission and lets a close attempt await an in-flight save (rapid close-while-saving re-enters the same flush path instead of firing a second PATCH).
   const pendingSaveRef = useRef<Promise<boolean> | null>(null);
 
-  const isDirty =
-    draftTitle !== savedTitle ||
-    !descriptionsEqual(draftDescription, savedDescription) ||
-    draftPriority !== savedPriority ||
-    draftDueDate !== savedDueDate ||
-    draftCompleted !== savedCompleted;
+  const isDirty = isTaskDraftDirty(
+    {
+      title: draftTitle,
+      description: draftDescription,
+      priority: draftPriority,
+      dueDate: draftDueDate,
+      completed: draftCompleted,
+    },
+    task,
+  );
 
   const assignedLabelIds = useMemo(
     () => new Set((task.labels ?? []).map((l) => l.id)),
@@ -165,11 +158,12 @@ export function EditTaskDialog({
   const previewEmpty = isEmptyDescription(draftDescription);
 
   function resetDraft() {
-    setDraftTitle(savedTitle);
-    setDraftDescription(savedDescription);
-    setDraftPriority(savedPriority);
-    setDraftDueDate(savedDueDate);
-    setDraftCompleted(savedCompleted);
+    const fresh = createTaskDraft(task);
+    setDraftTitle(fresh.title);
+    setDraftDescription(fresh.description);
+    setDraftPriority(fresh.priority);
+    setDraftDueDate(fresh.dueDate);
+    setDraftCompleted(fresh.completed);
     setEditingTitle(false);
     setEditingDescription(false);
   }
@@ -178,11 +172,12 @@ export function EditTaskDialog({
     eventDetails?: { cancel: () => void },
   ) {
     if (nextOpen) {
-      setDraftTitle(task.title);
-      setDraftDescription(normalizeSnapshotDescription(task.description));
-      setDraftPriority(task.priority);
-      setDraftDueDate(task.dueDate ?? "");
-      setDraftCompleted(task.completed);
+      const fresh = createTaskDraft(task);
+      setDraftTitle(fresh.title);
+      setDraftDescription(fresh.description);
+      setDraftPriority(fresh.priority);
+      setDraftDueDate(fresh.dueDate);
+      setDraftCompleted(fresh.completed);
       setEditingTitle(false);
       setEditingDescription(false);
       setIsMembersPickerOpen(false);
@@ -190,14 +185,13 @@ export function EditTaskDialog({
       setOpen(nextOpen);
       return;
     }
-    if (pendingSaveRef.current) {
-      // Prevent the native close; a save is already in flight, so await it and then close only on success.
-      eventDetails?.cancel();
-      void flushSaveAndClose();
-      return;
-    }
-    if (isDirty) {
-      // Prevent the native close (ESC / overlay / wrapper Close) and flush-save first.
+    const closeAction = resolveCloseAction({
+      hasPendingSave: pendingSaveRef.current !== null,
+      isDirty,
+    });
+    if (closeAction !== "close") {
+      // Prevent the native close; a save is already in flight or the draft is
+      // dirty, so await/flush it and then close only on success.
       eventDetails?.cancel();
       void flushSaveAndClose();
       return;
@@ -208,9 +202,16 @@ export function EditTaskDialog({
   function saveDraft(): Promise<boolean> {
     if (pendingSaveRef.current) return pendingSaveRef.current;
     const run = (async () => {
-      const title = draftTitle.trim();
-      if (!title) {
-        setActionError("Task title is required.");
+      const draft = {
+        title: draftTitle,
+        description: draftDescription,
+        priority: draftPriority,
+        dueDate: draftDueDate,
+        completed: draftCompleted,
+      };
+      const titleError = validateTaskDraft(draft);
+      if (titleError) {
+        setActionError(titleError);
         return false;
       }
       if (!isDirty) return true;
@@ -218,14 +219,7 @@ export function EditTaskDialog({
       try {
         await updateTask({
           taskId: task.id,
-          data: {
-            title,
-            description: draftDescription,
-            priority: draftPriority,
-            // "" means the user cleared the date, so send null to clear it.
-            dueDate: draftDueDate || null,
-            completed: draftCompleted,
-          },
+          data: buildTaskUpdatePayload(draft),
         });
         setEditingTitle(false);
         setEditingDescription(false);
@@ -234,7 +228,7 @@ export function EditTaskDialog({
         setActionError(
           describeMutationError(err, "Failed to update task. Please try again."),
         );
-        console.error("Update task failed:", err);
+        reportMutationError("Update task failed", err);
         return false;
       }
     })();
@@ -274,7 +268,7 @@ export function EditTaskDialog({
       setActionError(
         describeMutationError(err, "Failed to update label. Please try again."),
       );
-      console.error("Label toggle failed:", err);
+      reportMutationError("Label toggle failed", err);
     } finally {
       setTogglingLabelId(null);
     }
@@ -287,7 +281,7 @@ export function EditTaskDialog({
       setOpen(false);
     } catch (err) {
       // Re-throw so ConfirmDeleteDialog keeps the confirmation open and renders its own inline error, instead of closing over a silent failure.
-      console.error("Delete task failed:", err);
+      reportMutationError("Delete task failed", err);
       throw err;
     }
   }

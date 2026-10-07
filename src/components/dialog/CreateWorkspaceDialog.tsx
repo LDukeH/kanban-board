@@ -14,7 +14,7 @@ import {
 import { Plus, Loader2 } from "lucide-react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useRecentStore } from "@/stores/recentStore";
-import { describeMutationError } from "@/lib/httpStatus";
+import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
 import {
   WORKSPACE_DESCRIPTION_MAX_BYTES,
@@ -71,7 +71,7 @@ export function CreateWorkspaceDialog({ trigger }: CreateWorkspaceDialogProps) {
           "Failed to create workspace. Please try again.",
         ),
       );
-      console.error("Create workspace failed:", err);
+      reportMutationError("Create workspace failed", err);
     }
   }
 

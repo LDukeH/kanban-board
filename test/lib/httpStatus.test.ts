@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   describeAuthFormError,
   describeColumnMoveError,
@@ -9,6 +9,7 @@ import {
   isConflictError,
   isNotFoundError,
   isStaleError,
+  reportMutationError,
 } from "@/lib/httpStatus";
 
 describe("getHttpStatus", () => {
@@ -212,5 +213,19 @@ describe("describeTaskMoveError / describeColumnMoveError", () => {
         "fallback",
       ),
     ).toBe("no access");
+  });
+});
+
+describe("reportMutationError", () => {
+  it("logs the context together with the original error", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const failure = new Error("boom");
+      reportMutationError("Update task failed", failure);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith("Update task failed:", failure);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

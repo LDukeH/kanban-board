@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Pencil, Loader2 } from "lucide-react";
 import { useBoard } from "@/hooks/useBoard";
-import { isStaleError } from "@/lib/httpStatus";
+import { isStaleError, reportMutationError } from "@/lib/httpStatus";
 import type { Column } from "@/types/board";
 
 interface EditColumnDialogProps {
@@ -72,7 +72,7 @@ export function EditColumnDialog({
           ? "This column changed somewhere else. The list will refresh — please try again."
           : "Failed to update column. Please try again.",
       );
-      console.error("Update column failed:", err);
+      reportMutationError("Update column failed", err);
     }
   }
 

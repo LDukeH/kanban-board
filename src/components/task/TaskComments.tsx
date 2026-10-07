@@ -5,7 +5,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { useTaskComments } from "@/hooks/useTaskComments";
-import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
+import { describeLoadError, describeMutationError, reportMutationError } from "@/lib/httpStatus";
 import { avatarGradient, emailInitial } from "@/lib/memberDisplay";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,7 @@ export function TaskComments({
       setError(
         describeMutationError(err, "Failed to post comment. Please try again."),
       );
-      console.error("Create comment failed:", err);
+      reportMutationError("Create comment failed", err);
     }
   }
 

@@ -18,6 +18,10 @@ import {
   orderTasksByPosition,
   removeTaskFromColumn,
 } from "@/lib/dragDrop";
+import {
+  columnGateKey,
+  touchedColumnGateKeys,
+} from "@/lib/taskMove";
 import type { Label, Task } from "@/types/board";
 
 type PendingTaskMove = {
@@ -41,10 +45,6 @@ const taskMovePredecessors = new Map<string, Promise<boolean>>();
 // refetch, otherwise the second move reads a stale neighbor version (neighbor-409).
 const columnMoveGatePromises = new Map<string, Promise<boolean>>();
 const columnMovePredecessors = new Map<string, Promise<boolean>[]>();
-
-function columnGateKey(boardId: string, columnId: string) {
-  return `${boardId}:${columnId}`;
-}
 
 function createTaskMoveGate() {
   let release!: (ready?: boolean) => void;
@@ -393,11 +393,7 @@ export function useColumnTasks(
       // bumps versions of every shifted neighbor, so mutationFn must wait for
       // the previous move's refetch before reading a neighbor's version.
       if (boardId) {
-        const touched = new Set(
-          [sourceColumnId, targetColumnId].map((column) =>
-            columnGateKey(boardId, column),
-          ),
-        );
+        const touched = touchedColumnGateKeys(boardId, sourceColumnId, targetColumnId);
         columnMovePredecessors.set(
           taskId,
           [...touched].map(
