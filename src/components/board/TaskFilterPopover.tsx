@@ -23,6 +23,8 @@ import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
 import { TASK_PRIORITIES, type TaskPriority } from "@/types/board";
 import {
   clearTaskFilter,
+  COMPLETION_STATUSES,
+  DUE_STATUSES,
   isTaskFilterActive,
   taskFilterCount,
   type TaskCompletionStatus,
