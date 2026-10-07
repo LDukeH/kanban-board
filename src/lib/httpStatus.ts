@@ -141,3 +141,12 @@ export function describeAuthFormError(
   }
   return describeMutationError(error, `Could not ${action.toLowerCase()}. Please try again.`);
 }
+
+/**
+ * Single funnel for reporting a failed UI mutation to the dev console.
+ * UI copy stays wherever the caller renders it (dialog/panel/banner); this
+ * only keeps the console context searchable and consistent.
+ */
+export function reportMutationError(context: string, error: unknown): void {
+  console.error(`${context}:`, error);
+}

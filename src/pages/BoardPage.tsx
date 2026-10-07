@@ -10,6 +10,7 @@ import {
   describeColumnMoveError,
   describeLoadError,
   describeTaskMoveError,
+  reportMutationError,
 } from "@/lib/httpStatus";
 import {
   STALE_MOVE_NOTICE_EVENT,
@@ -59,7 +60,7 @@ function reportMoveFailure(
 ) {
   void promise.catch((err) => {
     onNotice(describe(err));
-    console.error("Board move failed:", err);
+    reportMutationError("Board move failed", err);
   });
 }
 

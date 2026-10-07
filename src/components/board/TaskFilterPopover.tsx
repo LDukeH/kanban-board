@@ -23,14 +23,31 @@ import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
 import { TASK_PRIORITIES, type TaskPriority } from "@/types/board";
 import {
   clearTaskFilter,
-  COMPLETION_STATUSES,
-  DUE_STATUSES,
   isTaskFilterActive,
   taskFilterCount,
   type TaskCompletionStatus,
   type TaskDueStatus,
   type TaskFilter,
 } from "@/lib/taskFilter";
+import {
+  describeAssigneeSelection,
+  describeLabelSelection,
+  filterOptionHint,
+  isAssigneeFilterActive,
+  isLabelFilterActive,
+  matchLabelsByQuery,
+  matchMembersByQuery,
+  normalizeFilterQuery,
+  sortLabelsByName,
+  toggleFilterAssignee,
+  toggleFilterCompletion,
+  toggleFilterDueStatus,
+  toggleFilterLabel,
+  toggleFilterPriority,
+  toggleNoAssignees,
+  toggleNoLabels,
+  updateTaskFilter,
+} from "@/lib/taskFilterPopover";
 
 interface TaskFilterPopoverProps {
   filter: TaskFilter;
@@ -51,24 +68,6 @@ const HEADING_CLASS =
 /** Controls nest one indent step in from their heading. */
 const CONTROL_INDENT = "px-1.5 pl-4";
 
-/** Summarises a selection as "Lee" / "Lee +2". */
-function namedSelection(
-  values: string[],
-  nameFor: (value: string) => string,
-): string {
-  if (values.length === 0) return "All";
-  const [first, ...rest] = values;
-  const name = nameFor(first);
-  return rest.length === 0 ? name : `${name} +${rest.length}`;
-}
-
-/** Workspace members are only ever available as emails, so the local part stands in for a name. */
-function assigneeName(email: string): string {
-  const local = email.split("@")[0] ?? email;
-  if (!local) return email;
-  return local.charAt(0).toUpperCase() + local.slice(1);
-}
-
 /** Visible text per option for the metadata filter rows. */
 const PRIORITY_OPTION_LABEL: Record<TaskPriority, string> = {
   none: "None",
@@ -85,13 +84,6 @@ const COMPLETION_OPTION_LABEL: Record<TaskCompletionStatus, string> = {
   completed: "Completed",
   active: "Active",
 };
-
-/** Toggles one value in a metadata group's selection list. */
-function toggleEnumValue<T>(selected: T[], value: T): T[] {
-  return selected.includes(value)
-    ? selected.filter((entry) => entry !== value)
-    : [...selected, value];
-}
 
 /** One selectable chip. Stays a DropdownMenuCheckboxItem so Base UI's arrow-key navigation still reaches it. */
 function FilterChip({
@@ -207,47 +199,29 @@ export function TaskFilterPopover({
   const activeCount = taskFilterCount(filter);
   const filterActive = isTaskFilterActive(filter);
 
-  const assigneeActive =
-    filter.hasNoAssignees || filter.assigneeEmails.length > 0;
-  const labelActive = filter.hasNoLabels || filter.labelNames.length > 0;
+  const assigneeActive = isAssigneeFilterActive(filter);
+  const labelActive = isLabelFilterActive(filter);
 
-  const assigneeSummary = filter.hasNoAssignees
-    ? "Unassigned"
-    : namedSelection(filter.assigneeEmails, assigneeName);
-  const labelSummary = filter.hasNoLabels
-    ? "No labels"
-    : namedSelection(filter.labelNames, (name) => name);
+  const assigneeSummary = describeAssigneeSelection(filter);
+  const labelSummary = describeLabelSelection(filter);
 
-  const sortedLabels = useMemo(
-    () => [...labels].sort((a, b) => a.name.localeCompare(b.name)),
-    [labels],
-  );
+  const sortedLabels = useMemo(() => sortLabelsByName(labels), [labels]);
 
   // How many choices each submenu actually holds, so the row can advertise its contents without being opened.
-  const assigneeHint = isLoadingMembers
-    ? "Loading…"
-    : `${members.length} ${members.length === 1 ? "member" : "members"}`;
-  const labelHint = `${sortedLabels.length} ${sortedLabels.length === 1 ? "label" : "labels"}`;
+  const assigneeHint = isLoadingMembers ? "Loading…" : filterOptionHint(members.length, "member");
+  const labelHint = filterOptionHint(sortedLabels.length, "label");
 
   // Trello-style search narrows the visible label/member options but never mutates existing selections.
   const rawQuery = filter.query.trim();
-  const query = rawQuery.toLowerCase();
+  const query = normalizeFilterQuery(filter.query);
   const isSearching = query.length > 0;
   const visibleLabels = useMemo(
-    () =>
-      isSearching
-        ? sortedLabels.filter((l) => l.name.toLowerCase().includes(query))
-        : sortedLabels,
-    [sortedLabels, isSearching, query],
+    () => matchLabelsByQuery(sortedLabels, query),
+    [sortedLabels, query],
   );
   const visibleMembers = useMemo(
-    () => {
-      const all = membersQuery.data ?? [];
-      return isSearching
-        ? all.filter((m) => m.email.toLowerCase().includes(query))
-        : all;
-    },
-    [membersQuery.data, isSearching, query],
+    () => matchMembersByQuery(membersQuery.data ?? [], query),
+    [membersQuery.data, query],
   );
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -267,47 +241,35 @@ export function TaskFilterPopover({
   }
 
   function update(patch: Partial<TaskFilter>) {
-    onChange({ ...filter, ...patch });
+    onChange(updateTaskFilter(filter, patch));
   }
 
   function toggleAssignee(email: string) {
-    const has = filter.assigneeEmails.includes(email);
-    update({
-      assigneeEmails: has
-        ? filter.assigneeEmails.filter((e) => e !== email)
-        : [...filter.assigneeEmails, email],
-      hasNoAssignees: false,
-    });
+    onChange(toggleFilterAssignee(filter, email));
   }
 
-  function toggleNoAssignees() {
-    update({ hasNoAssignees: !filter.hasNoAssignees, assigneeEmails: [] });
+  function toggleNoAssigneesRow() {
+    onChange(toggleNoAssignees(filter));
   }
 
   function toggleLabel(name: string) {
-    const has = filter.labelNames.includes(name);
-    update({
-      labelNames: has
-        ? filter.labelNames.filter((n) => n !== name)
-        : [...filter.labelNames, name],
-      hasNoLabels: false,
-    });
+    onChange(toggleFilterLabel(filter, name));
   }
 
-  function toggleNoLabels() {
-    update({ hasNoLabels: !filter.hasNoLabels, labelNames: [] });
+  function toggleNoLabelsRow() {
+    onChange(toggleNoLabels(filter));
   }
 
   function togglePriority(value: TaskPriority) {
-    update({ priorities: toggleEnumValue(filter.priorities, value) });
+    onChange(toggleFilterPriority(filter, value));
   }
 
   function toggleDueStatus(value: TaskDueStatus) {
-    update({ dueStatuses: toggleEnumValue(filter.dueStatuses, value) });
+    onChange(toggleFilterDueStatus(filter, value));
   }
 
   function toggleCompletion(value: TaskCompletionStatus) {
-    update({ completion: toggleEnumValue(filter.completion, value) });
+    onChange(toggleFilterCompletion(filter, value));
   }
 
   // "Any" on a chip row clears that group.
@@ -406,7 +368,7 @@ export function TaskFilterPopover({
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={filter.hasNoAssignees}
-                onCheckedChange={toggleNoAssignees}
+                onCheckedChange={toggleNoAssigneesRow}
                 closeOnClick={false}
               >
                 <span className="text-sm">Unassigned</span>
@@ -467,7 +429,7 @@ export function TaskFilterPopover({
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={filter.hasNoLabels}
-                onCheckedChange={toggleNoLabels}
+                onCheckedChange={toggleNoLabelsRow}
                 closeOnClick={false}
               >
                 <span className="text-sm">No labels</span>

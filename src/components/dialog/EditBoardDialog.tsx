@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { useBoards } from "@/hooks/useBoards";
+import { reportMutationError } from "@/lib/httpStatus";
 import type { Board } from "@/types/board";
 
 interface EditBoardDialogProps {
@@ -71,7 +72,7 @@ export function EditBoardDialog({
       setOpen(false);
     } catch (err) {
       setError("Failed to update board. Please try again.");
-      console.error("Update board failed:", err);
+      reportMutationError("Update board failed", err);
     }
   }
 
