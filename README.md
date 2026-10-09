@@ -15,7 +15,7 @@ It consumes the Go Kanban API over JSON.
 | Forms & schema | react-hook-form + zod                                               |
 | Drag & drop    | @dnd-kit/react (columns and tasks)                                  |
 | UI kit         | @base-ui/react + shadcn `ui/` primitives, lucide-react icons, motion |
-| HTTP           | axios (cookie credentials via `withCredentials`)                    |
+| HTTP           | axios (Supabase Auth Bearer token)                                  |
 
 ## Requirements
 
@@ -34,13 +34,43 @@ Create a `.env` file at the repository root (it is gitignored and never committe
 
 ```env
 VITE_API_URL=http://localhost:3000
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 ```
 
 `VITE_API_URL` is read by the axios client (`src/lib/api/axios.ts`) and used
-verbatim as the base URL — the backend serves all routes from the root (there
-is no `/api/v1` prefix), so point it directly at the server root. Auth is
-cookie-based (HTTP-only cookie), which is why the client sets
-`withCredentials: true`.
+verbatim as the base URL. Supabase Auth manages the browser session and axios
+sends its access token as an `Authorization: Bearer` header to the Go API.
+
+The password-reset email returns to `/auth/reset-password`. Add the local and
+production URLs (for example, `http://localhost:5173/auth/reset-password`) to
+the Supabase project's **Authentication → URL Configuration → Redirect URLs**.
+
+### Password-reset email delivery
+
+`resetPasswordForEmail` returning successfully (and an Auth `/recover` log with
+status `200`) means Supabase accepted the request; it does not guarantee that
+an email reached the recipient. Before testing password reset:
+
+1. In **Authentication → Providers → Email**, enable email/password auth.
+2. In **Authentication → SMTP Settings**, configure a custom SMTP provider for
+   recipients outside the Supabase project team. The built-in Supabase email
+   service is intended for testing, is heavily rate-limited, and can silently
+   fail to deliver to arbitrary recipients.
+3. In **Authentication → Email Templates → Reset Password**, verify the
+   template is enabled and check that the sender address/domain is valid.
+4. Check the provider's delivery logs and the recipient's spam folder.
+
+The application intentionally shows a generic success message after the
+request, so it does not reveal whether an email address belongs to an account.
+
+If signup fails with `POST /auth/v1/signup` and HTTP `500`, inspect the
+Supabase Auth log's `error`/`msg` field. Messages such as `Error sending
+confirmation email` or `Database error saving new user` indicate a Supabase
+project configuration/service problem, not an API request from this frontend:
+verify custom SMTP credentials and sender/domain settings, then retry after
+checking the SMTP provider logs. The publishable key and URL in the frontend
+must also belong to the same Supabase project.
 
 ## Development
 
@@ -97,7 +127,8 @@ responses use `snake_case`; these modules map them to the `camelCase` types in
 
 | Path                          | Page              |
 | ----------------------------- | ----------------- |
-| `/auth`                       | login / register  |
+| `/auth`                       | login / register / request password reset |
+| `/auth/reset-password`        | choose a new password from an email link |
 | `/workspaces`                 | all workspaces   |
 | `/workspaces/:workspaceId`    | workspace boards |
 | `/boards/:boardId`            | kanban board     |

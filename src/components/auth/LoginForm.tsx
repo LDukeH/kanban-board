@@ -14,7 +14,7 @@ import { describeAuthFormError } from "@/lib/httpStatus";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface LoginFormProps {
-  onNavigate: (target: "login" | "register") => void;
+  onNavigate: (target: "login" | "register" | "forgot") => void;
 }
 
 export default function LoginForm({ onNavigate }: LoginFormProps) {
@@ -79,6 +79,13 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="login-password">Password</Label>
+            <button
+              type="button"
+              onClick={() => onNavigate("forgot")}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Forgot password?
+            </button>
           </div>
           <div className="relative">
             <Input

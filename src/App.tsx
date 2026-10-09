@@ -5,6 +5,7 @@ import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { GuestRoute } from "@/routes/GuestRoute";
 
 const AuthPage = lazy(() => import("@/pages/AuthPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
 const WorkspacesPage = lazy(() => import("@/pages/WorkspacesPage"));
 const WorkspacePage = lazy(() => import("@/pages/WorkspacePage"));
 const BoardPage = lazy(() => import("@/pages/BoardPage"));
@@ -26,6 +27,7 @@ function App() {
         <Route element={<GuestRoute />}>
           <Route path="/auth" element={<AuthPage />} />
         </Route>
+        <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/settings" element={<SettingsPage />} />

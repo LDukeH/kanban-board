@@ -1,6 +1,7 @@
 import { AxiosHeaders } from "axios";
 import { api } from "@/lib/api/axios";
 import { getCurrentUser, deleteAccount as deleteCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
+import { supabase } from "@/lib/supabase";
 import { uniqueEmail, uniquePassword } from "./uniq";
 
 export interface LiveAccount {
@@ -75,6 +76,7 @@ export async function actingAs<T>(
 /** Drops the local session (unauthenticated state, as after a fresh boot). */
 export function clearSession(): void {
   jar.token = "";
+  void supabase.auth.signOut();
 }
 
 /** Posts /auth/logout and drops the local session. */
