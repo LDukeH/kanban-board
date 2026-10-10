@@ -1,0 +1,10 @@
+# Local Supabase configuration.
+# Set SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET before running `supabase start`.
+# Replace the client_id with the Google OAuth Web client ID. If multiple client
+# IDs are required, keep the web client ID first and separate values with commas.
+
+[auth.external.google]
+enabled = true
+client_id = "<google-web-client-id>"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false

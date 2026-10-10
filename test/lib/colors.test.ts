@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getGradient } from "@/lib/colors";
+import { getGradient, getLabelContrastText, LABEL_COLORS } from "@/lib/colors";
 
 const KNOWN_GRADIENTS = [
   "from-emerald-500 to-teal-600",
@@ -21,6 +21,38 @@ describe("getGradient", () => {
   it("always returns one of the known gradient classes", () => {
     for (let i = 0; i < 100; i += 1) {
       expect(KNOWN_GRADIENTS).toContain(getGradient(`seed-${i}`));
+    }
+  });
+});
+
+describe("getLabelContrastText", () => {
+  it("uses dark text on bright label colors", () => {
+    expect(getLabelContrastText("#f5c518")).toBe("#000000");
+    expect(getLabelContrastText("#f4881f")).toBe("#000000");
+    expect(getLabelContrastText("#ffffff")).toBe("#000000");
+  });
+
+  it("uses white text on saturated/dark label colors", () => {
+    expect(getLabelContrastText("#e11941")).toBe("#ffffff");
+    expect(getLabelContrastText("#0cb64e")).toBe("#ffffff");
+    expect(getLabelContrastText("#0ca0d9")).toBe("#ffffff");
+    expect(getLabelContrastText("#5a67d8")).toBe("#ffffff");
+    expect(getLabelContrastText("#000000")).toBe("#ffffff");
+  });
+
+  it("handles short hex and missing hash", () => {
+    expect(getLabelContrastText("#fff")).toBe("#000000");
+    expect(getLabelContrastText("000")).toBe("#ffffff");
+  });
+
+  it("falls back to white for empty/invalid input", () => {
+    expect(getLabelContrastText("")).toBe("#ffffff");
+    expect(getLabelContrastText("not-a-color")).toBe("#ffffff");
+  });
+
+  it("returns a readable color for every built-in label color", () => {
+    for (const color of LABEL_COLORS) {
+      expect(["#000000", "#ffffff"]).toContain(getLabelContrastText(color));
     }
   });
 });

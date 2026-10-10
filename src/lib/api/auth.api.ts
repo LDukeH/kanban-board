@@ -59,7 +59,20 @@ function mapUser(raw: UserApiResponse): User {
 
 export const getCurrentUser = async (): Promise<User> => {
   const response = await api.get<UserApiResponse>("/auth/me");
-  return mapUser(response.data);
+  const mapped = mapUser(response.data);
+  const { data } = await supabase.auth.getUser();
+  const metadata = data.user?.user_metadata ?? {};
+  return {
+    ...mapped,
+    displayName: String(
+      metadata.display_name ?? metadata.full_name ?? metadata.name ?? "",
+    ),
+    avatarUrl: String(metadata.avatar_url ?? metadata.picture ?? ""),
+  };
+};
+
+export const syncAuthUser = async (): Promise<void> => {
+  await api.post("/auth/sync");
 };
 
 export const registerUser = async (
@@ -87,7 +100,7 @@ export const registerUser = async (
   if (!result.session) {
     return { requiresEmailConfirmation: true };
   }
-  await api.post("/auth/sync");
+  await syncAuthUser();
   return { requiresEmailConfirmation: false };
 };
 
@@ -98,25 +111,73 @@ export const loginUser = async (data: LoginFormSchema, captchaToken: string) => 
     options: { captchaToken },
   });
   if (error) throw normalizeAuthError(error);
-  await api.post("/auth/sync");
+  await syncAuthUser();
 };
+
+export const loginWithGoogle = async (): Promise<void> => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${window.location.origin}/auth` },
+  });
+  if (error) throw normalizeAuthError(error);
+};
+
+/** Shared Supabase `/recover` call: emails `email` a link back to `/auth/reset-password`. */
+async function sendPasswordResetEmail(
+  email: string,
+  captchaToken?: string,
+): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+      ...(captchaToken ? { captchaToken } : {}),
+    },
+  );
+  if (error) throw normalizeAuthError(error);
+}
 
 export const requestPasswordReset = async (
   data: ForgotPasswordFormSchema,
   captchaToken: string,
+): Promise<void> => sendPasswordResetEmail(data.email, captchaToken);
+
+/**
+ * Sends the reset link to the address on the signed-in user (Settings →
+ * Security). `captchaToken` stays optional so the first attempt can go out
+ * without a challenge; callers retry with a token only when Supabase's bot
+ * protection rejects the request.
+ */
+export const sendPasswordResetToCurrentUser = async (
+  captchaToken?: string,
 ): Promise<void> => {
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    data.email.trim().toLowerCase(),
-    {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-      captchaToken,
-    },
-  );
+  const { data, error } = await supabase.auth.getUser();
   if (error) throw normalizeAuthError(error);
+  const email = data.user?.email;
+  if (!email) {
+    throw normalizeAuthError({
+      message: "This account has no email address to send a reset link to.",
+      status: 400,
+    });
+  }
+  await sendPasswordResetEmail(email, captchaToken);
 };
 
 export const updatePassword = async (password: string): Promise<void> => {
   const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw normalizeAuthError(error);
+};
+
+export const updateProfile = async (profile: {
+  displayName: string;
+  avatarUrl?: string;
+}): Promise<void> => {
+  const { error } = await supabase.auth.updateUser({
+    data: {
+      display_name: profile.displayName.trim(),
+      ...(profile.avatarUrl !== undefined && { avatar_url: profile.avatarUrl }),
+    },
+  });
   if (error) throw normalizeAuthError(error);
 };
 

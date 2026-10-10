@@ -1,5 +1,6 @@
 import {
   descriptionsEqual,
+  getDescriptionPreview,
   isTaskDescriptionDoc,
   textToTaskDescription,
   type TaskDescription,
@@ -39,7 +40,12 @@ export function normalizeSnapshotDescription(
   if (typeof description === "string") {
     return description.trim() ? textToTaskDescription(description) : undefined;
   }
-  if (isTaskDescriptionDoc(description)) return description;
+  if (isTaskDescriptionDoc(description)) {
+    // Tiptap re-serializes docs (empty paragraphs, missing content arrays),
+    // so normalize through text: identical visible content must compare equal.
+    const preview = getDescriptionPreview(description);
+    return preview ? textToTaskDescription(preview) : undefined;
+  }
   return undefined;
 }
 

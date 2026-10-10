@@ -10,6 +10,7 @@ import {
   describeColumnMoveError,
   describeLoadError,
   describeTaskMoveError,
+  getHttpStatus,
   reportMutationError,
 } from "@/lib/httpStatus";
 import {
@@ -43,6 +44,7 @@ import { useBoardSummary } from "@/hooks/useBoardSummary";
 import { useRecentStore } from "@/stores/recentStore";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import {
+  clearTaskFilter,
   filterFromSearchParams,
   filterToSearchParams,
   isTaskFilterActive,
@@ -202,7 +204,8 @@ function BoardContent({ boardId }: { boardId: string }) {
     };
     showDrained();
     window.addEventListener(STALE_MOVE_NOTICE_EVENT, showDrained);
-    return () => window.removeEventListener(STALE_MOVE_NOTICE_EVENT, showDrained);
+    return () =>
+      window.removeEventListener(STALE_MOVE_NOTICE_EVENT, showDrained);
   }, [boardId]);
 
   const updateTaskFilter = useCallback(
@@ -240,8 +243,37 @@ function BoardContent({ boardId }: { boardId: string }) {
   const { updateTaskPosition } = useColumnTasks(boardId, undefined);
   const workspace = workspaces.find((w) => w.id === board?.workspaceId);
 
-  const { recordBoard, recordWorkspace } = useRecentStore();
+  const {
+    recordBoard,
+    recordWorkspace,
+    forgetWorkspace,
+    recentBoards,
+  } = useRecentStore();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
+
+  useEffect(() => {
+    const status = getHttpStatus(boardError ?? columnsError);
+    if (status !== 403 && status !== 404) return;
+
+    const lostWorkspaceId =
+      board?.workspaceId ??
+      recentBoards.find((recentBoard) => recentBoard.id === boardId)?.workspaceId;
+    if (lostWorkspaceId) {
+      forgetWorkspace(lostWorkspaceId);
+    }
+    navigate("/workspaces", {
+      replace: true,
+      state: { notice: "You no longer have access to this workspace." },
+    });
+  }, [
+    board?.workspaceId,
+    boardError,
+    boardId,
+    columnsError,
+    forgetWorkspace,
+    navigate,
+    recentBoards,
+  ]);
 
   // Remember this board (and its workspace) as recently accessed for the sidebar.
   useEffect(() => {
@@ -484,29 +516,52 @@ function BoardContent({ boardId }: { boardId: string }) {
         />
       </div>
 
-      {/* Toolbar directly above the columns: Filters and Labels moved here from the header and restyled as ghost buttons. */}
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 px-6 pt-2">
-        <TaskFilterPopover
-          filter={taskFilter}
-          onChange={updateTaskFilter}
-          boardId={boardId}
-          workspaceId={board?.workspaceId}
-          matchedCount={matchedTaskCount}
-          totalCount={boardTasks.length}
-          isLoadingCount={boardSummary.isLoadingSummary}
-        />
+      {/* Toolbar directly above the columns: a reserved slot on the left holds the
+          "reordering paused" notice so Filters/Labels on the right never shift. */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-6 pt-2">
+        <div
+          aria-live="polite"
+          className="flex min-h-8 min-w-0 flex-1 items-center"
+        >
+          {filterActive && canUseTasks ? (
+            <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-control bg-muted px-2 py-1 font-medium">
+                <Info className="size-3.5" aria-hidden />
+                Reordering paused
+              </span>
+              <button
+                type="button"
+                onClick={() => updateTaskFilter(clearTaskFilter())}
+                className="shrink-0 rounded-control px-1.5 py-0.5 font-medium text-primary outline-none transition-colors hover:bg-primary/10 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Clear filters
+              </button>
+            </span>
+          ) : (
+            // Invisible placeholder keeps the toolbar height and the Filters/Labels position stable.
+            <span
+              aria-hidden
+              className="invisible inline-flex items-center gap-1.5 px-2 py-1 text-xs"
+            >
+              <Info className="size-3.5" />
+              Reordering paused
+            </span>
+          )}
+        </div>
 
-        <BoardLabelsPopover boardId={boardId} />
+        <div className="flex shrink-0 items-center gap-1">
+          <TaskFilterPopover
+            filter={taskFilter}
+            onChange={updateTaskFilter}
+            boardId={boardId}
+            workspaceId={board?.workspaceId}
+            matchedCount={matchedTaskCount}
+            totalCount={boardTasks.length}
+            isLoadingCount={boardSummary.isLoadingSummary}
+          />
 
-        {filterActive && canUseTasks && (
-          <span
-            className="ml-1 inline-flex items-center gap-1.5 rounded-control bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
-            title="Clear the task filter to drag tasks into a new order."
-          >
-            <Info className="size-3.5" aria-hidden />
-            Reordering paused
-          </span>
-        )}
+          <BoardLabelsPopover boardId={boardId} />
+        </div>
       </div>
 
       <DragDropProvider

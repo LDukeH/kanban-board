@@ -4,10 +4,11 @@ import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog
 import { InvitationInbox } from "@/components/invitations/InvitationInbox";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useWorkspaceStore } from "@/stores/workspaceStore";
 import { Plus, Loader2, LayoutGrid } from "lucide-react";
 import type { Workspace } from "@/types/workspace";
+import { InlineAlert } from "@/components/ui/inline-alert";
 
 
 function WorkspaceCardWithAccess({
@@ -34,7 +35,9 @@ function WorkspaceCardWithAccess({
 export default function WorkspacesPage() {
   const { workspaces, isLoading, isError } = useWorkspaces();
   const navigate = useNavigate();
+  const location = useLocation();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
+  const notice = (location.state as { notice?: string } | null)?.notice;
 
   function openWorkspace(id: string) {
     setSelectedWorkspaceId(id);
@@ -61,6 +64,7 @@ export default function WorkspacesPage() {
       </header>
 
       <div className="flex-1 p-6">
+        {notice && <InlineAlert message={notice} className="mb-6" />}
         {/* The inbox renders nothing unless there is an invitation awaiting a
             decision, so it costs no chrome on the common path. */}
         <InvitationInbox className="mb-6" />

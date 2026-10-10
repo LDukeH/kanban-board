@@ -6,6 +6,7 @@ import {
   describeMutationError,
   describeTaskMoveError,
   getHttpStatus,
+  isCaptchaError,
   isConflictError,
   isNotFoundError,
   isStaleError,
@@ -121,6 +122,30 @@ describe("describeAuthFormError", () => {
     ).toBe("Invalid email or password. Please try again.");
   });
 
+  it("maps a Supabase 400 sign-in error to invalid credentials", () => {
+    expect(
+      describeAuthFormError(
+        { status: 400, message: "Invalid login credentials" },
+        "Sign in",
+      ),
+    ).toBe("Invalid email or password. Please try again.");
+  });
+
+  it("reports captcha verification failures separately", () => {
+    expect(
+      describeAuthFormError(
+        {
+          status: 400,
+          code: "captcha_failed",
+          message: "Captcha verification failed",
+        },
+        "Sign in",
+      ),
+    ).toBe(
+      "hCaptcha verification failed. Add this host to the hCaptcha site key or complete the challenge again.",
+    );
+  });
+
   it("maps 409 to an existing-account message", () => {
     expect(
       describeAuthFormError(
@@ -146,6 +171,20 @@ describe("describeAuthFormError", () => {
         "Create account",
       ),
     ).toBe("Email already taken");
+  });
+});
+
+describe("isCaptchaError", () => {
+  it("flags captcha failures by message or code, case-insensitively", () => {
+    expect(isCaptchaError({ message: "Captcha verification failed" })).toBe(true);
+    expect(isCaptchaError({ message: "hCaptcha required" })).toBe(true);
+    expect(isCaptchaError({ code: "CAPTCHA_FAILED", message: "boom" })).toBe(true);
+  });
+
+  it("does not flag unrelated auth errors", () => {
+    expect(isCaptchaError({ message: "Invalid login credentials" })).toBe(false);
+    expect(isCaptchaError(new Error("boom"))).toBe(false);
+    expect(isCaptchaError(null)).toBe(false);
   });
 });
 

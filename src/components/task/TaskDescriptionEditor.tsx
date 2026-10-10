@@ -25,6 +25,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { TaskDescription } from "@/lib/description";
+import { getDescriptionPreview, textToTaskDescription } from "@/lib/description";
 import { TaskRichTextToolbar } from "@/components/task/TaskRichTextToolbar";
 
 const EMPTY_DOC: TaskDescription = { type: "doc" };
@@ -32,6 +33,16 @@ const EMPTY_DOC: TaskDescription = { type: "doc" };
 function normalizeDoc(description: TaskDescription | undefined): TaskDescription {
   if (description && description.type === "doc") return description;
   return EMPTY_DOC;
+}
+
+/**
+ * Normalizes editor JSON to the dialog's draft shape (same as
+ * normalizeSnapshotDescription): Tiptap re-serializes docs with empty
+ * paragraphs, so seeding/capturing raw JSON would flag a clean dialog dirty.
+ */
+function toDraftDoc(doc: TaskDescription | undefined): TaskDescription | undefined {
+  const preview = getDescriptionPreview(doc);
+  return preview ? textToTaskDescription(preview) : undefined;
 }
 
 interface TaskDescriptionEditorProps {
@@ -90,7 +101,10 @@ export function TaskDescriptionEditor({
       content: normalizeDoc(draftDescription ?? description),
       editable: editing && !disabled,
       onUpdate: ({ editor: updated }) => {
-        onDraftChangeRef.current(updated.getJSON() as TaskDescription);
+        const next = updated.getJSON() as TaskDescription;
+        onDraftChangeRef.current(
+          (toDraftDoc(next) ?? normalizeDoc(description)) as TaskDescription,
+        );
       },
       editorProps: {
         attributes: {
@@ -125,14 +139,20 @@ export function TaskDescriptionEditor({
     if (disabled) return;
     // Seed the draft with the current content on entry; a no-op unless the user previously cancelled.
     if (editor) {
-      onDraftChangeRef.current(editor.getJSON() as TaskDescription);
+      const seed = editor.getJSON() as TaskDescription;
+      onDraftChangeRef.current(
+        (toDraftDoc(seed) ?? normalizeDoc(description)) as TaskDescription,
+      );
     }
     onEditingChange(true);
   }
 
   function handleCaptureDraft() {
     if (editor) {
-      onDraftChangeRef.current(editor.getJSON() as TaskDescription);
+      const captured = editor.getJSON() as TaskDescription;
+      onDraftChangeRef.current(
+        (toDraftDoc(captured) ?? normalizeDoc(description)) as TaskDescription,
+      );
     }
   }
 

@@ -14,7 +14,7 @@ import { useRecentStore } from "@/stores/recentStore";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { useNavigate, useLocation } from "react-router-dom";
-import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { emailInitial, avatarGradient, avatarSeed } from "@/lib/memberDisplay";
 import { getBoardColor } from "@/lib/colors";
 
 interface SidebarProps {
@@ -212,20 +212,27 @@ export function Sidebar({ className }: SidebarProps) {
           type="button"
           onClick={() => navigate("/settings")}
           className="flex w-full items-center gap-3 rounded-control border-l-2 border-transparent px-2 py-1.5 text-left text-sm font-medium text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-          aria-label={`Account${user?.email ? `: ${user.email}` : ""}`}
-          title={user?.email ?? "Account"}
+          aria-label={`Account${user?.displayName || user?.email ? `: ${user.displayName || user.email}` : ""}`}
+          title={user?.displayName || user?.email || "Account"}
         >
           <span
             className={cn(
-              "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white",
-              avatarGradient(user?.id ?? user?.email ?? ""),
+              "flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br text-xs font-semibold text-white",
+              !user?.avatarUrl && avatarGradient(avatarSeed({ email: user?.email })),
             )}
-            aria-hidden
           >
-            {emailInitial(user?.email ?? "?")}
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt=""
+                className="size-full object-cover"
+              />
+            ) : (
+              emailInitial(user?.displayName || user?.email || "?")
+            )}
           </span>
           <span className="min-w-0 flex-1 truncate">
-            {user?.email ?? "Account"}
+            {user?.displayName || user?.email || "Account"}
           </span>
         </button>
 

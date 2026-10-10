@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import {
   emailInitial,
   emailToHandle,
-  avatarGradient,
+  avatarGradient, avatarSeed,
 } from "@/lib/memberDisplay";
 import type { WorkspaceMember } from "@/types/workspace";
 
@@ -156,7 +156,7 @@ export function TransferWorkspaceOwnershipDialog({
                       <span
                         className={cn(
                           "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-                          avatarGradient(member.userId || member.email),
+                          avatarGradient(avatarSeed(member)),
                         )}
                       >
                         {emailInitial(member.email)}

@@ -11,6 +11,7 @@ import {
   emailInitial,
   emailToHandle,
   avatarGradient,
+  avatarSeed,
 } from "@/lib/memberDisplay";
 
 /** How many avatar circles are shown before collapsing into "+N". */
@@ -78,7 +79,7 @@ function AvatarCircle({
       title={assignee.email}
       className={cn(
         "relative flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white ring-2 ring-background",
-        avatarGradient(assignee.user_id || assignee.email),
+        avatarGradient(avatarSeed(assignee)),
         className,
       )}
     >

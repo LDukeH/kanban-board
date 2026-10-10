@@ -17,7 +17,7 @@ import {
   selectPendingInvitations,
   type PendingInvitation,
 } from "@/lib/pendingInvitations";
-import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { emailInitial, avatarGradient, avatarSeed } from "@/lib/memberDisplay";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { describeMutationError, getHttpStatus } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
@@ -185,7 +185,7 @@ export function InvitationInbox({ className }: { className?: string }) {
               <div
                 className={cn(
                   "flex size-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-xs font-semibold text-white",
-                  avatarGradient(invitation.actorEmail),
+                  avatarGradient(avatarSeed({ email: invitation.actorEmail })),
                 )}
               >
                 {emailInitial(invitation.actorEmail)}

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   emailInitial,
   emailToHandle,
-  avatarGradient,
+  avatarGradient, avatarSeed,
 } from "@/lib/memberDisplay";
 
 interface EditTaskAssigneePickerProps {
@@ -166,7 +166,7 @@ return (
                 <span
                   className={cn(
                     "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-                    avatarGradient(member.userId || member.email),
+                    avatarGradient(avatarSeed(member)),
                   )}
                 >
                   {emailInitial(member.email)}

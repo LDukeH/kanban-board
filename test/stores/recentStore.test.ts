@@ -125,6 +125,31 @@ describe("forget", () => {
     expect(useRecentStore.getState().recentBoards.map((b) => b.id)).toEqual(["b-1"]);
   });
 
+  describe("reconcile", () => {
+    it("removes workspaces and boards that are no longer memberships", () => {
+      useRecentStore.getState().setScope(scopeUser);
+      recordWorkspace("ws-kept", "Old name");
+      recordWorkspace("ws-removed", "Removed");
+      recordBoard("kept-board", "ws-kept");
+      recordBoard("removed-board", "ws-removed");
+
+      useRecentStore.getState().reconcileWorkspaces([
+        { id: "ws-kept", name: "Current name" },
+      ]);
+
+      expect(useRecentStore.getState().recentWorkspaces).toEqual([
+        { id: "ws-kept", name: "Current name" },
+      ]);
+      expect(useRecentStore.getState().recentBoards).toEqual([
+        { id: "kept-board", name: "kept-board", workspaceId: "ws-kept" },
+      ]);
+      const stored = readRawStorage("local", `kanban-recent:${scopeUser}`);
+      expect(JSON.parse(stored!).recentWorkspaces).toEqual([
+        { id: "ws-kept", name: "Current name" },
+      ]);
+    });
+  });
+
   it("forgetBoard removes only the requested board", () => {
     useRecentStore.getState().setScope(scopeUser);
     recordBoard("a-1", "ws-a");

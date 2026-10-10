@@ -36,7 +36,6 @@ export function CreateTaskDialog({
   const [priority, setPriority] = useState<TaskPriority>("none");
   /** "YYYY-MM-DD" from <input type="date">, or "" for no due date. */
   const [dueDate, setDueDate] = useState("");
-  const [completed, setCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function handleOpenChange(nextOpen: boolean) {
@@ -45,7 +44,6 @@ export function CreateTaskDialog({
       setDescription("");
       setPriority("none");
       setDueDate("");
-      setCompleted(false);
       setError(null);
     }
     setOpen(nextOpen);
@@ -66,14 +64,13 @@ export function CreateTaskDialog({
           : undefined,
         priority,
         // An empty date input means "no due date"; null stores NULL on create.
+        // New tasks always start incomplete; completion is toggled from the card circle.
         dueDate: dueDate || null,
-        completed,
       });
       setTitle("");
       setDescription("");
       setPriority("none");
       setDueDate("");
-      setCompleted(false);
       setOpen(false);
     } catch (err) {
       setError("Failed to create task. Please try again.");
@@ -150,25 +147,14 @@ export function CreateTaskDialog({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex min-w-44 flex-1 flex-col gap-2">
-              <Label htmlFor="task-due-date">Due date (optional)</Label>
-              <Input
-                id="task-due-date"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-            <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
-              <input
-                type="checkbox"
-                checked={completed}
-                onChange={(e) => setCompleted(e.target.checked)}
-                className="size-4 accent-primary"
-              />
-              Mark as completed
-            </label>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="task-due-date">Due date (optional)</Label>
+            <Input
+              id="task-due-date"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}

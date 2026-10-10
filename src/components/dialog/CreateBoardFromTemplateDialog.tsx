@@ -41,9 +41,13 @@ export function CreateBoardFromTemplateDialog({
 
   const [open, setOpen] = useState(false);
   // Defaults are optional so an empty preset list degrades to an explicit "no templates" state instead of crashing on BOARD_TEMPLATES[0].
-  const [selectedId, setSelectedId] = useState<string>(FIRST_TEMPLATE?.id ?? "");
+  const [selectedId, setSelectedId] = useState<string>(
+    FIRST_TEMPLATE?.id ?? "",
+  );
   const [name, setName] = useState(FIRST_TEMPLATE?.name ?? "");
-  const [description, setDescription] = useState(FIRST_TEMPLATE?.description ?? "");
+  const [description, setDescription] = useState(
+    FIRST_TEMPLATE?.description ?? "",
+  );
   const [error, setError] = useState<string | null>(null);
   // Set only when the board was created but some template rows were not; the dialog then stays open so the outcome cannot be missed.
   const [outcome, setOutcome] = useState<TemplateOutcome | null>(null);
@@ -70,9 +74,7 @@ export function CreateBoardFromTemplateDialog({
       previous && current === previous.name ? next.name : current,
     );
     setDescription((current) =>
-      previous && current === previous.description
-        ? next.description
-        : current,
+      previous && current === previous.description ? next.description : current,
     );
     setSelectedId(next.id);
   }
@@ -119,14 +121,18 @@ export function CreateBoardFromTemplateDialog({
           )
         }
       />
-      <DialogPopup>
+      {/* Cap the height and scroll the body: the template list makes this dialog tall, and without a bound it would touch the top/bottom of the viewport. */}
+      <DialogPopup className="mt-4 flex max-h-[min(75vh,36rem)] flex-col overflow-hidden">
         <DialogTitle>Create Board from Template</DialogTitle>
         <DialogDescription>
-          Start from a ready-made workflow. Columns and labels are created on the
-          new board for you.
+          Start from a ready-made workflow. Columns and labels are created on
+          the new board for you.
         </DialogDescription>
 
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+        <form
+          onSubmit={handleSubmit}
+          className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1"
+        >
           <div className="flex flex-col gap-2">
             <span className="text-sm font-medium" id="template-picker-label">
               Template

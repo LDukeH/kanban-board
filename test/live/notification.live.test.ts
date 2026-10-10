@@ -77,8 +77,9 @@ describe("live notification API", () => {
       expect(assigned?.payload.taskId).toBe(task.id);
       expect(assigned?.payload.taskTitle).toBe("Notifying task");
 
-      const invited = notifications.find(isWorkspaceInvited);
-      expect(invited?.payload.workspaceId).toBe(chain.workspace.id);
+      // The setup accepted the invitation, so resolved invitation
+      // notifications are intentionally excluded from the notification list.
+      expect(notifications.some(isWorkspaceInvited)).toBe(false);
 
       // Newest first (created_at descending, per §12.3).
       const newestFirst = notifications.every(
