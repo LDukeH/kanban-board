@@ -26,6 +26,8 @@ interface TaskApiResponse {
   completed?: boolean;
   labels?: LabelApiResponse[] | null;
   assignees?: AssigneeApiResponse[] | null;
+  /** Optimistic-concurrency version; optional only so a pre-OCC server still maps — treated as 1. */
+  version?: number;
 }
 
 export interface CreateTaskData {
@@ -44,6 +46,8 @@ export interface UpdateTaskData {
   /** Tri-state on the backend: "YYYY-MM-DD" sets it, null clears it, and omitting the key leaves the stored value unchanged. */
   dueDate?: string | null;
   completed?: boolean;
+  /** OCC version read from cache; required by PATCH /tasks/{id}. */
+  version: number;
 }
 
 /** Maps the camelCase request types onto the snake_case body the API expects (`dueDate` -> `due_date`). */
@@ -58,6 +62,8 @@ function toTaskPayload(
   if (data.priority !== undefined) payload.priority = data.priority;
   if (data.dueDate !== undefined) payload.due_date = data.dueDate;
   if (data.completed !== undefined) payload.completed = data.completed;
+  if ("version" in data && data.version !== undefined)
+    payload.version = data.version;
   return payload;
 }
 
@@ -112,6 +118,14 @@ export const updateTask = async (
 ): Promise<void> => {
   await api.patch(`/tasks/${taskId}`, toTaskPayload(data, data.version));
 };
+
+/** 200 response of PATCH /tasks/{id}/position — the authoritative post-move state, version included. */
+export interface TaskMoveResponse {
+  id: string;
+  column_id: string;
+  position: number;
+  version: number;
+}
 
 export const updateTaskPosition = async (
   taskId: string,

@@ -9,6 +9,8 @@ interface ColumnApiResponse {
   version: number;
   created_at: string;
   updated_at: string;
+  /** Optimistic-concurrency version; optional only so a pre-OCC server still maps — treated as 1. */
+  version?: number;
 }
 
 function mapColumn(raw: ColumnApiResponse): Column {

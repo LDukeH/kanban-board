@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { Check, LayoutTemplate, Loader2 } from "lucide-react";
-import { describeMutationError } from "@/lib/httpStatus";
+import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
 import { useBoardTemplates } from "@/hooks/useBoardTemplates";
 import {
   BOARD_TEMPLATES,
@@ -103,7 +103,7 @@ export function CreateBoardFromTemplateDialog({
     } catch (err) {
       // materializeBoardTemplate only rejects when createBoard rejects, which happens before any column or label call — so nothing was created. describeMutationError keeps 401/403/404 and network failures distinct.
       setError(describeMutationError(err, "Failed to create board."));
-      console.error("Create board from template failed:", err);
+      reportMutationError("Create board from template failed", err);
     }
   }
 

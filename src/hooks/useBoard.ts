@@ -14,14 +14,24 @@ import {
   deleteLabel,
 } from "@/lib/api/label.api";
 import { reorderColumns } from "@/lib/dragDrop";
+import { isStaleError } from "@/lib/httpStatus";
 import type { Column, Label, Task } from "@/types/board";
 
-export function boardLabelsQueryKey(boardId: string): readonly [
-  "boards",
-  string,
-  "labels",
-] {
+export function boardLabelsQueryKey(
+  boardId: string,
+): readonly ["boards", string, "labels"] {
   return ["boards", boardId, "labels"];
+}
+
+const boardMoveGatePromises = new Map<string, Promise<void>>();
+const boardMovePredecessors = new Map<string, Promise<void>>();
+
+function createColumnMoveGate() {
+  let release!: () => void;
+  const settled = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { settled, release };
 }
 
 export function useBoard(boardId: string | undefined) {
@@ -56,7 +66,10 @@ export function useBoard(boardId: string | undefined) {
       .forEach((query) => {
         queryClient.setQueryData<Task[]>(query.queryKey, (old) =>
           old
-            ? old.map((task) => ({ ...task, labels: transform(task.labels ?? []) }))
+            ? old.map((task) => ({
+                ...task,
+                labels: transform(task.labels ?? []),
+              }))
             : old,
         );
       });
@@ -138,12 +151,20 @@ export function useBoard(boardId: string | undefined) {
         });
       }
     },
+    onError: (error) => {
+      if (boardId && isStaleError(error)) {
+        queryClient.invalidateQueries({
+          queryKey: ["boards", boardId, "columns"],
+        });
+      }
+    },
   });
 
   const updateColumnPositionMutation = useMutation({
     mutationFn: ({
       columnId,
       position,
+      version,
     }: {
       columnId: string;
       position: number;
@@ -161,6 +182,13 @@ export function useBoard(boardId: string | undefined) {
       );
     },
     onMutate: async ({ columnId, position }) => {
+      if (boardId) {
+        boardMovePredecessors.set(
+          boardId,
+          boardMoveGatePromises.get(boardId) ?? Promise.resolve(),
+        );
+      }
+
       await queryClient.cancelQueries({
         queryKey: ["boards", boardId, "columns"],
       });
@@ -169,12 +197,25 @@ export function useBoard(boardId: string | undefined) {
         queryClient.getQueryData<Column[]>(["boards", boardId, "columns"]) ??
         [];
 
+      const gate = createColumnMoveGate();
+      if (boardId) boardMoveGatePromises.set(boardId, gate.settled);
+
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
         (old) => (old ? reorderColumns(old, columnId, position) : old),
       );
 
-      return { previousColumns };
+      return { previousColumns, gate };
+    },
+    onSuccess: (updatedColumn) => {
+      // Authoritative response — write position/version back (never a local +1) so a queued second drop reads the fresh version before any refetch lands.
+      queryClient.setQueryData<Column[]>(
+        ["boards", boardId, "columns"],
+        (old) =>
+          old?.map((column) =>
+            column.id === updatedColumn.id ? updatedColumn : column,
+          ) ?? old,
+      );
     },
     onError: (_err, _vars, context) => {
       if (context?.previousColumns) {
@@ -184,10 +225,18 @@ export function useBoard(boardId: string | undefined) {
         );
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({
+    onSettled: async (_data, _error, _variables, context) => {
+      await queryClient.refetchQueries({
         queryKey: ["boards", boardId, "columns"],
       });
+      context?.gate?.release();
+      if (
+        context?.gate &&
+        boardId &&
+        boardMoveGatePromises.get(boardId) === context.gate.settled
+      ) {
+        boardMoveGatePromises.delete(boardId);
+      }
     },
   });
 
@@ -195,9 +244,8 @@ export function useBoard(boardId: string | undefined) {
     mutationFn: (data: { name: string; color: string }) =>
       createLabel(boardId!, data),
     onSuccess: (newLabel) => {
-      queryClient.setQueryData<Label[]>(
-        ["boards", boardId, "labels"],
-        (old) => (old ? [...old, newLabel] : [newLabel]),
+      queryClient.setQueryData<Label[]>(["boards", boardId, "labels"], (old) =>
+        old ? [...old, newLabel] : [newLabel],
       );
     },
   });
@@ -260,9 +308,8 @@ export function useBoard(boardId: string | undefined) {
       const previousLabels =
         queryClient.getQueryData<Label[]>(["boards", boardId, "labels"]) ?? [];
 
-      queryClient.setQueryData<Label[]>(
-        ["boards", boardId, "labels"],
-        (old) => (old ? old.filter((label) => label.id !== labelId) : []),
+      queryClient.setQueryData<Label[]>(["boards", boardId, "labels"], (old) =>
+        old ? old.filter((label) => label.id !== labelId) : [],
       );
 
       updateBoardTaskLabels((labels) =>

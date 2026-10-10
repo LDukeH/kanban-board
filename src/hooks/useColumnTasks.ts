@@ -11,11 +11,17 @@ import {
 } from "@/lib/api/task.api";
 import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
 import { boardLabelsQueryKey } from "@/hooks/useBoard";
+import { isConflictError, isStaleError } from "@/lib/httpStatus";
+import { writeStaleMoveNotice } from "@/lib/staleMoveNotices";
 import {
   insertTaskIntoColumn,
   orderTasksByPosition,
   removeTaskFromColumn,
 } from "@/lib/dragDrop";
+import {
+  columnGateKey,
+  touchedColumnGateKeys,
+} from "@/lib/taskMove";
 import type { Label, Task } from "@/types/board";
 
 type PendingTaskMove = {
@@ -28,6 +34,27 @@ type PendingTaskMove = {
 
 // In-flight position moves, kept per task so a refetch resolving before the PATCH cannot clobber an optimistic placement.
 const pendingTaskMoves = new Map<string, PendingTaskMove>();
+
+// Per-task move queue: onMutate records the predecessor gate, mutationFn waits on it before PATCHing, and onSettled releases it — a rapid re-drag never re-sends the version move 1 already bumped (self-409).
+const taskMoveGatePromises = new Map<string, Promise<boolean>>();
+const taskMovePredecessors = new Map<string, Promise<boolean>>();
+
+// Per-column move queue: the backend bumps versions of every shifted neighbor,
+// so two different tasks in the same column must not PATCH concurrently. A move
+// waits for the previous move touching its source/target columns to settle AND
+// refetch, otherwise the second move reads a stale neighbor version (neighbor-409).
+const columnMoveGatePromises = new Map<string, Promise<boolean>>();
+const columnMovePredecessors = new Map<string, Promise<boolean>[]>();
+
+function createTaskMoveGate() {
+  let release!: (ready?: boolean) => void;
+  const settled = new Promise<boolean>((resolve) => {
+    release = (ready = true) => {
+      resolve(ready);
+    };
+  });
+  return { settled, release };
+}
 
 // Durable copy so a drop that already looked successful is re-applied if the page reloads before the PATCH finishes.
 const PENDING_TASK_MOVE_STORAGE_KEY = "kanban-pending-task-moves";
@@ -74,7 +101,10 @@ function writeStoredTaskMoves(moves: StoredTaskMove[]) {
     if (moves.length === 0) {
       sessionStorage.removeItem(PENDING_TASK_MOVE_STORAGE_KEY);
     } else {
-      sessionStorage.setItem(PENDING_TASK_MOVE_STORAGE_KEY, JSON.stringify(moves));
+      sessionStorage.setItem(
+        PENDING_TASK_MOVE_STORAGE_KEY,
+        JSON.stringify(moves),
+      );
     }
   } catch {
     // Storage can be unavailable in restricted browser contexts.
@@ -115,6 +145,61 @@ function hydratePendingTaskMoves(): void {
 }
 
 hydratePendingTaskMoves();
+
+/**
+ * Re-applies position PATCHes saved before the page loaded. Exported so tests can drive the
+ * replay — including the drop-on-409 path — without rendering React; the REPLAYING_BOARDS
+ * guard keeps it running once per board.
+ */
+export async function replayStoredTaskMoves(boardId: string): Promise<void> {
+  if (REPLAYING_BOARDS.has(boardId)) return;
+
+  REPLAYING_BOARDS.add(boardId);
+  const moves = readStoredTaskMoves().filter(
+    (move) =>
+      move.boardId === boardId && move.sourceColumnId && move.targetColumnId,
+  );
+
+  try {
+    // Replays must be sequential. A successful reorder bumps the versions of
+    // neighboring tasks, so parallel replays can invalidate each other.
+    for (const move of moves) {
+      try {
+        const [sourceTasks, targetTasks] = await Promise.all([
+          getColumnTasks(move.sourceColumnId!),
+          move.sourceColumnId === move.targetColumnId
+            ? Promise.resolve([])
+            : getColumnTasks(move.targetColumnId),
+        ]);
+        const currentTask =
+          targetTasks.find((task) => task.id === move.taskId) ??
+          sourceTasks.find((task) => task.id === move.taskId);
+
+        await updateTaskPosition(move.taskId, {
+          columnId: move.targetColumnId,
+          position: move.position,
+          // Prefer the latest server version; the snapshot is only a fallback
+          // for a legacy entry whose columns are not currently readable.
+          version: currentTask?.version ?? move.task?.version ?? 1,
+        });
+        removePendingTaskMove(move);
+      } catch (error) {
+        if (isStaleError(error)) {
+          // The queued drop can never succeed (the board moved on in another session) — drop it so it stops replaying, and tell the user on next paint.
+          pendingTaskMoves.delete(move.taskId);
+          removePendingTaskMove(move);
+          writeStaleMoveNotice(
+            boardId,
+            "A move from before your last reload was discarded because the board changed in another session.",
+          );
+        }
+        // Non-stale failures stay queued for the next board load.
+      }
+    }
+  } finally {
+    REPLAYING_BOARDS.delete(boardId);
+  }
+}
 
 export function columnTasksQueryKey(boardId: string, columnId: string) {
   return ["boards", boardId, "columns", columnId, "tasks"] as const;
@@ -170,7 +255,7 @@ export function useColumnTasks(
       ? columnTasksQueryKey(boardId, columnId)
       : (["boards", "unknown", "columns", "unknown", "tasks"] as const);
 
-  // Re-apply position PATCHes still in flight when the page loaded; runs once per board via the REPLAYING_BOARDS guard.
+  // Re-apply position PATCHes still in flight when the page loaded (the helper owns the once-per-board guard).
   useEffect(() => {
     if (!boardId || REPLAYING_BOARDS.has(boardId)) return;
 
@@ -206,8 +291,7 @@ export function useColumnTasks(
     enabled,
   });
   const createTaskMutation = useMutation({
-    mutationFn: (data: CreateTaskData) =>
-      createTask(columnId!, data),
+    mutationFn: (data: CreateTaskData) => createTask(columnId!, data),
     onSuccess: (newTask) => {
       if (!boardId || !columnId) return;
       // Optimistic append; invalidate because the create response may omit the server-assigned position.
@@ -235,34 +319,12 @@ export function useColumnTasks(
     },
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
-      // PATCH answers 204 with no body, so the sent fields are merged into the cached task instead of re-fetching.
+      // Authoritative response — write the whole task (version included) so a
+      // follow-up move sends the fresh version instead of the pre-edit one.
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, columnId),
         (old) =>
-          old
-            ? old.map((task) =>
-                task.id === taskId
-                  ? {
-                      ...task,
-                      ...(data.title !== undefined
-                        ? { title: data.title }
-                        : {}),
-                      ...(data.description !== undefined
-                        ? { description: data.description }
-                        : {}),
-                      ...(data.priority !== undefined
-                        ? { priority: data.priority }
-                        : {}),
-                      ...(data.dueDate !== undefined
-                        ? { dueDate: data.dueDate }
-                        : {}),
-                      ...(data.completed !== undefined
-                        ? { completed: data.completed }
-                        : {}),
-                    }
-                  : task,
-              )
-            : old,
+          old?.map((task) => (task.id === taskId ? updatedTask : task)) ?? [],
       );
     },
   });
@@ -271,6 +333,7 @@ export function useColumnTasks(
     mutationKey: ["updateTaskPosition", boardId],
     mutationFn: ({
       taskId,
+      sourceColumnId,
       columnId: targetColumnId,
       position,
     }: {
@@ -301,6 +364,25 @@ export function useColumnTasks(
       const sourceColumnId = paramSourceId ?? columnId;
       if (!sourceColumnId) return;
 
+      // Queue behind any in-flight move of the same task; mutationFn waits on this before PATCHing so it reads the version that move just wrote.
+      taskMovePredecessors.set(
+        taskId,
+        taskMoveGatePromises.get(taskId) ?? Promise.resolve(true),
+      );
+
+      // Queue behind any in-flight move touching the same columns; the backend
+      // bumps versions of every shifted neighbor, so mutationFn must wait for
+      // the previous move's refetch before reading a neighbor's version.
+      if (boardId) {
+        const touched = touchedColumnGateKeys(boardId, sourceColumnId, targetColumnId);
+        columnMovePredecessors.set(
+          taskId,
+          [...touched].map(
+            (key) => columnMoveGatePromises.get(key) ?? Promise.resolve(true),
+          ),
+        );
+      }
+
       // Stop in-flight fetches so they cannot overwrite the optimistic lists.
       await queryClient.cancelQueries({
         queryKey: columnTasksQueryKey(boardId, sourceColumnId),
@@ -328,6 +410,18 @@ export function useColumnTasks(
 
       const movingTask = previousSource.find((task) => task.id === taskId);
       if (!movingTask) return;
+
+      const gate = createTaskMoveGate();
+      taskMoveGatePromises.set(taskId, gate.settled);
+      // Own the column gates now that this move is the latest one touching
+      // those columns; the next move waits on them and they open only after
+      // this move's refetch lands (see onSettled).
+      for (const column of new Set([sourceColumnId, targetColumnId])) {
+        columnMoveGatePromises.set(
+          columnGateKey(boardId, column),
+          gate.settled,
+        );
+      }
 
       // Remember the move so a reload / refetch can replay or reconcile it.
       savePendingTaskMove({
@@ -375,71 +469,101 @@ export function useColumnTasks(
         position,
       });
 
-      return { previousSource, previousTarget, sourceColumnId, targetColumnId };
+      return {
+        previousSource,
+        previousTarget,
+        sourceColumnId,
+        targetColumnId,
+        gate,
+      };
     },
 
-    onSuccess: (_data, variables, context) => {
+    onSuccess: (moved, variables, context) => {
       if (!boardId) return;
 
       const sourceColumnId =
         variables.sourceColumnId ?? context?.sourceColumnId ?? columnId;
       const targetColumnId = variables.columnId;
+      if (!targetColumnId) return;
 
-      // The position endpoint returns 204, so keep the optimistic task in the destination cache rather than letting a pre-PATCH GET empty it.
-      if (
-        targetColumnId &&
-        sourceColumnId &&
-        targetColumnId !== sourceColumnId &&
-        context
-      ) {
-        const movedTask = context.previousSource.find(
-          (task) => task.id === variables.taskId,
-        );
-
-        if (movedTask) {
-          queryClient.setQueryData<Task[]>(
-            columnTasksQueryKey(boardId, targetColumnId),
-            (current = []) =>
-              insertTaskIntoColumn(
-                current,
-                movedTask,
-                targetColumnId,
-                variables.position,
-              ),
+      // Record the authoritative response — position/version straight from the server, never a local +1 — so a queued consecutive drag reads the fresh version before any refetch lands.
+      queryClient.setQueryData<Task[]>(
+        columnTasksQueryKey(boardId, targetColumnId),
+        (current = []) => {
+          const base =
+            current.find((task) => task.id === variables.taskId) ??
+            context?.previousSource.find(
+              (task) => task.id === variables.taskId,
+            );
+          if (!base) return current;
+          const movedTask: Task = {
+            ...base,
+            columnId: moved.column_id,
+            position: moved.position,
+            version: moved.version,
+          };
+          return insertTaskIntoColumn(
+            current.filter((task) => task.id !== variables.taskId),
+            movedTask,
+            targetColumnId,
+            moved.position,
           );
-        }
+        },
+      );
+      if (sourceColumnId && sourceColumnId !== targetColumnId) {
+        queryClient.setQueryData<Task[]>(
+          columnTasksQueryKey(boardId, sourceColumnId),
+          (current) =>
+            current?.filter((task) => task.id !== variables.taskId) ?? current,
+        );
       }
 
-      if (sourceColumnId) {
-        queryClient.invalidateQueries({
-          queryKey: columnTasksQueryKey(boardId, sourceColumnId),
-          refetchType: "none",
-        });
-      }
-      if (targetColumnId && targetColumnId !== sourceColumnId) {
-        queryClient.invalidateQueries({
-          queryKey: columnTasksQueryKey(boardId, targetColumnId),
-          refetchType: "none",
-        });
+      // Keep a queued follow-up drag's durable snapshot on the new version so a refetch overlay racing it cannot resurrect the pre-move version.
+      const pending = pendingTaskMoves.get(variables.taskId);
+      if (pending) {
+        pending.task = { ...pending.task, version: moved.version };
       }
 
-      removePendingTaskMove({
-        boardId,
-        taskId: variables.taskId,
-        targetColumnId,
-        position: variables.position,
-      });
+      // The reorder bumped versions of shifted rows server-side (contract §5.2) —
+      // onSettled refetches the touched lists before opening the column gates,
+      // so a queued move of a neighbor reads the fresh versions.
+
+      // Only retire this mutation's replay entry; a follow-up drag of the same task may already own it.
+      const pendingMove = pendingTaskMoves.get(variables.taskId);
+      if (
+        pendingMove &&
+        pendingMove.targetColumnId === targetColumnId &&
+        pendingMove.position === variables.position
+      ) {
+        pendingTaskMoves.delete(variables.taskId);
+        removePendingTaskMove({
+          boardId,
+          taskId: variables.taskId,
+          targetColumnId,
+          position: variables.position,
+        });
+      }
     },
 
-    onError: (_err, _vars, context) => {
+    onError: (error, variables, context) => {
       if (!boardId || !context) return;
-      pendingTaskMoves.delete(_vars.taskId);
-      removePendingTaskMove({
-        boardId,
-        taskId: _vars.taskId,
-        targetColumnId: _vars.columnId,
-        position: _vars.position,
-      });
+
+      // Retire only this mutation's replay entry — a queued follow-up drag of the same task may already own it.
+      const pending = pendingTaskMoves.get(variables.taskId);
+      if (
+        pending &&
+        pending.targetColumnId === variables.columnId &&
+        pending.position === variables.position
+      ) {
+        pendingTaskMoves.delete(variables.taskId);
+        removePendingTaskMove({
+          boardId,
+          taskId: variables.taskId,
+          targetColumnId: variables.columnId,
+          position: variables.position,
+        });
+      }
+
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, context.sourceColumnId),
         context.previousSource,
@@ -448,6 +572,64 @@ export function useColumnTasks(
         columnTasksQueryKey(boardId, context.targetColumnId),
         context.previousTarget,
       );
+
+      if (isStaleError(error)) {
+        // 409 (version moved on) / 404 (task deleted): the rolled-back snapshot is not the truth either — refetch both lists so the board shows what the server actually has.
+        queryClient.invalidateQueries({
+          queryKey: columnTasksQueryKey(boardId, context.sourceColumnId),
+        });
+        if (context.targetColumnId !== context.sourceColumnId) {
+          queryClient.invalidateQueries({
+            queryKey: columnTasksQueryKey(boardId, context.targetColumnId),
+          });
+        }
+      }
+    },
+
+    onSettled: async (_data, _error, variables, context) => {
+      // A queued move touching the same columns must read the neighbor
+      // versions this reorder just bumped, so refetch the touched lists and
+      // only then open the task + column gates.
+      const settledBoardId = boardId;
+      const touchedColumns = Array.from(
+        new Set(
+          [
+            context?.sourceColumnId,
+            context?.targetColumnId,
+            variables.sourceColumnId,
+            variables.columnId,
+          ].filter((columnId): columnId is string => Boolean(columnId)),
+        ),
+      );
+      let refetchError: unknown;
+      if (settledBoardId && touchedColumns.length > 0) {
+        try {
+          await Promise.all(
+            touchedColumns.map((columnId) =>
+              queryClient.refetchQueries({
+                queryKey: columnTasksQueryKey(settledBoardId, columnId),
+              }),
+            ),
+          );
+        } catch (error) {
+          refetchError = error;
+        }
+      }
+      context?.gate?.release(refetchError === undefined);
+      if (
+        context?.gate &&
+        taskMoveGatePromises.get(variables.taskId) === context.gate.settled
+      ) {
+        taskMoveGatePromises.delete(variables.taskId);
+      }
+      if (settledBoardId && context?.gate) {
+        for (const columnId of touchedColumns) {
+          const key = columnGateKey(settledBoardId, columnId);
+          if (columnMoveGatePromises.get(key) === context.gate.settled) {
+            columnMoveGatePromises.delete(key);
+          }
+        }
+      }
     },
   });
 

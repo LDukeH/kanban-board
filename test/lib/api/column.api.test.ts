@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { api } from "@/lib/api/axios";
+import { getHttpStatus, isStaleError } from "@/lib/httpStatus";
 import {
   createColumn,
   deleteColumn,

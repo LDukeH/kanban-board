@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
 import { useBoards } from "@/hooks/useBoards";
+import { reportMutationError } from "@/lib/httpStatus";
 
 interface CreateBoardDialogProps {
   workspaceId: string;
@@ -46,7 +47,7 @@ export function CreateBoardDialog({
       setOpen(false);
     } catch (err) {
       setError("Failed to create board. Please try again.");
-      console.error("Create board failed:", err);
+      reportMutationError("Create board failed", err);
     }
   }
 

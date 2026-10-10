@@ -1,6 +1,7 @@
 import { createBoard } from "@/lib/api/board.api";
 import { createColumn } from "@/lib/api/column.api";
 import { createLabel } from "@/lib/api/label.api";
+import { reportMutationError } from "@/lib/httpStatus";
 import type { Column, Label } from "@/types/board";
 import type {
   BoardTemplate,
@@ -27,7 +28,7 @@ export async function materializeBoardTemplate(
       createdColumns.push(await createColumn(board.id, { name: column.name }));
     } catch (error) {
       failedColumns.push(column.name);
-      console.error(`Template column "${column.name}" was not created:`, error);
+      reportMutationError(`Template column "${column.name}" was not created`, error);
     }
   }
 
@@ -40,7 +41,7 @@ export async function materializeBoardTemplate(
       );
     } catch (error) {
       failedLabels.push(label.name);
-      console.error(`Template label "${label.name}" was not created:`, error);
+      reportMutationError(`Template label "${label.name}" was not created`, error);
     }
   }
 

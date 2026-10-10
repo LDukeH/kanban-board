@@ -6,7 +6,16 @@ import { BoardLabelsPopover } from "@/components/board/BoardLabelsPopover";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
-import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
+import {
+  describeColumnMoveError,
+  describeLoadError,
+  describeTaskMoveError,
+  reportMutationError,
+} from "@/lib/httpStatus";
+import {
+  STALE_MOVE_NOTICE_EVENT,
+  drainStaleMoveNotices,
+} from "@/lib/staleMoveNotices";
 import { Button } from "@/components/ui/button";
 import {
   InlineAlert,
@@ -47,12 +56,12 @@ import { useBoardRealtimeSync } from "@/lib/realtime/useBoardRealtimeSync";
 /** Reports a failed optimistic move: the drag handler cannot await, so it is surfaced as a dismissible banner and the hook reverts the position. */
 function reportMoveFailure(
   promise: Promise<unknown>,
-  fallback: string,
+  describe: (error: unknown) => string,
   onNotice: (message: string) => void,
 ) {
   void promise.catch((err) => {
-    onNotice(describeMutationError(err, fallback));
-    console.error("Board move failed:", err);
+    onNotice(describe(err));
+    reportMutationError("Board move failed", err);
   });
 }
 
@@ -183,6 +192,19 @@ function BoardContent({ boardId }: { boardId: string }) {
       : loadBoardTaskFilter(boardId);
   });
 
+  // Surface conflicts found while replaying moves saved before a reload: drain on mount (storage copy) and on the event for failures that land after mount — the replay runs inside useColumnTasks and cannot call setMoveNotice directly.
+  useEffect(() => {
+    const showDrained = () => {
+      const [notice] = drainStaleMoveNotices(boardId);
+      if (notice) {
+        setMoveNotice({ tone: "error", message: notice.message });
+      }
+    };
+    showDrained();
+    window.addEventListener(STALE_MOVE_NOTICE_EVENT, showDrained);
+    return () => window.removeEventListener(STALE_MOVE_NOTICE_EVENT, showDrained);
+  }, [boardId]);
+
   const updateTaskFilter = useCallback(
     (next: TaskFilter) => {
       setTaskFilter(next);
@@ -279,12 +301,18 @@ function BoardContent({ boardId }: { boardId: string }) {
 
       if (initialIndex === index) return;
 
+      const columnId = String(source.id);
+      // OCC: version read from the columns cache at drag time; if the column is missing locally, still send 1 so the API answers 404/409 and the failure surfaces as a notice instead of a silent drop.
+      const version =
+        columns.find((column) => column.id === columnId)?.version ?? 1;
+
       reportMoveFailure(
-        updateColumnPosition({
-          columnId: String(source.id),
-          position: index,
-        }),
-        "Couldn't move the column. Changes were reverted.",
+        updateColumnPosition({ columnId, position: index, version }),
+        (error) =>
+          describeColumnMoveError(
+            error,
+            "Couldn't move the column. Changes were reverted.",
+          ),
         (message) => setMoveNotice({ tone: "error", message }),
       );
 
@@ -332,7 +360,11 @@ function BoardContent({ boardId }: { boardId: string }) {
           columnId: targetColumnId,
           position: insertionPosition,
         }),
-        "Couldn't move the task. Changes were reverted.",
+        (error) =>
+          describeTaskMoveError(
+            error,
+            "Couldn't move the task. Changes were reverted.",
+          ),
         (message) => setMoveNotice({ tone: "error", message }),
       );
 
@@ -373,7 +405,11 @@ function BoardContent({ boardId }: { boardId: string }) {
         columnId: targetColumnId,
         position: destinationPosition,
       }),
-      "Couldn't move the task. Changes were reverted.",
+      (error) =>
+        describeTaskMoveError(
+          error,
+          "Couldn't move the task. Changes were reverted.",
+        ),
       (message) => setMoveNotice({ tone: "error", message }),
     );
   }

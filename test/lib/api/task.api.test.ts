@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { api } from "@/lib/api/axios";
 import type { TaskDescription } from "@/lib/description";
+import { describeTaskMoveError, getHttpStatus, isStaleError } from "@/lib/httpStatus";
 import {
   assignUserToTask,
   createTask,
@@ -24,7 +25,10 @@ function mockApi(handle: MockApiHandle) {
   api.defaults.adapter = handle.adapter;
 }
 
-const taskDoc: TaskDescription = { type: "doc", content: [{ type: "text", text: "hello" }] };
+const taskDoc: TaskDescription = {
+  type: "doc",
+  content: [{ type: "text", text: "hello" }],
+};
 
 const tasksPayload = [
   {
@@ -33,6 +37,7 @@ const tasksPayload = [
     title: "Task one",
     description: taskDoc,
     position: 0,
+    version: 7,
     created_at: "2026-01-01T00:00:00.000Z",
     labels: [
       {
@@ -74,14 +79,22 @@ const tasksPayload = [
 
 describe("task.api mapping", () => {
   it("getColumnTasks maps labels, assignees, and normalizes descriptions", async () => {
-    const handle = createMockApiAdapter([route("get", "/columns/c1/tasks", tasksPayload)]);
+    const handle = createMockApiAdapter([
+      route("get", "/columns/c1/tasks", tasksPayload),
+    ]);
     mockApi(handle);
 
     const tasks = await getColumnTasks("c1");
 
-    expect(handle.requests[0]).toMatchObject({ method: "get", path: "/columns/c1/tasks" });
+    expect(handle.requests[0]).toMatchObject({
+      method: "get",
+      path: "/columns/c1/tasks",
+    });
     expect(tasks).toHaveLength(4);
     expect(tasks[0].id).toBe("t1");
+    // OCC version maps from the payload when present, defaults to 1 when absent (legacy rows).
+    expect(tasks[0].version).toBe(7);
+    expect(tasks[1].version).toBe(1);
     expect(tasks[0].description).toEqual(taskDoc);
     expect(tasks[0].labels).toEqual([
       {
@@ -137,10 +150,15 @@ describe("task.api mapping", () => {
   });
 
   it("createTask posts title/description and maps the response", async () => {
-    const handle = createMockApiAdapter([route("post", "/columns/c1/tasks", tasksPayload[0])]);
+    const handle = createMockApiAdapter([
+      route("post", "/columns/c1/tasks", tasksPayload[0]),
+    ]);
     mockApi(handle);
 
-    const created = await createTask("c1", { title: "Task one", description: taskDoc });
+    const created = await createTask("c1", {
+      title: "Task one",
+      description: taskDoc,
+    });
 
     expect(handle.requests[0]).toMatchObject({
       method: "post",
@@ -180,13 +198,18 @@ describe("task.api mapping", () => {
 
     await createTask("c1", { title: "No date", dueDate: null });
 
-    expect(handle.requests[0].data).toEqual({ title: "No date", due_date: null });
+    expect(handle.requests[0].data).toEqual({
+      title: "No date",
+      due_date: null,
+    });
   });
 });
 
 describe("task.api mutations", () => {
-  it("updateTask patches only the provided fields", async () => {
-    const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
+  it("updateTask sends the version and maps the authoritative response", async () => {
+    const handle = createMockApiAdapter([
+      route("patch", "/tasks/t1", tasksPayload[0]),
+    ]);
     mockApi(handle);
 
     await expect(updateTask("t1", { title: "Renamed", version: 1 })).resolves.toBeUndefined();
@@ -216,6 +239,9 @@ describe("task.api mutations", () => {
       completed: false,
       version: 1,
     });
+    expect(updated.id).toBe("t1");
+    expect(updated.title).toBe("Task one");
+    expect(updated.version).toBe(7);
   });
 
   it("updateTask drops keys that were not provided", async () => {
@@ -240,8 +266,10 @@ describe("task.api mutations", () => {
     });
   });
 
-  it("deleteTask issues a DELETE and resolves", async () => {
-    const handle = createMockApiAdapter([noContentRoute("delete", "/tasks/t1")]);
+  it("deleteTask sends the version as a query parameter", async () => {
+    const handle = createMockApiAdapter([
+      noContentRoute("delete", "/tasks/t1"),
+    ]);
     mockApi(handle);
 
     await expect(deleteTask("t1", 1)).resolves.toBeUndefined();
@@ -253,11 +281,15 @@ describe("task.api mutations", () => {
     ]);
     mockApi(handle);
 
-    await expect(getTaskAssignees("t1")).resolves.toEqual([{ user_id: "u1", email: "a@b.com" }]);
+    await expect(getTaskAssignees("t1")).resolves.toEqual([
+      { user_id: "u1", email: "a@b.com" },
+    ]);
   });
 
   it("assignUserToTask posts the user_id", async () => {
-    const handle = createMockApiAdapter([noContentRoute("post", "/tasks/t1/users")]);
+    const handle = createMockApiAdapter([
+      noContentRoute("post", "/tasks/t1/users"),
+    ]);
     mockApi(handle);
 
     await expect(assignUserToTask("t1", "u1")).resolves.toBeUndefined();
@@ -269,7 +301,9 @@ describe("task.api mutations", () => {
   });
 
   it("unassignUserFromTask sends the user_id in the DELETE body", async () => {
-    const handle = createMockApiAdapter([noContentRoute("delete", "/tasks/t1/users")]);
+    const handle = createMockApiAdapter([
+      noContentRoute("delete", "/tasks/t1/users"),
+    ]);
     mockApi(handle);
 
     await expect(unassignUserFromTask("t1", "u1")).resolves.toBeUndefined();
@@ -302,12 +336,26 @@ describe("findBoardIdForTask", () => {
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   };
-  const emptyTasks = [{ id: "other-task", column_id: "c1", title: "x", position: 0, created_at: "2026-01-01T00:00:00.000Z" }];
+  const emptyTasks = [
+    {
+      id: "other-task",
+      column_id: "c1",
+      title: "x",
+      position: 0,
+      created_at: "2026-01-01T00:00:00.000Z",
+    },
+  ];
 
   it("resolves the owning board through the endpoint cascade and caches it", async () => {
     const handle = createMockApiAdapter([
       suffixRoute("get", "/columns/c1/tasks", [
-        { id: "found-task", column_id: "c1", title: "x", position: 0, created_at: "2026-01-01T00:00:00.000Z" },
+        {
+          id: "found-task",
+          column_id: "c1",
+          title: "x",
+          position: 0,
+          created_at: "2026-01-01T00:00:00.000Z",
+        },
       ]),
       suffixRoute("get", "/boards/b1/columns", [columnPayload]),
       suffixRoute("get", "/workspaces/ws1/boards", [boardPayload]),
@@ -335,5 +383,29 @@ describe("findBoardIdForTask", () => {
     const requestsAfterFirst = handle.requests.length;
     await expect(findBoardIdForTask("missing-task")).resolves.toBeUndefined();
     expect(handle.requests.length).toBe(requestsAfterFirst);
+  });
+
+  it("updateTaskPosition surfaces a 409 as a stale conflict", async () => {
+    const handle = createMockApiAdapter([
+      route("patch", "/tasks/t1/position", "conflict", 409),
+    ]);
+    mockApi(handle);
+
+    const error = await updateTaskPosition("t1", {
+      columnId: "c2",
+      position: 2,
+      version: 7,
+    }).then(
+      () => undefined,
+      (err: unknown) => err,
+    );
+
+    expect(error).toBeDefined();
+    expect(getHttpStatus(error)).toBe(409);
+    // The hook's rollback/drop path keys off isStaleError; the user-facing copy must not leak the bare body.
+    expect(isStaleError(error)).toBe(true);
+    expect(describeTaskMoveError(error, "fallback")).toMatch(
+      /Another session changed this task/,
+    );
   });
 });
