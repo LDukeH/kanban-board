@@ -33,7 +33,12 @@ export default function AuthLayout() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           <div className="absolute bottom-4 left-4 right-4 text-white">
-            <h2 className="text-lg font-bold">Kanban Board</h2>
+            <img
+              src="/kanvas-logo-wo-tagline.png"
+              alt="Kanvas logo"
+              className="mb-2 block h-9 w-auto rounded-lg"
+            />
+            <h2 className="text-lg font-bold">Kanvas</h2>
             <p className="text-xs text-white/80">
               Organize your projects visually
             </p>
