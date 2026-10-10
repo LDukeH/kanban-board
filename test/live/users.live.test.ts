@@ -44,7 +44,7 @@ describe("live users API", () => {
   });
 
   it("requires authentication", async () => {
-    clearSession();
+    await clearSession();
 
     await expectStatus(searchUsersByEmail("nobody@example.com"), 401);
   });

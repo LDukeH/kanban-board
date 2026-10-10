@@ -44,6 +44,20 @@ type StoredTaskMove = {
   task?: Task;
 };
 
+function findCachedTask(
+  queryClient: ReturnType<typeof useQueryClient>,
+  boardId: string,
+  taskId: string,
+): Task | undefined {
+  for (const [, tasks] of queryClient.getQueriesData<Task[]>({
+    queryKey: ["boards", boardId, "columns"],
+  })) {
+    const task = tasks?.find((candidate) => candidate.id === taskId);
+    if (task) return task;
+  }
+  return undefined;
+}
+
 function readStoredTaskMoves(): StoredTaskMove[] {
   try {
     const stored = sessionStorage.getItem(PENDING_TASK_MOVE_STORAGE_KEY);
@@ -174,6 +188,7 @@ export function useColumnTasks(
           await updateTaskPosition(move.taskId, {
             columnId: move.targetColumnId,
             position: move.position,
+            version: move.task?.version ?? 1,
           });
           removePendingTaskMove(move);
         } catch {
@@ -213,7 +228,11 @@ export function useColumnTasks(
     }: {
       taskId: string;
       data: UpdateTaskData;
-    }) => updateTask(taskId, data),
+    }) => {
+      const task = findCachedTask(queryClient, boardId!, taskId);
+      if (!task) throw new Error(`Task ${taskId} is not available for update.`);
+      return updateTask(taskId, { ...data, version: task.version });
+    },
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
       // PATCH answers 204 with no body, so the sent fields are merged into the cached task instead of re-fetching.
@@ -263,6 +282,11 @@ export function useColumnTasks(
       return updateTaskPosition(taskId, {
         columnId: targetColumnId,
         position,
+        version:
+          findCachedTask(queryClient, boardId!, taskId)?.version ??
+          (() => {
+            throw new Error(`Task ${taskId} is not available for repositioning.`);
+          })(),
       });
     },
 
@@ -428,7 +452,11 @@ export function useColumnTasks(
   });
 
   const deleteTaskMutation = useMutation({
-    mutationFn: (taskId: string) => deleteTask(taskId),
+    mutationFn: (taskId: string) => {
+      const task = findCachedTask(queryClient, boardId!, taskId);
+      if (!task) throw new Error(`Task ${taskId} is not available for deletion.`);
+      return deleteTask(taskId, task.version);
+    },
     onSuccess: (_void, taskId) => {
       if (!boardId || !columnId) return;
       queryClient.setQueryData<Task[]>(

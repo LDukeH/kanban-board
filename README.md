@@ -39,6 +39,23 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 VITE_HCAPTCHA_SITE_KEY=your-hcaptcha-site-key
 ```
 
+Live API tests create users through the Supabase Admin API so they do not
+depend on hCaptcha. Set the service-role credentials in the test process only
+(never in `VITE_*` variables or frontend code):
+
+```env
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+`npm run test:api` loads these non-`VITE_` variables from the repository `.env`
+as well. Use the Supabase **secret/service_role** key, not
+`VITE_SUPABASE_PUBLISHABLE_KEY`.
+
+Run `npm run test:api` only in a disposable test environment. The service-role
+key has full database privileges and must not be committed or exposed to the
+browser.
+
 Enable hCaptcha in the Supabase dashboard under **Authentication → Bot and
 Abuse Protection**, configure the hCaptcha secret key there, and add the
 corresponding site key to `VITE_HCAPTCHA_SITE_KEY`. The sign-in, sign-up, and

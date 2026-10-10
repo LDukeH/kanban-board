@@ -142,7 +142,7 @@ describe("live comment API (authorization matrix)", () => {
   });
 
   it("requires authentication (401)", async () => {
-    clearSession();
+    await clearSession();
 
     await expectStatus(getTaskComments(task.id), 401);
   });

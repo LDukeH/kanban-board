@@ -17,6 +17,7 @@ interface TaskApiResponse {
   title: string;
   description?: TaskDescription | string | null;
   position: number;
+  version?: number;
   created_at: string;
   updated_at: string;
   // Planning metadata added by migration 019; optional so a pre-019 server cannot break the mapper.
@@ -48,8 +49,10 @@ export interface UpdateTaskData {
 /** Maps the camelCase request types onto the snake_case body the API expects (`dueDate` -> `due_date`). */
 function toTaskPayload(
   data: CreateTaskData | UpdateTaskData,
+  version?: number,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
+  if (version !== undefined) payload.version = version;
   if (data.title !== undefined) payload.title = data.title;
   if (data.description !== undefined) payload.description = data.description;
   if (data.priority !== undefined) payload.priority = data.priority;
@@ -74,6 +77,7 @@ function mapTask(raw: TaskApiResponse): Task {
     title: raw.title,
     description: normalizeDescription(raw.description),
     position: raw.position,
+    version: raw.version ?? 1,
     createdAt: raw.created_at,
     // The backend guarantees these three keys; the fallbacks only guard against a pre-019 server so the UI degrades to the neutral values instead of undefined.
     priority: raw.priority ?? "none",
@@ -104,23 +108,24 @@ export const createTask = async (
 
 export const updateTask = async (
   taskId: string,
-  data: UpdateTaskData,
+  data: UpdateTaskData & { version: number },
 ): Promise<void> => {
-  await api.patch(`/tasks/${taskId}`, toTaskPayload(data));
+  await api.patch(`/tasks/${taskId}`, toTaskPayload(data, data.version));
 };
 
 export const updateTaskPosition = async (
   taskId: string,
-  data: { columnId: string; position: number },
+  data: { columnId: string; position: number; version: number },
 ): Promise<void> => {
   await api.patch(`/tasks/${taskId}/position`, {
     column_id: data.columnId,
     position: data.position,
+    version: data.version,
   });
 };
 
-export const deleteTask = async (taskId: string): Promise<void> => {
-  await api.delete(`/tasks/${taskId}`);
+export const deleteTask = async (taskId: string, version: number): Promise<void> => {
+  await api.delete(`/tasks/${taskId}`, { params: { version } });
 };
 
 export const getTaskAssignees = async (

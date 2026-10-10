@@ -189,11 +189,11 @@ describe("task.api mutations", () => {
     const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
     mockApi(handle);
 
-    await expect(updateTask("t1", { title: "Renamed" })).resolves.toBeUndefined();
+    await expect(updateTask("t1", { title: "Renamed", version: 1 })).resolves.toBeUndefined();
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/tasks/t1",
-      data: { title: "Renamed" },
+      data: { title: "Renamed", version: 1 },
     });
   });
 
@@ -207,12 +207,14 @@ describe("task.api mutations", () => {
       // serialization rather than being dropped like an absent key.
       dueDate: null,
       completed: false,
+      version: 1,
     });
 
     expect(handle.requests[0].data).toEqual({
       priority: "low",
       due_date: null,
       completed: false,
+      version: 1,
     });
   });
 
@@ -220,21 +222,21 @@ describe("task.api mutations", () => {
     const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
     mockApi(handle);
 
-    await updateTask("t1", { priority: "high" });
+    await updateTask("t1", { priority: "high", version: 1 });
 
     // No due_date key at all: the stored date must be left untouched.
-    expect(handle.requests[0].data).toEqual({ priority: "high" });
+    expect(handle.requests[0].data).toEqual({ priority: "high", version: 1 });
   });
 
   it("updateTaskPosition sends snake_case column_id", async () => {
     const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1/position")]);
     mockApi(handle);
 
-    await expect(updateTaskPosition("t1", { columnId: "c2", position: 2 })).resolves.toBeUndefined();
+    await expect(updateTaskPosition("t1", { columnId: "c2", position: 2, version: 1 })).resolves.toBeUndefined();
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/tasks/t1/position",
-      data: { column_id: "c2", position: 2 },
+      data: { column_id: "c2", position: 2, version: 1 },
     });
   });
 
@@ -242,7 +244,7 @@ describe("task.api mutations", () => {
     const handle = createMockApiAdapter([noContentRoute("delete", "/tasks/t1")]);
     mockApi(handle);
 
-    await expect(deleteTask("t1")).resolves.toBeUndefined();
+    await expect(deleteTask("t1", 1)).resolves.toBeUndefined();
   });
 
   it("getTaskAssignees returns the raw assignee list", async () => {

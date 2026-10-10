@@ -83,7 +83,7 @@ describe("live task API", () => {
       const task = await createTask(chain.columns[0].id, { title: "Before update" });
       const description = textToTaskDescription("Updated description");
 
-      await updateTask(task.id, { title: "After update", description });
+      await updateTask(task.id, { title: "After update", description, version: task.version });
 
       const updated = (await getColumnTasks(chain.columns[0].id)).find((t) => t.id === task.id);
       expect(updated?.title).toBe("After update");
@@ -104,7 +104,7 @@ describe("live task API", () => {
       expect(task.dueDate).toBe("2026-10-02");
       expect(task.completed).toBe(false);
 
-      await updateTask(task.id, { priority: "low", completed: true });
+      await updateTask(task.id, { priority: "low", completed: true, version: task.version });
       const patched = (await getColumnTasks(chain.columns[0].id)).find(
         (t) => t.id === task.id,
       );
@@ -114,7 +114,7 @@ describe("live task API", () => {
       expect(patched?.dueDate).toBe("2026-10-02");
 
       // An explicit null clears it.
-      await updateTask(task.id, { dueDate: null });
+      await updateTask(task.id, { dueDate: null, version: patched?.version ?? task.version });
       const cleared = (await getColumnTasks(chain.columns[0].id)).find(
         (t) => t.id === task.id,
       );
@@ -126,7 +126,7 @@ describe("live task API", () => {
     await actingAs(chain.owner, async () => {
       const task = await createTask(chain.columns[0].id, { title: "Bad priority" });
       await expectStatus(
-        updateTask(task.id, { priority: "urgent" as never }),
+        updateTask(task.id, { priority: "urgent" as never, version: task.version }),
         400,
       );
     });
@@ -138,7 +138,7 @@ describe("live task API", () => {
     );
 
     await actingAs(colleague, async () => {
-      await updateTask(task.id, { priority: "medium", completed: true });
+      await updateTask(task.id, { priority: "medium", completed: true, version: task.version });
       const patched = (await getColumnTasks(chain.columns[0].id)).find(
         (t) => t.id === task.id,
       );
@@ -146,7 +146,7 @@ describe("live task API", () => {
       expect(patched?.completed).toBe(true);
 
       // Delete stays owner/admin-only; a member gets 403.
-      await expectStatus(deleteTask(task.id), 403);
+      await expectStatus(deleteTask(task.id, task.version), 403);
     });
   });
 
@@ -156,7 +156,7 @@ describe("live task API", () => {
       const t2 = await createTask(chain.columns[0].id, { title: "T2" });
       const t3 = await createTask(chain.columns[0].id, { title: "T3" });
 
-      await updateTaskPosition(t3.id, { columnId: chain.columns[0].id, position: 0 });
+      await updateTaskPosition(t3.id, { columnId: chain.columns[0].id, position: 0, version: t3.version });
 
       const tasks = await getColumnTasks(chain.columns[0].id);
       const order = tasks
@@ -170,7 +170,7 @@ describe("live task API", () => {
     await actingAs(chain.owner, async () => {
       const task = await createTask(chain.columns[0].id, { title: "Mover" });
 
-      await updateTaskPosition(task.id, { columnId: doneColumn.id, position: 0 });
+      await updateTaskPosition(task.id, { columnId: doneColumn.id, position: 0, version: task.version });
 
       const source = await getColumnTasks(chain.columns[0].id);
       const target = await getColumnTasks(doneColumn.id);
@@ -217,7 +217,7 @@ describe("live task API", () => {
     await actingAs(chain.owner, async () => {
       const task = await createTask(chain.columns[0].id, { title: "Doomed task" });
 
-      await deleteTask(task.id);
+      await deleteTask(task.id, task.version);
 
       const tasks = await getColumnTasks(chain.columns[0].id);
       expect(tasks.map((t) => t.id)).not.toContain(task.id);

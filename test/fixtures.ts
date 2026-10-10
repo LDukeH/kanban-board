@@ -12,6 +12,7 @@ export function makeTask(overrides: Partial<Task> = {}): Task {
     columnId: "col-1",
     title: "Sample task",
     position: 0,
+    version: 1,
     createdAt: "2026-01-01T00:00:00.000Z",
     priority: "none",
     dueDate: null,

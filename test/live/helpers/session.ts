@@ -1,6 +1,7 @@
 import { AxiosHeaders } from "axios";
+import { createClient } from "@supabase/supabase-js";
 import { api } from "@/lib/api/axios";
-import { getCurrentUser, deleteAccount as deleteCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
+import { getCurrentUser, deleteAccount as deleteCurrentUser, logoutUser } from "@/lib/api/auth.api";
 import { supabase } from "@/lib/supabase";
 import { uniqueEmail, uniquePassword } from "./uniq";
 
@@ -11,7 +12,57 @@ export interface LiveAccount {
 }
 
 const jar: { token: string } = { token: "" };
+const sessions = new Map<
+  string,
+  { access_token: string; refresh_token: string }
+>();
+let activeEmail: string | undefined;
 let installed = false;
+
+function createAdminClient() {
+  const url = (
+    process.env.SUPABASE_URL ??
+    process.env.VITE_SUPABASE_URL ??
+    String(import.meta.env.VITE_SUPABASE_URL ?? "")
+  ).trim().replace(/^["']|["']$/g, "");
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
+  if (!url || !serviceRoleKey) {
+    throw new Error(
+      "Live auth tests require SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. " +
+        "The service-role key is test-runner-only and must never be exposed to frontend code.",
+    );
+  }
+  if (
+    serviceRoleKey.startsWith("sb_publishable_") ||
+    serviceRoleKey.startsWith("sb_anon_") ||
+    serviceRoleKey === String(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "")
+  ) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY is a public publishable/anon key. " +
+        "Use the Supabase secret key (sb_secret_...) or legacy service_role key instead.",
+    );
+  }
+
+  return createClient(url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+const admin = createAdminClient();
+
+export async function createUserWithAdmin(
+  email: string,
+  password: string,
+): Promise<void> {
+  const { error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (error) throw error;
+}
 
 /**
  * Real axios client + manual cookie jar. Node's axios never persists cookies
@@ -47,21 +98,52 @@ export function installSessionManager(): void {
 }
 
 /**
- * Registers a fresh throwaway account and logs it in. Returns the account so
+ * Creates a fresh throwaway account through Supabase Admin API and logs it in. Returns the account so
  * the caller can switch back to it with `actingAs` / `loginAs`.
  */
 export async function provisionUser(prefix: string): Promise<LiveAccount> {
   const email = uniqueEmail(prefix);
   const password = uniquePassword();
-  await registerUser({ email, password, confirmPassword: password }, "test-captcha-token");
-  await loginUser({ email, password }, "test-captcha-token");
-  const user = await getCurrentUser();
-  return { id: user.id, email, password };
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (error) throw error;
+  await loginAs({ email, password });
+  await getCurrentUser();
+  return { id: data.user.id, email, password };
 }
 
 /** Switches the shared client to another account's session. */
-export async function loginAs(account: Pick<LiveAccount, "email" | "password">): Promise<void> {
-  await loginUser({ email: account.email, password: account.password }, "test-captcha-token");
+export async function loginAs(
+  account: Pick<LiveAccount, "email" | "password">,
+): Promise<void> {
+  const cachedSession = sessions.get(account.email);
+  if (cachedSession) {
+    const { error } = await supabase.auth.setSession(cachedSession);
+    if (error) throw error;
+  } else {
+    const { data, error } = await admin.auth.signInWithPassword({
+      email: account.email,
+      password: account.password,
+    });
+    if (error) throw error;
+    if (!data.session) {
+      throw new Error(`Supabase did not establish a session for ${account.email}.`);
+    }
+    const { error: setSessionError } = await supabase.auth.setSession(data.session);
+    if (setSessionError) throw setSessionError;
+    sessions.set(account.email, {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    });
+  }
+  activeEmail = account.email;
+
+  // Admin-created users do not pass through the normal frontend signup flow,
+  // so explicitly create the corresponding application user record.
+  await api.post("/auth/sync");
 }
 
 /** Runs an action while authenticated as a specific account. */
@@ -74,15 +156,20 @@ export async function actingAs<T>(
 }
 
 /** Drops the local session (unauthenticated state, as after a fresh boot). */
-export function clearSession(): void {
+export async function clearSession(): Promise<void> {
   jar.token = "";
-  void supabase.auth.signOut();
+  if (activeEmail) sessions.delete(activeEmail);
+  activeEmail = undefined;
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }
 
 /** Posts /auth/logout and drops the local session. */
 export async function logout(): Promise<void> {
   await logoutUser();
   jar.token = "";
+  if (activeEmail) sessions.delete(activeEmail);
+  activeEmail = undefined;
 }
 
 /**
@@ -106,7 +193,7 @@ export async function deleteAccount(
 ): Promise<void> {
   await loginAs(account);
   await deleteCurrentUser();
-  clearSession();
+  await clearSession();
 }
 
 /**
@@ -132,5 +219,5 @@ export async function deleteAccounts(
       );
     }
   }
-  clearSession();
+  await clearSession();
 }

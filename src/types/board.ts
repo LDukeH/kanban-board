@@ -52,6 +52,7 @@ export interface Task {
   // Canonical format is a Tiptap JSON document ({ type: "doc", ... }) persisted as PostgreSQL JSONB.
   description?: TaskDescription | string;
   position: number;
+  version: number;
   createdAt: string;
   /** Always present in backend responses; defaults to "none". */
   priority: TaskPriority;
