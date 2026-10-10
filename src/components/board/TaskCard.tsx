@@ -1,13 +1,26 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { getDescriptionPreview } from "@/lib/description";
 import { isOverdue } from "@/lib/summary";
+import { splitTaskLabels } from "@/lib/taskLabels";
 import type { Task, TaskPriority } from "@/types/board";
 import { EditTaskDialog } from "@/components/dialog/EditTaskDialog";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { closestCenter } from "@dnd-kit/collision";
 import { useDragOperation } from "@dnd-kit/react";
+import {
+  AlertCircle,
+  CalendarDays,
+  Clock,
+  Flag,
+  GripVertical,
+} from "lucide-react";
 import { TaskAssigneeAvatars } from "@/components/board/TaskAssigneeAvatars";
-import { AlertCircle, CalendarDays, CheckCircle2, Clock, Flag } from "lucide-react";
+import { TaskCompleteToggle } from "@/components/board/TaskCompleteToggle";
+import { LabelBadge } from "@/components/board/LabelBadge";
+import { useToggleTaskCompleted } from "@/hooks/useColumnTasks";
+import { describeMutationError } from "@/lib/httpStatus";
+import { getDateFormat } from "@/lib/preferences";
 
 interface TaskCardProps {
   task: Task;
@@ -31,20 +44,19 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
 /** Colour-coded priority chips: High = danger, Medium = warning, Low = neutral. */
 const PRIORITY_CHIP: Record<TaskPriority, string> = {
   none: "border-border bg-muted text-muted-foreground",
-  low: "border-neutral/30 bg-neutral/10 text-neutral",
-  medium: "border-warning/30 bg-warning/10 text-warning",
-  high: "border-danger/30 bg-danger/10 text-danger",
+  low: "border-border bg-muted/60 text-muted-foreground",
+  medium: "border-warning/20 bg-warning/5 text-warning",
+  high: "border-danger/20 bg-danger/5 text-danger",
 };
 
 /** Formats a "YYYY-MM-DD" due date for display. Parsed by hand so it never shifts a day in negative UTC offsets. */
 function formatDueDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return value;
-  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const dateFormat = getDateFormat();
+  return dateFormat === "DD/MM/YYYY"
+    ? `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
+    : `${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}/${year}`;
 }
 
 /** True when a "YYYY-MM-DD" due date lands today or tomorrow — i.e. within the next 48 hours at local-midnight granularity. */
@@ -53,7 +65,11 @@ function isDueSoon(value: string): boolean {
   if (!year || !month || !day) return false;
   const due = new Date(year, month - 1, day).getTime();
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).getTime();
   const diffDays = Math.round((due - today) / 86_400_000);
   return diffDays >= 0 && diffDays <= 1;
 }
@@ -69,23 +85,41 @@ export function TaskCard({
   isOverlay = false,
 }: TaskCardProps) {
   // Task-to-task drops are scoped to THIS column so dnd-kit's live reordering stays in one DOM container.
-  const { ref, isDragging, isDragSource, isDropTarget, sortable } = useSortable({
-    id: task.id,
-    index,
-    type: "task",
-    accept: (draggable) =>
-      draggable.data?.type === "task" &&
-      draggable.data?.columnId === task.columnId,
-    group: task.columnId,
-    collisionDetector: closestCenter,
-    // Overlay cards must never register as active sortable nodes.
-    disabled: isOverlay
-      ? { draggable: true, droppable: true }
-      : { draggable: !draggable },
-    data: { type: "task", task: task, columnId: task.columnId },
-  });
+  const { ref, handleRef, isDragging, isDragSource, isDropTarget, sortable } =
+    useSortable({
+      id: task.id,
+      index,
+      type: "task",
+      accept: (draggable) =>
+        draggable.data?.type === "task" &&
+        draggable.data?.columnId === task.columnId,
+      group: task.columnId,
+      collisionDetector: closestCenter,
+      // Overlay cards must never register as active sortable nodes.
+      disabled: isOverlay
+        ? { draggable: true, droppable: true }
+        : { draggable: !draggable },
+      data: { type: "task", task: task, columnId: task.columnId },
+    });
 
   const { source } = useDragOperation();
+  const toggleCompleted = useToggleTaskCompleted(boardId, task.columnId);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  function handleToggleCompleted() {
+    setToggleError(null);
+    // Optimistic update + rollback live in useToggleTaskCompleted; surface a failure inline so it is not silent.
+    void toggleCompleted
+      .mutateAsync({ taskId: task.id, completed: !task.completed })
+      .catch((error: unknown) => {
+        setToggleError(
+          describeMutationError(
+            error,
+            "Could not update the task. Please try again.",
+          ),
+        );
+      });
+  }
 
   // While dragging, the sortable plugin syncs the dragged task's index with the render order, so comparing it with this card's index matches the final drop.
   const showInsertionIndicator =
@@ -108,10 +142,10 @@ export function TaskCard({
     <div
       ref={ref}
       className={cn(
-        "group relative flex items-start gap-2.5 rounded-card border border-border bg-background px-3 py-2.5 transition-shadow hover:shadow-md",
+        "group relative flex  items-start gap-2 rounded-card border border-border/80 bg-background px-3 py-2.5 pr-8 transition-shadow hover:shadow-sm",
         className,
-        isDragging && "opacity-40",
-        isOverlay && "rotate-1 border-primary/40 shadow-xl",
+        isDragging && "opacity-40 shadow-md",
+        isOverlay && "rotate-1 border-primary/40 shadow-lg",
       )}
     >
       {showInsertionIndicator && (
@@ -124,11 +158,26 @@ export function TaskCard({
         />
       )}
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span
-            className="mt-0.5 size-4 shrink-0 rounded-full border-2 border-muted-foreground/40"
-            aria-hidden
+      {!isOverlay && draggable && (
+        <button
+          ref={handleRef}
+          type="button"
+          className="absolute right-1 top-1/2 flex size-6 -translate-y-1/2 touch-none items-center justify-center rounded text-slate-400 opacity-0 outline-none transition-[background-color,color,opacity] hover:bg-slate-100 hover:text-slate-600 hover:cursor-grab focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+          aria-label={`Drag task ${task.title}`}
+          title="Drag task"
+        >
+          <GripVertical className="size-4" aria-hidden />
+        </button>
+      )}
+
+      <div className="min-w-0 flex-1 pl-2 pr-1">
+        <div className="flex items-start gap-1.5">
+          <TaskCompleteToggle
+            completed={task.completed}
+            taskTitle={task.title}
+            onToggle={handleToggleCompleted}
+            disabled={toggleCompleted.isPending}
+            className="mt-0.5"
           />
           {canEdit && !isOverlay ? (
             <EditTaskDialog
@@ -168,22 +217,35 @@ export function TaskCard({
           </p>
         ) : null}
 
-        {(task.labels ?? []).length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {(task.labels ?? []).map((label) => (
-              <span
-                key={label.id}
-                className="h-1.5 w-7 shrink-0 rounded-full"
-                style={
-                  label.color ? { backgroundColor: label.color } : undefined
-                }
-                title={label.name}
-              />
-            ))}
-          </div>
-        )}
+        {(task.labels ?? []).length > 0 &&
+          (() => {
+            const labels = task.labels ?? [];
+            const { visible, hidden } = splitTaskLabels(labels);
+            return (
+              <div
+                className="mt-1.5 flex flex-wrap items-center gap-1"
+                aria-label={`Labels: ${labels.map((label) => label.name).join(", ")}`}
+              >
+                {visible.map((label) => (
+                  <LabelBadge
+                    key={label.id}
+                    label={label}
+                    className="max-w-28 text-[11px]"
+                  />
+                ))}
+                {hidden.length > 0 && (
+                  <span
+                    className="inline-flex h-5 shrink-0 items-center rounded border border-border bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground"
+                    title={hidden.map((label) => label.name).join(", ")}
+                  >
+                    +{hidden.length}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
-        {(task.priority !== "none" || task.dueDate || task.completed) && (
+        {(task.priority !== "none" || task.dueDate) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
             {task.priority !== "none" && (
               <span
@@ -231,18 +293,17 @@ export function TaskCard({
                     : formatDueDate(task.dueDate)}
               </span>
             )}
-
-            {task.completed && (
-              <span className="inline-flex items-center gap-1 font-medium text-success">
-                <CheckCircle2 className="size-3" aria-hidden />
-                Done
-              </span>
-            )}
           </div>
         )}
       </div>
 
       {!isOverlay && <TaskAssigneeAvatars assignees={task.assignees ?? []} />}
+
+      {toggleError && (
+        <p role="alert" className="mt-1.5 w-full text-xs text-destructive">
+          {toggleError}
+        </p>
+      )}
     </div>
   );
 }

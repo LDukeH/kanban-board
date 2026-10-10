@@ -73,6 +73,28 @@ describe("taskDraft pure logic (mirrors EditTaskDialog behavior)", () => {
     expect(isTaskDraftDirty({ ...createTaskDraft(base), dueDate: "" }, base)).toBe(false);
   });
 
+  it("stays clean when Tiptap re-serializes the same visible text", () => {
+    // Tiptap round-trips content (empty paragraphs, missing arrays): the saved
+    // snapshot is normalized, so the editor-seeded draft must go through the
+    // same normalization to compare equal.
+    const reserialized = {
+      type: "doc" as const,
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "Body" }] },
+        { type: "paragraph" },
+      ],
+    };
+    const normalized = createTaskDraft(task({ description: reserialized }));
+    expect(normalized.description).toEqual(textToTaskDescription("Body"));
+    // Both sides normalized through the snapshot -> clean, no "Unsaved changes".
+    expect(
+      isTaskDraftDirty(
+        normalized,
+        task({ description: textToTaskDescription("Body") }),
+      ),
+    ).toBe(false);
+  });
+
   it("rejects a blank title before any save", () => {
     expect(validateTaskDraft({ ...createTaskDraft(task()), title: "   " })).toBe(
       "Task title is required.",

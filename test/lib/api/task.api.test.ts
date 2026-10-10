@@ -203,6 +203,21 @@ describe("task.api mapping", () => {
       due_date: null,
     });
   });
+
+  it("createTask omits completed for new tasks (they always start incomplete)", async () => {
+    const handle = createMockApiAdapter([
+      route("post", "/columns/c1/tasks", tasksPayload[0]),
+    ]);
+    mockApi(handle);
+
+    await createTask("c1", { title: "Fresh task", dueDate: null });
+
+    expect(handle.requests[0].data).toEqual({
+      title: "Fresh task",
+      due_date: null,
+    });
+    expect(handle.requests[0].data).not.toHaveProperty("completed");
+  });
 });
 
 describe("task.api mutations", () => {

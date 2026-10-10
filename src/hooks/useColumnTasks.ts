@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/task.api";
 import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
 import { boardLabelsQueryKey } from "@/hooks/useBoard";
-import { isStaleError } from "@/lib/httpStatus";
+import { isStaleError, reportMutationError } from "@/lib/httpStatus";
 import { writeStaleMoveNotice } from "@/lib/staleMoveNotices";
 import {
   insertTaskIntoColumn,
@@ -205,6 +205,42 @@ export function columnTasksQueryKey(boardId: string, columnId: string) {
   return ["boards", boardId, "columns", columnId, "tasks"] as const;
 }
 
+/** Shared optimistic toggle for task completion (card circle + detail dialog circle). */
+export function useToggleTaskCompleted(boardId: string, columnId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ taskId, completed }: { taskId: string; completed: boolean }) => {
+      const task = findCachedTask(queryClient, boardId, taskId);
+      if (!task) throw new Error(`Task ${taskId} is not available for update.`);
+      await updateTask(taskId, { completed, version: task.version });
+    },
+    onMutate: async ({ taskId, completed }) => {
+      const queryKey = columnTasksQueryKey(boardId, columnId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Task[]>(queryKey);
+      queryClient.setQueryData<Task[]>(queryKey, (old) =>
+        old?.map((task) => (task.id === taskId ? { ...task, completed } : task)) ?? [],
+      );
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData<Task[]>(
+          columnTasksQueryKey(boardId, columnId),
+          context.previous,
+        );
+      }
+      reportMutationError("Toggle task completion failed", error);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: columnTasksQueryKey(boardId, columnId),
+      });
+    },
+  });
+}
+
 /** The single implementation behind a column's task query, exported so another observer of the same key (see useBoardSummary) runs the identical reconciliation. */
 export function columnTasksQueryFn(
   boardId: string | undefined,
@@ -317,6 +353,28 @@ export function useColumnTasks(
       if (!task) throw new Error(`Task ${taskId} is not available for update.`);
       return updateTask(taskId, { ...data, version: task.version });
     },
+    onMutate: async ({ taskId, data }) => {
+      if (!boardId || !columnId) return undefined;
+      const queryKey = columnTasksQueryKey(boardId, columnId);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<Task[]>(queryKey);
+      queryClient.setQueryData<Task[]>(queryKey, (old) =>
+        old?.map((task) =>
+          task.id === taskId ? { ...task, ...data } : task,
+        ) ?? [],
+      );
+      return { previous };
+    },
+    onError: (error, _variables, context) => {
+      if (!boardId || !columnId) return;
+      if (context?.previous) {
+        queryClient.setQueryData<Task[]>(
+          columnTasksQueryKey(boardId, columnId),
+          context.previous,
+        );
+      }
+      reportMutationError("Update task failed", error);
+    },
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
       queryClient.setQueryData<Task[]>(
@@ -328,6 +386,12 @@ export function useColumnTasks(
               : task,
           ) ?? [],
       );
+    },
+    onSettled: () => {
+      if (!boardId || !columnId) return;
+      queryClient.invalidateQueries({
+        queryKey: columnTasksQueryKey(boardId, columnId),
+      });
     },
   });
 

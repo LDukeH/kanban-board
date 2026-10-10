@@ -20,7 +20,6 @@ import {
   AlignLeft,
   CalendarDays,
   Check,
-  Circle,
   Flag,
   Loader2,
   MoreHorizontal,
@@ -30,6 +29,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { TaskCompleteToggle } from "@/components/board/TaskCompleteToggle";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
@@ -349,9 +349,11 @@ export function EditTaskDialog({
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] md:overflow-hidden">
           <div className="min-w-0 px-5 py-4 md:overflow-y-auto">
             <div className="flex items-start gap-2.5">
-              <Circle
-                className="mt-1.5 size-5 shrink-0 text-muted-foreground/60"
-                aria-label="Task status (display only)"
+              <TaskCompleteToggle
+                completed={draftCompleted}
+                taskTitle={draftTitle || savedTitle}
+                onToggle={() => setDraftCompleted(!draftCompleted)}
+                className="mt-1.5 size-5 [&_svg]:size-3"
               />
               {editingTitle ? (
                 <Input
@@ -515,17 +517,6 @@ export function EditTaskDialog({
                     ))}
                   </div>
                 </div>
-                <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={draftCompleted}
-                    onChange={(e) => setDraftCompleted(e.target.checked)}
-                    className="size-3.5 accent-primary"
-                  />
-                  <span className="font-medium text-muted-foreground">
-                    Completed
-                  </span>
-                </label>
               </div>
               <div className="mt-2 flex items-center gap-1.5">
                 <CalendarDays

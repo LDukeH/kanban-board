@@ -27,7 +27,7 @@ import type { SearchedUser } from "@/types/workspace";
 import {
   emailInitial,
   emailToHandle,
-  avatarGradient,
+  avatarGradient, avatarSeed,
 } from "@/lib/memberDisplay";
 import { describeMutationError } from "@/lib/httpStatus";
 
@@ -232,7 +232,7 @@ return (
                       <div
                         className={cn(
                           "flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white",
-                          avatarGradient(user.id || user.email),
+                          avatarGradient(avatarSeed(user)),
                         )}
                       >
                         {emailInitial(user.email)}

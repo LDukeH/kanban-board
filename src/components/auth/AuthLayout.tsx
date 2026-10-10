@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import AuthSidePanel from "./AuthSidePanel";
 import LoginForm from "./LoginForm";
@@ -6,9 +7,10 @@ import RegisterForm from "./RegisterForm";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 
 export default function AuthLayout() {
+  const location = useLocation();
   const [activeMode, setActiveMode] = useState<
     "login" | "register" | "forgot"
-  >("login");
+  >(() => (location.state?.mode === "forgot" ? "forgot" : "login"));
 
   const isRegister = activeMode === "register";
 

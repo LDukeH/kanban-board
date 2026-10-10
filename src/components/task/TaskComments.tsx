@@ -5,8 +5,12 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { useTaskComments } from "@/hooks/useTaskComments";
-import { describeLoadError, describeMutationError, reportMutationError } from "@/lib/httpStatus";
-import { avatarGradient, emailInitial } from "@/lib/memberDisplay";
+import {
+  describeLoadError,
+  describeMutationError,
+  reportMutationError,
+} from "@/lib/httpStatus";
+import { avatarGradient, avatarSeed, emailInitial } from "@/lib/memberDisplay";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { cn } from "@/lib/utils";
 import {
@@ -89,7 +93,7 @@ export function TaskComments({
           aria-hidden
           className={cn(
             "flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[11px] font-semibold text-white",
-            avatarGradient(currentUserEmail || "user"),
+            avatarGradient(avatarSeed({ email: currentUserEmail })),
           )}
         >
           {emailInitial(currentUserEmail || "?")}
@@ -99,7 +103,7 @@ export function TaskComments({
             value={draft}
             rows={2}
             maxLength={COMMENT_CONTENT_MAX_LENGTH}
-            placeholder="Write a comment…"
+            placeholder="Write a comment"
             aria-label="Comment"
             disabled={isCreatingComment}
             onChange={(e) => setDraft(e.target.value)}
@@ -187,7 +191,9 @@ export function TaskComments({
                     aria-hidden
                     className={cn(
                       "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-                      avatarGradient(comment.authorEmail),
+                      avatarGradient(
+                        avatarSeed({ email: comment.authorEmail }),
+                      ),
                     )}
                   >
                     {emailInitial(comment.authorEmail)}

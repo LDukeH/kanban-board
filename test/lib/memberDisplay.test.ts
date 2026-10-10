@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { avatarGradient, emailInitial, emailToHandle, roleLabel } from "@/lib/memberDisplay";
+import {
+  avatarGradient,
+  avatarSeed,
+  emailInitial,
+  emailToHandle,
+  roleLabel,
+} from "@/lib/memberDisplay";
 
 describe("roleLabel", () => {
   it("maps each workspace role to its display label", () => {
@@ -46,5 +52,19 @@ describe("avatarGradient", () => {
     for (const seed of ["alice@example.com", "bob", "a", "zzz@long-domain.example", ""]) {
       expect(palette).toContain(avatarGradient(seed));
     }
+  });
+});
+
+describe("avatarSeed", () => {
+  it("keys avatar color by normalized email so every surface matches", () => {
+    expect(avatarSeed({ email: "Ada@Example.com" })).toBe("ada@example.com");
+    expect(avatarGradient(avatarSeed({ email: "Ada@Example.com" }))).toBe(
+      avatarGradient(avatarSeed({ email: "ada@example.com" })),
+    );
+  });
+
+  it("falls back to empty string when no email is available", () => {
+    expect(avatarSeed({})).toBe("");
+    expect(avatarSeed({ email: null })).toBe("");
   });
 });

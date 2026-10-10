@@ -24,7 +24,7 @@ import { selectPendingInvitations } from "@/lib/pendingInvitations";
 import { findBoardIdForTask } from "@/lib/api/task.api";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/relativeTime";
-import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { emailInitial, avatarGradient, avatarSeed } from "@/lib/memberDisplay";
 import type { Notification } from "@/types/notification";
 
 function notificationCopy(notification: Notification): {
@@ -263,7 +263,7 @@ export function NotificationBell({ className }: { className?: string }) {
                     <span
                       className={cn(
                         "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-                        avatarGradient(actorEmail),
+                        avatarGradient(avatarSeed({ email: actorEmail })),
                       )}
                     >
                       {emailInitial(actorEmail)}

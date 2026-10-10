@@ -123,6 +123,23 @@ function extractErrorBodyText(body: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Supabase Auth answers with a captcha-flavored error when Bot and Abuse
+ * Protection is enabled and the request carries no (or an invalid) hCaptcha
+ * token. Callers use this to reveal the challenge only when it is required.
+ */
+export function isCaptchaError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const authError = error as { code?: unknown; message?: unknown };
+  const code =
+    typeof authError.code === "string" ? authError.code.toLowerCase() : "";
+  const message =
+    typeof authError.message === "string"
+      ? authError.message.toLowerCase()
+      : "";
+  return message.includes("captcha") || code.includes("captcha");
+}
+
 /** On sign-in a 401/400 means bad credentials (not an expired session); on register the backend body is preferred so validation stays specific. */
 export function describeAuthFormError(
   error: unknown,
@@ -130,7 +147,8 @@ export function describeAuthFormError(
     | "Sign in"
     | "Create account"
     | "Send reset email"
-    | "Update password",
+    | "Update password"
+    | "Sign in with Google",
 ): string {
   const authError = error as {
     code?: unknown;
@@ -167,6 +185,16 @@ export function describeAuthFormError(
     return "Supabase Auth is not configured correctly for this app.";
   }
   if (
+    action === "Sign in with Google" &&
+    (message.includes("unsupported provider") ||
+      message.includes("provider is not enabled"))
+  ) {
+    return "Google sign-in is not enabled in Supabase. Enable Google under Authentication > Providers, then add the Google client credentials.";
+  }
+  if (isCaptchaError(error)) {
+    return "hCaptcha verification failed. Add this host to the hCaptcha site key or complete the challenge again.";
+  }
+  if (
     authStatus === 429 ||
     code === "signup_rate_limited" ||
     message.includes("rate limit") ||
@@ -175,7 +203,10 @@ export function describeAuthFormError(
     return "Supabase Auth is temporarily rate-limiting requests. Wait a minute before trying again.";
   }
   const status = getHttpStatus(error);
-  if (action === "Sign in" && (status === 401 || status === 400)) {
+  if (
+    action === "Sign in" &&
+    (status === 401 || status === 400 || authStatus === 400)
+  ) {
     // Some backends answer 400 for invalid credentials; either way the body ("Unauthorized") is not helpful.
     return "Invalid email or password. Please try again.";
   }

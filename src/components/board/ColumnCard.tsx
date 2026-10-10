@@ -139,17 +139,17 @@ export function ColumnCard({
     <div
       ref={ref}
       className={cn(
-        "flex max-h-full min-h-32 w-80 shrink-0 flex-col rounded-card border border-border bg-card",
+        "flex max-h-full min-h-32 w-80 shrink-0 flex-col rounded-card border border-border/80 bg-card",
         className,
         isDragging && "opacity-50",
       )}
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/70 px-3 py-2.5">
         <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden />
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
           {column.name}
         </h3>
-        <span className="rounded-control bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        <span className="rounded-control bg-muted/70 px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
           {filterActive
             ? `${visibleTasks.length} / ${tasks.length}`
             : tasks.length}
@@ -226,8 +226,8 @@ export function ColumnCard({
           foreignTaskInsertionIndex >= 0 ? (
             <TaskDropPlaceholder />
           ) : (
-            <div className="rounded-control border border-dashed border-border p-3 text-center">
-              <p className="text-xs text-muted-foreground">
+            <div className="py-1 text-center">
+              <p className="text-xs text-muted-foreground/80">
                 {filterActive ? "No matching tasks" : "No tasks yet"}
               </p>
               {canCreateTask && (

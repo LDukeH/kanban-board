@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { BoardGrid } from "@/components/dashboard/BoardGrid";
 import { FeaturedSection } from "@/components/dashboard/FeaturedSection";
@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { Loader2, LayoutGrid, Users } from "lucide-react";
 import { describeLoadError } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
-import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { emailInitial, avatarGradient, avatarSeed } from "@/lib/memberDisplay";
 import { Button } from "@/components/ui/button";
 
 /** How many member avatars render before collapsing into "+N". */
@@ -26,7 +26,12 @@ const MAX_AVATARS = 5;
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { workspaces, isLoading: isLoadingWorkspaces } = useWorkspaces();
+  const {
+    workspaces,
+    isLoading: isLoadingWorkspaces,
+    isError: isWorkspacesError,
+  } = useWorkspaces();
+  const navigate = useNavigate();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
   const {
     boards,
@@ -59,6 +64,27 @@ export default function WorkspacePage() {
       setSelectedWorkspaceId(workspaceId);
     }
   }, [workspaceId, setSelectedWorkspaceId]);
+
+  useEffect(() => {
+    if (
+      !isLoadingWorkspaces &&
+      !isWorkspacesError &&
+      workspaceId &&
+      !workspaces.some((candidate) => candidate.id === workspaceId)
+    ) {
+      useRecentStore.getState().forgetWorkspace(workspaceId);
+      navigate("/workspaces", {
+        replace: true,
+        state: { notice: "You no longer have access to this workspace." },
+      });
+    }
+  }, [
+    isLoadingWorkspaces,
+    isWorkspacesError,
+    navigate,
+    workspaceId,
+    workspaces,
+  ]);
 
   // Remember this workspace as recently accessed for the sidebar.
   useEffect(() => {
@@ -102,7 +128,7 @@ export default function WorkspacePage() {
                     key={member.id}
                     className={cn(
                       "flex size-7 items-center justify-center rounded-full bg-linear-to-br text-xs font-semibold text-white ring-2 ring-background transition-transform hover:-translate-y-0.5",
-                      avatarGradient(member.userId || member.email),
+                      avatarGradient(avatarSeed(member)),
                     )}
                   >
                     {emailInitial(member.email)}

@@ -45,6 +45,7 @@ function mapNotification(raw: NotificationApiResponse): Notification {
   if (raw.type === "task_assigned") {
     return {
       id: raw.id,
+      userId: raw.user_id,
       type: "task_assigned",
       payload: mapTaskAssignedPayload(raw.payload),
       readAt: raw.read_at,
@@ -54,6 +55,7 @@ function mapNotification(raw: NotificationApiResponse): Notification {
   }
   return {
     id: raw.id,
+    userId: raw.user_id,
     type: "workspace_invited",
     payload: mapWorkspaceInvitedPayload(raw.payload),
     readAt: raw.read_at,

@@ -4,6 +4,7 @@ import type { Notification } from "@/types/notification";
 
 const assigned: Notification = {
   id: "n-task",
+  userId: "u1",
   type: "task_assigned",
   readAt: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -29,6 +30,7 @@ function invited(
 ): Notification {
   return {
     id,
+    userId: "u1",
     type: "workspace_invited",
     readAt: overrides.readAt ?? null,
     createdAt: overrides.createdAt ?? "2026-01-01T00:00:00.000Z",

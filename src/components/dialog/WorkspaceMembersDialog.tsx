@@ -44,7 +44,7 @@ import {
   roleLabel,
   emailInitial,
   emailToHandle,
-  avatarGradient,
+  avatarGradient, avatarSeed,
 } from "@/lib/memberDisplay";
 
 interface WorkspaceMembersDialogProps {
@@ -109,7 +109,7 @@ function MemberRow({
       <div
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-sm font-semibold text-white",
-          avatarGradient(member.userId || member.email),
+          avatarGradient(avatarSeed(member)),
         )}
       >
         {emailInitial(member.email)}
@@ -390,7 +390,7 @@ export function WorkspaceMembersDialog({
                       <div
                         className={cn(
                           "flex size-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br text-xs font-semibold text-white",
-                          avatarGradient(invitation.inviteeUserId),
+                          avatarGradient(avatarSeed({ email: invitation.inviteeEmail })),
                         )}
                       >
                         {emailInitial(label)}

@@ -1,9 +1,12 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "react-router-dom";
 
 export function GuestRoute() {
   const { isLoading, isAuthenticated } = useAuth();
+  const location = useLocation();
+  const isPasswordReset = location.state?.mode === "forgot";
 
   if (isLoading) {
     return (
@@ -17,7 +20,7 @@ export function GuestRoute() {
     );
   }
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !isPasswordReset) {
     return <Navigate to="/workspaces" replace />;
   }
 

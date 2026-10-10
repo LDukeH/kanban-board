@@ -19,7 +19,7 @@ import { LabelBadge } from "@/components/board/LabelBadge";
 import { useBoard } from "@/hooks/useBoard";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaces";
 import { cn } from "@/lib/utils";
-import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { emailInitial, avatarGradient, avatarSeed } from "@/lib/memberDisplay";
 import { TASK_PRIORITIES, type TaskPriority } from "@/types/board";
 import {
   clearTaskFilter,
@@ -398,7 +398,7 @@ export function TaskFilterPopover({
                       <span
                         className={cn(
                           "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-                          avatarGradient(member.userId || member.email),
+                          avatarGradient(avatarSeed(member)),
                         )}
                       >
                         {emailInitial(member.email)}
@@ -527,7 +527,7 @@ export function TaskFilterPopover({
                       <span
                         className={cn(
                           "flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-                          avatarGradient(member.userId || member.email),
+                          avatarGradient(avatarSeed(member)),
                         )}
                       >
                         {emailInitial(member.email)}

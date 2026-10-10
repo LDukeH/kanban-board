@@ -4,7 +4,7 @@ import { InlineAlert } from "@/components/ui/inline-alert";
 import { describeLoadError } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
 import { usePersistentFlag } from "@/hooks/usePersistentFlag";
-import { emailInitial, avatarGradient } from "@/lib/memberDisplay";
+import { emailInitial, avatarGradient, avatarSeed } from "@/lib/memberDisplay";
 import type { TaskSummary } from "@/lib/summary";
 import { BarChart3, ChevronDown, Info, Loader2 } from "lucide-react";
 
@@ -255,7 +255,7 @@ export function ProgressSummary({
                       <span
                         className={cn(
                           "flex size-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white",
-                          avatarGradient(entry.email),
+                          avatarGradient(avatarSeed({ email: entry.email })),
                         )}
                         aria-hidden
                       >

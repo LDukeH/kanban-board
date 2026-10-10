@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCurrentUser, logoutUser } from "@/lib/api/auth.api";
+import { getCurrentUser, logoutUser, syncAuthUser } from "@/lib/api/auth.api";
 import { getHttpStatus } from "@/lib/httpStatus";
 import { useRecentStore } from "@/stores/recentStore";
 import { useInvitationStore } from "@/stores/invitationStore";
@@ -41,7 +41,17 @@ export function useAuth() {
         setHasSession(false);
         setSessionReady(true);
         queryClient.setQueryData(["currentUser"], null);
-      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      } else if (event === "SIGNED_IN") {
+        setHasSession(true);
+        setSessionReady(true);
+        setTimeout(() => {
+          void syncAuthUser()
+            .catch(() => undefined)
+            .then(() =>
+              queryClient.invalidateQueries({ queryKey: ["currentUser"] }),
+            );
+        }, 0);
+      } else if (event === "TOKEN_REFRESHED") {
         setHasSession(true);
         setSessionReady(true);
         void queryClient.invalidateQueries({ queryKey: ["currentUser"] });

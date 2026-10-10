@@ -17,6 +17,8 @@ export interface WorkspaceInvitedPayload {
 
 interface NotificationBase {
   id: string;
+  /** User who owns/receives this notification. */
+  userId: string;
   /** ISO-8601 timestamp; null while unread. */
   readAt: string | null;
   createdAt: string;

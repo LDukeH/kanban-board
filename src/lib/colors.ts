@@ -57,3 +57,37 @@ export const LABEL_COLORS: readonly string[] = [
 
 /** Represents "no color" — accepted by the backend as an empty color string. */
 export const LABEL_NO_COLOR = "";
+
+/** YIQ brightness threshold: >= 128 reads better with dark text, below with white text. */
+const LABEL_CONTRAST_THRESHOLD = 128;
+
+/** Parses a hex color ("#rgb" or "#rrggbb", with or without "#") into RGB channels. */
+function parseHexColor(color: string): [number, number, number] | null {
+  const hex = color.trim().replace(/^#/, "");
+  const short = /^[\da-fA-F]{3}$/.exec(hex);
+  if (short) {
+    const [r, g, b] = hex.split("").map((c) => Number.parseInt(c + c, 16));
+    return [r, g, b];
+  }
+  const full = /^[\da-fA-F]{6}$/.exec(hex);
+  if (!full) return null;
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16),
+  ];
+}
+
+/**
+ * Readable text color (white or black) for a label background.
+ * Uses YIQ brightness so bright label colors (yellow/orange) get dark text
+ * and saturated colors (red/green/blue/purple) keep white text.
+ * Falls back to white for empty/invalid input (callers render those without a fill).
+ */
+export function getLabelContrastText(color: string): string {
+  const rgb = parseHexColor(color);
+  if (!rgb) return "#ffffff";
+  const [r, g, b] = rgb;
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness >= LABEL_CONTRAST_THRESHOLD ? "#000000" : "#ffffff";
+}

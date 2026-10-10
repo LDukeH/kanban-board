@@ -19,6 +19,7 @@ interface RecentState {
   recordBoard: (board: RecentBoardEntry) => void;
   renameWorkspace: (workspaceId: string, name: string) => void;
   renameBoard: (boardId: string, name: string) => void;
+  reconcileWorkspaces: (workspaces: RecentWorkspaceEntry[]) => void;
   forgetWorkspace: (workspaceId: string) => void;
   forgetBoard: (boardId: string) => void;
 }
@@ -179,6 +180,22 @@ export const useRecentStore = create<RecentState>((set, get) => {
         recentWorkspaces: get().recentWorkspaces,
         recentBoards,
       });
+    },
+
+    reconcileWorkspaces: (workspaces) => {
+      const validById = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
+      const recentWorkspaces = get().recentWorkspaces
+        .filter((workspace) => validById.has(workspace.id))
+        .map((workspace) => ({
+          ...workspace,
+          name: validById.get(workspace.id)!.name,
+        }));
+      const validWorkspaceIds = new Set(validById.keys());
+      const recentBoards = get().recentBoards.filter((board) =>
+        validWorkspaceIds.has(board.workspaceId),
+      );
+      set({ recentWorkspaces, recentBoards });
+      saveScope(scopeUserId, { recentWorkspaces, recentBoards });
     },
 
     forgetWorkspace: (workspaceId) => {

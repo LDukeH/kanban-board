@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getWorkspaces,
@@ -34,6 +35,12 @@ export function useWorkspaces() {
     queryKey: ["workspaces"],
     queryFn: getWorkspaces,
   });
+
+  useEffect(() => {
+    if (workspaces) {
+      useRecentStore.getState().reconcileWorkspaces(workspaces);
+    }
+  }, [workspaces]);
 
   // Both create and update return the full workspace, so the caches are written from the response instead of refetching; the list write is an upsert.
   const writeWorkspaceCaches = (workspace: Workspace) => {
@@ -201,6 +208,10 @@ export function useInvitationActions() {
   const invalidateInvitationsFor = (workspaceId: string) => {
     queryClient.invalidateQueries({
       queryKey: ["workspaces", workspaceId, "invitations"],
+    });
+    queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    queryClient.invalidateQueries({
+      queryKey: ["notifications", "unread-count"],
     });
   };
 

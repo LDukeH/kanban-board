@@ -266,6 +266,7 @@ describe("live workspace invitation API", () => {
     const inviteeId = await provisionUser("inv-notify-invitee");
     extraAccounts.push(inviteeId);
     let invitedInvitationId = "";
+    let acceptedMembershipId = "";
 
     await actingAs(owner, async () => {
       const pending = await inviteUser(workspace.id, inviteeId);
@@ -285,7 +286,32 @@ describe("live workspace invitation API", () => {
 
       const membership = await findMembership(workspace.id, inviteeId.id);
       expect(membership.role).toBe("member");
+      acceptedMembershipId = membership.id;
       expect((await getWorkspaces()).map((w) => w.id)).toContain(workspace.id);
+      expect(
+        (await getNotifications()).some(
+          (notification) =>
+            isWorkspaceInvited(notification) &&
+            notification.payload.invitationId === invitedInvitationId,
+        ),
+      ).toBe(false);
+
+      await actingAs(owner, async () => {
+        await removeMember(workspace.id, acceptedMembershipId);
+      });
+    });
+
+    await actingAs(inviteeId, async () => {
+      expect((await getWorkspaces()).map((w) => w.id)).not.toContain(
+        workspace.id,
+      );
+      expect(
+        (await getNotifications()).some(
+          (notification) =>
+            isWorkspaceInvited(notification) &&
+            notification.payload.invitationId === invitedInvitationId,
+        ),
+      ).toBe(false);
     });
   });
 

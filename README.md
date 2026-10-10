@@ -61,6 +61,13 @@ Abuse Protection**, configure the hCaptcha secret key there, and add the
 corresponding site key to `VITE_HCAPTCHA_SITE_KEY`. The sign-in, sign-up, and
 password-reset forms send the challenge token to Supabase Auth.
 
+For local development, add `localhost` (and `127.0.0.1` if you use that
+address) to the allowed hostnames for the hCaptcha site key. The
+`localhost detected` warning is from hCaptcha and means the site key does not
+recognize the local host. Supabase may then reject sign-in with HTTP 400
+because the captcha token cannot be verified. Use a separate site key for
+local development if the production key cannot include local hostnames.
+
 `VITE_API_URL` is read by the axios client (`src/lib/api/axios.ts`) and used
 verbatim as the base URL. Supabase Auth manages the browser session and axios
 sends its access token as an `Authorization: Bearer` header to the Go API.

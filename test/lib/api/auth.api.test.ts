@@ -1,6 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api/axios";
-import { deleteAccount, getCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
+import {
+  deleteAccount,
+  getCurrentUser,
+  loginUser,
+  logoutUser,
+  registerUser,
+  requestPasswordReset,
+  sendPasswordResetToCurrentUser,
+  updateProfile,
+} from "@/lib/api/auth.api";
 import { queryClient } from "@/lib/queryClient";
 import { createMockApiAdapter, noContentRoute, route, type MockApiHandle } from "../../helpers/mockApiModule";
 
@@ -8,7 +17,10 @@ const authMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   signUp: vi.fn(),
   signInWithPassword: vi.fn(),
+  getUser: vi.fn(),
+  updateUser: vi.fn(),
   signOut: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -37,7 +49,16 @@ describe("auth.api", () => {
       error: null,
     });
     authMocks.signInWithPassword.mockResolvedValue({ error: null });
+    authMocks.getUser.mockResolvedValue({ data: { user: { user_metadata: {} } } });
+    authMocks.updateUser.mockResolvedValue({ error: null });
     authMocks.signOut.mockResolvedValue({ error: null });
+    authMocks.resetPasswordForEmail.mockResolvedValue({ error: null });
+    // `window.location.origin` feeds the reset redirect; the Node test env has no location global.
+    vi.stubGlobal("location", { origin: "http://localhost:5173" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("getCurrentUser maps snake_case to the frontend User shape", async () => {
@@ -52,6 +73,36 @@ describe("auth.api", () => {
       email: "ada@example.com",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
+      displayName: "",
+      avatarUrl: "",
+    });
+  });
+
+  it("maps Google profile metadata when custom profile metadata is absent", async () => {
+    const handle = createMockApiAdapter([route("get", "/auth/me", userPayload)]);
+    mockApi(handle);
+    authMocks.getUser.mockResolvedValue({
+      data: {
+        user: {
+          user_metadata: {
+            full_name: "Ada Lovelace",
+            picture: "https://example.com/ada.png",
+          },
+        },
+      },
+    });
+
+    await expect(getCurrentUser()).resolves.toMatchObject({
+      displayName: "Ada Lovelace",
+      avatarUrl: "https://example.com/ada.png",
+    });
+  });
+
+  it("does not overwrite the existing avatar when updating only the display name", async () => {
+    await updateProfile({ displayName: "Ada Lovelace" });
+
+    expect(authMocks.updateUser).toHaveBeenCalledWith({
+      data: { display_name: "Ada Lovelace" },
     });
   });
 
@@ -120,5 +171,76 @@ describe("auth.api", () => {
     ).rejects.toBeTruthy();
 
     expect(queryClient.getQueryData(["currentUser"])).toEqual({ id: "u1" });
+  });
+
+  it("sendPasswordResetToCurrentUser emails the signed-in address without a captcha token", async () => {
+    authMocks.getUser.mockResolvedValue({
+      data: { user: { email: "Ada@Example.com" } },
+      error: null,
+    });
+
+    await sendPasswordResetToCurrentUser();
+
+    expect(authMocks.resetPasswordForEmail).toHaveBeenCalledWith(
+      "ada@example.com",
+      {
+        redirectTo: "http://localhost:5173/auth/reset-password",
+      },
+    );
+  });
+
+  it("sendPasswordResetToCurrentUser forwards the captcha token when one is provided", async () => {
+    authMocks.getUser.mockResolvedValue({
+      data: { user: { email: "ada@example.com" } },
+      error: null,
+    });
+
+    await sendPasswordResetToCurrentUser("captcha-token");
+
+    expect(authMocks.resetPasswordForEmail).toHaveBeenCalledWith(
+      "ada@example.com",
+      {
+        redirectTo: "http://localhost:5173/auth/reset-password",
+        captchaToken: "captcha-token",
+      },
+    );
+  });
+
+  it("sendPasswordResetToCurrentUser fails when the account has no email", async () => {
+    authMocks.getUser.mockResolvedValue({
+      data: { user: { email: undefined } },
+      error: null,
+    });
+
+    await expect(sendPasswordResetToCurrentUser()).rejects.toThrow(
+      "This account has no email address to send a reset link to.",
+    );
+    expect(authMocks.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("sendPasswordResetToCurrentUser surfaces the Supabase recover error", async () => {
+    authMocks.getUser.mockResolvedValue({
+      data: { user: { email: "ada@example.com" } },
+      error: null,
+    });
+    authMocks.resetPasswordForEmail.mockResolvedValue({
+      error: { message: "Captcha verification required", status: 403 },
+    });
+
+    await expect(sendPasswordResetToCurrentUser()).rejects.toThrow(
+      "Captcha verification required",
+    );
+  });
+
+  it("requestPasswordReset still emails the form-provided address with its captcha token", async () => {
+    await requestPasswordReset({ email: "Ada@Example.com" }, "captcha-token");
+
+    expect(authMocks.resetPasswordForEmail).toHaveBeenCalledWith(
+      "ada@example.com",
+      {
+        redirectTo: "http://localhost:5173/auth/reset-password",
+        captchaToken: "captcha-token",
+      },
+    );
   });
 });

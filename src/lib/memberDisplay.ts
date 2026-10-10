@@ -32,3 +32,13 @@ const AVATAR_PALETTES = [
 export function avatarGradient(seed: string): string {
   return AVATAR_PALETTES[hashString(seed) % AVATAR_PALETTES.length];
 }
+
+/**
+ * Stable avatar color key for a person: email is the identity users recognize
+ * (and the only key every surface has — summaries/comments group by email),
+ * while user ids differ per auth provider and would tint the same person
+ * differently across surfaces.
+ */
+export function avatarSeed(input: { email?: string | null }): string {
+  return input.email?.trim().toLowerCase() ?? "";
+}
