@@ -1,4 +1,4 @@
-# Kanban Board
+# Kanvas
 
 A workspace-centric Kanban board built with **React 19, TypeScript, Vite and Tailwind CSS v4**.
 It consumes the Go Kanban API over JSON.

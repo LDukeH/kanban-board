@@ -42,6 +42,11 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-dvh w-full items-center justify-center bg-background px-6 py-12">
       <div className="flex w-full max-w-md flex-col gap-6">
+        <img
+          src="/kanvas-logo-wo-tagline.png"
+          alt="Kanvas logo"
+          className="block h-10 w-auto self-start rounded-lg"
+        />
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold tracking-tight">Choose a new password</h1>
           <p className="text-sm text-muted-foreground">

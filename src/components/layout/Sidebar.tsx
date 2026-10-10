@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import {
   Settings,
-  Kanban,
   LayoutGrid,
   Plus,
   FolderKanban,
@@ -103,11 +102,13 @@ export function Sidebar({ className }: SidebarProps) {
     >
       <div className="flex items-center justify-between gap-2.5 px-5 py-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm">
-            <Kanban className="size-4" />
-          </div>
+          <img
+            src="/kanvas-logo-wo-tagline.png"
+            alt="Kanvas logo"
+            className="size-8 shrink-0 rounded-lg bg-white object-contain shadow-sm"
+          />
           <span className="text-base font-semibold tracking-tight">
-            Kanban Board
+            Kanvas
           </span>
         </div>
         <NotificationBell className="ml-auto" />

@@ -26,7 +26,12 @@ export default function AuthSidePanel({ isRegister }: AuthSidePanelProps) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="absolute bottom-8 left-8 right-8 text-white">
-          <h2 className="text-2xl font-bold">Flow Board</h2>
+          <img
+            src="/kanvas-logo-wo-tagline.png"
+            alt="Kanvas logo"
+            className="mb-4 block h-12 w-auto rounded-lg"
+          />
+          <h2 className="text-2xl font-bold">Kanvas</h2>
           <p className="text-sm text-white/80 mt-1">
             Organize your projects visually
           </p>
