@@ -64,6 +64,7 @@ export const getCurrentUser = async (): Promise<User> => {
 
 export const registerUser = async (
   data: RegisterFormSchema,
+  captchaToken: string,
 ): Promise<{ requiresEmailConfirmation: boolean }> => {
   const email = data.email.trim().toLowerCase();
   enforceSignupCooldown();
@@ -71,6 +72,7 @@ export const registerUser = async (
   const { data: result, error } = await supabase.auth.signUp({
     email,
     password: data.password,
+    options: { captchaToken },
   });
   if (error) {
     const normalized = normalizeAuthError(error);
@@ -89,10 +91,11 @@ export const registerUser = async (
   return { requiresEmailConfirmation: false };
 };
 
-export const loginUser = async (data: LoginFormSchema) => {
+export const loginUser = async (data: LoginFormSchema, captchaToken: string) => {
   const { error } = await supabase.auth.signInWithPassword({
     email: data.email.trim().toLowerCase(),
     password: data.password,
+    options: { captchaToken },
   });
   if (error) throw normalizeAuthError(error);
   await api.post("/auth/sync");
@@ -100,11 +103,13 @@ export const loginUser = async (data: LoginFormSchema) => {
 
 export const requestPasswordReset = async (
   data: ForgotPasswordFormSchema,
+  captchaToken: string,
 ): Promise<void> => {
   const { error } = await supabase.auth.resetPasswordForEmail(
     data.email.trim().toLowerCase(),
     {
       redirectTo: `${window.location.origin}/auth/reset-password`,
+      captchaToken,
     },
   );
   if (error) throw normalizeAuthError(error);

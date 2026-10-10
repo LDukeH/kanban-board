@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { AlertCircle, ArrowLeft, Loader2, Mail } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,6 +12,7 @@ import {
 } from "@/lib/validations/auth.schema";
 import { requestPasswordReset } from "@/lib/api/auth.api";
 import { describeAuthFormError } from "@/lib/httpStatus";
+import CaptchaField from "./CaptchaField";
 
 interface ForgotPasswordFormProps {
   onNavigate: (target: "login" | "register" | "forgot") => void;
@@ -21,6 +23,8 @@ export default function ForgotPasswordForm({
 }: ForgotPasswordFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSent, setIsSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captcha = useRef<HCaptcha>(null);
   const {
     register,
     handleSubmit,
@@ -31,11 +35,18 @@ export default function ForgotPasswordForm({
 
   async function onSubmit(data: ForgotPasswordFormSchema) {
     setFormError(null);
+    if (!captchaToken) {
+      setFormError("Please complete the hCaptcha challenge.");
+      return;
+    }
     try {
-      await requestPasswordReset(data);
+      await requestPasswordReset(data, captchaToken);
       setIsSent(true);
     } catch (error) {
       setFormError(describeAuthFormError(error, "Send reset email"));
+    } finally {
+      captcha.current?.resetCaptcha();
+      setCaptchaToken("");
     }
   }
 
@@ -85,6 +96,7 @@ export default function ForgotPasswordForm({
               {errors.email?.message}
             </p>
           </div>
+          <CaptchaField ref={captcha} onTokenChange={setCaptchaToken} />
           <Button type="submit" className="w-full gap-2" disabled={isSubmitting}>
             {isSubmitting ? (
               <Loader2 className="size-4 animate-spin" aria-hidden />

@@ -14,6 +14,7 @@ const columnPayload = {
   board_id: "b1",
   name: "To Do",
   position: 2,
+  version: 4,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
 };
@@ -23,6 +24,7 @@ const mappedColumn = {
   boardId: "b1",
   name: "To Do",
   position: 2,
+  version: 4,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -56,11 +58,11 @@ describe("column.api", () => {
     const handle = createMockApiAdapter([route("patch", "/columns/c1", columnPayload)]);
     mockApi(handle);
 
-    await expect(updateColumn("c1", { name: "Done" })).resolves.toEqual(mappedColumn);
+    await expect(updateColumn("c1", { name: "Done", version: 3 })).resolves.toEqual(mappedColumn);
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/columns/c1",
-      data: { name: "Done" },
+      data: { name: "Done", version: 3 },
     });
   });
 
@@ -68,11 +70,11 @@ describe("column.api", () => {
     const handle = createMockApiAdapter([route("patch", "/c1/position", columnPayload)]);
     mockApi(handle);
 
-    await expect(updateColumnPosition("c1", 3)).resolves.toEqual(mappedColumn);
+    await expect(updateColumnPosition("c1", 3, 4)).resolves.toEqual(mappedColumn);
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/columns/c1/position",
-      data: { position: 3 },
+      data: { position: 3, version: 4 },
     });
   });
 
@@ -80,7 +82,8 @@ describe("column.api", () => {
     const handle = createMockApiAdapter([noContentRoute("delete", "/columns/c1")]);
     mockApi(handle);
 
-    await expect(deleteColumn("c1")).resolves.toBeUndefined();
+    await expect(deleteColumn("c1", 4)).resolves.toBeUndefined();
     expect(handle.requests[0]).toMatchObject({ method: "delete", path: "/columns/c1" });
+    expect(handle.requests[0].params).toEqual({ version: 4 });
   });
 });

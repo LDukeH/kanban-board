@@ -47,7 +47,7 @@ describe("live auth API (cookie session)", () => {
   it("rejects a wrong password with 401", async () => {
     const account = await provision("auth-wrong-password");
 
-    await expectStatus(loginUser({ email: account.email, password: uniquePassword() }), 401);
+    await expectStatus(loginUser({ email: account.email, password: uniquePassword() }, "test-captcha-token"), 401);
   });
 
   it("answers 401 when no session is present", async () => {
@@ -78,12 +78,12 @@ describe("live auth API (cookie session)", () => {
   it("rejects a duplicate registration", async () => {
     const email = uniqueEmail("auth-duplicate");
     const password = uniquePassword();
-    await registerUser({ email, password, confirmPassword: password });
+    await registerUser({ email, password, confirmPassword: password }, "test-captcha-token");
     // Registered directly (not via `provision`), so track it for teardown.
     accounts.push({ id: "", email, password });
 
     try {
-      await registerUser({ email, password, confirmPassword: password });
+      await registerUser({ email, password, confirmPassword: password }, "test-captcha-token");
       expect.unreachable("a duplicate registration should have been rejected");
     } catch (error) {
       const status = (error as { response?: { status?: number } }).response?.status;

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,10 @@ import {
 } from "@/lib/validations/auth.schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { loginUser, registerUser } from "@/lib/api/auth.api";
+import { registerUser } from "@/lib/api/auth.api";
 import { describeAuthFormError } from "@/lib/httpStatus";
 import { useQueryClient } from "@tanstack/react-query";
+import CaptchaField from "./CaptchaField";
 
 interface RegisterFormProps {
   onNavigate: (target: "login" | "register") => void;
@@ -31,6 +33,8 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
     null,
   );
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captcha = useRef<HCaptcha>(null);
   const queryClient = useQueryClient();
 
   const {
@@ -41,21 +45,24 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
     resolver: zodResolver(registerSchema),
   });
 
-  // The backend's register endpoint creates the account but does not start a
-  // session (it returns the created user, no cookie). Log the new account in
-  // explicitly so the user lands signed in instead of bouncing to login.
   async function onSubmit(data: RegisterFormSchema) {
     setFormError(null);
+    if (!captchaToken) {
+      setFormError("Please complete the hCaptcha challenge.");
+      return;
+    }
     try {
-      const result = await registerUser(data);
+      const result = await registerUser(data, captchaToken);
       if (result.requiresEmailConfirmation) {
         setConfirmationEmail(data.email.trim().toLowerCase());
         return;
       }
-      await loginUser({ email: data.email, password: data.password });
       await queryClient.refetchQueries({ queryKey: ["currentUser"] });
     } catch (error) {
       setFormError(describeAuthFormError(error, "Create account"));
+    } finally {
+      captcha.current?.resetCaptcha();
+      setCaptchaToken("");
     }
   }
 
@@ -179,6 +186,8 @@ export default function RegisterForm({ onNavigate }: RegisterFormProps) {
             {errors.confirmPassword?.message}
           </p>
         </div>
+
+        <CaptchaField ref={captcha} onTokenChange={setCaptchaToken} />
 
         <Button type="submit" className="w-full gap-2" disabled={isSubmitting}>
           {isSubmitting ? (

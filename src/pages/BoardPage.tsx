@@ -42,6 +42,7 @@ import {
   saveBoardTaskFilter,
   type TaskFilter,
 } from "@/lib/taskFilter";
+import { useBoardRealtimeSync } from "@/lib/realtime/useBoardRealtimeSync";
 
 /** Reports a failed optimistic move: the drag handler cannot await, so it is surfaced as a dismissible banner and the hook reverts the position. */
 function reportMoveFailure(
@@ -258,6 +259,13 @@ function BoardContent({ boardId }: { boardId: string }) {
   const matchedTaskCount = boardTasks.filter((task) =>
     matchesTaskFilter(task, taskFilter),
   ).length;
+
+  // Realtime syncs other clients' board changes; local mutations already update the cache.
+  useBoardRealtimeSync(boardId, {
+    onError: useCallback((error: Error) => {
+      console.error("Board realtime error:", error);
+    }, []),
+  });
 
   function handleDragEnd(event: DragEndEvent, manager: DragDropManager) {
     if (event.canceled) return;

@@ -14,6 +14,7 @@ export interface Column {
   boardId: string;
   name: string;
   position: number;
+  version: number;
   createdAt: string;
   updatedAt: string;
 }

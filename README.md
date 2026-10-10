@@ -36,7 +36,13 @@ Create a `.env` file at the repository root (it is gitignored and never committe
 VITE_API_URL=http://localhost:3000
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
+VITE_HCAPTCHA_SITE_KEY=your-hcaptcha-site-key
 ```
+
+Enable hCaptcha in the Supabase dashboard under **Authentication → Bot and
+Abuse Protection**, configure the hCaptcha secret key there, and add the
+corresponding site key to `VITE_HCAPTCHA_SITE_KEY`. The sign-in, sign-up, and
+password-reset forms send the challenge token to Supabase Auth.
 
 `VITE_API_URL` is read by the axios client (`src/lib/api/axios.ts`) and used
 verbatim as the base URL. Supabase Auth manages the browser session and axios

@@ -50,17 +50,26 @@ describe("live column API", () => {
 
   it("renames a column", async () => {
     const updated = await actingAs(chain.owner, async () =>
-      updateColumn(doneColumn.id, { name: "Done v2" }),
+      updateColumn(doneColumn.id, {
+        name: "Done v2",
+        version: doneColumn.version,
+      }),
     );
 
     expect(updated.id).toBe(doneColumn.id);
     expect(updated.name).toBe("Done v2");
+    doneColumn = updated;
   });
 
   it("repositions a column", async () => {
     await actingAs(chain.owner, async () => {
-      const moved = await updateColumnPosition(doneColumn.id, 0);
+      const moved = await updateColumnPosition(
+        doneColumn.id,
+        0,
+        doneColumn.version,
+      );
       expect(moved.position).toBe(0);
+      doneColumn = moved;
 
       const columns = await getBoardColumns(chain.board.id);
       expect(columns[0].id).toBe(doneColumn.id);
@@ -70,7 +79,7 @@ describe("live column API", () => {
 
   it("deletes a column", async () => {
     await actingAs(chain.owner, async () => {
-      await deleteColumn(doneColumn.id);
+      await deleteColumn(doneColumn.id, doneColumn.version);
 
       const columns = await getBoardColumns(chain.board.id);
       expect(columns.map((c) => c.id)).not.toContain(doneColumn.id);

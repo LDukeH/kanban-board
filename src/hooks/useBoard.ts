@@ -90,7 +90,15 @@ export function useBoard(boardId: string | undefined) {
     }: {
       columnId: string;
       data: { name?: string };
-    }) => updateColumn(columnId, data),
+    }) => {
+      const currentColumn = queryClient
+        .getQueryData<Column[]>(["boards", boardId, "columns"])
+        ?.find((column) => column.id === columnId);
+      if (!currentColumn) {
+        throw new Error("Column is no longer available.");
+      }
+      return updateColumn(columnId, { ...data, version: currentColumn.version });
+    },
     onSuccess: (updatedColumn) => {
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
@@ -109,7 +117,15 @@ export function useBoard(boardId: string | undefined) {
   });
 
   const deleteColumnMutation = useMutation({
-    mutationFn: (columnId: string) => deleteColumn(columnId),
+    mutationFn: (columnId: string) => {
+      const currentColumn = queryClient
+        .getQueryData<Column[]>(["boards", boardId, "columns"])
+        ?.find((column) => column.id === columnId);
+      if (!currentColumn) {
+        throw new Error("Column is no longer available.");
+      }
+      return deleteColumn(columnId, currentColumn.version);
+    },
     onSuccess: (_data, deletedColumnId) => {
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
@@ -131,7 +147,19 @@ export function useBoard(boardId: string | undefined) {
     }: {
       columnId: string;
       position: number;
-    }) => updateColumnPosition(columnId, position),
+    }) => {
+      const currentColumn = queryClient
+        .getQueryData<Column[]>(["boards", boardId, "columns"])
+        ?.find((column) => column.id === columnId);
+      if (!currentColumn) {
+        throw new Error("Column is no longer available.");
+      }
+      return updateColumnPosition(
+        columnId,
+        position,
+        currentColumn.version,
+      );
+    },
     onMutate: async ({ columnId, position }) => {
       await queryClient.cancelQueries({
         queryKey: ["boards", boardId, "columns"],

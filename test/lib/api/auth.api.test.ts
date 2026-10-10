@@ -63,11 +63,12 @@ describe("auth.api", () => {
       email: "ada@example.com",
       password: "12345678",
       confirmPassword: "12345678",
-    });
+    }, "captcha-token");
 
     expect(authMocks.signUp).toHaveBeenCalledWith({
       email: "ada@example.com",
       password: "12345678",
+      options: { captchaToken: "captcha-token" },
     });
     expect(handle.requests[0]).toMatchObject({ method: "post", path: "/auth/sync" });
   });
@@ -76,11 +77,12 @@ describe("auth.api", () => {
     const handle = createMockApiAdapter([noContentRoute("post", "/auth/sync")]);
     mockApi(handle);
 
-    await loginUser({ email: "ada@example.com", password: "12345678" });
+    await loginUser({ email: "ada@example.com", password: "12345678" }, "captcha-token");
 
     expect(authMocks.signInWithPassword).toHaveBeenCalledWith({
       email: "ada@example.com",
       password: "12345678",
+      options: { captchaToken: "captcha-token" },
     });
     expect(handle.requests[0]).toMatchObject({ method: "post", path: "/auth/sync" });
   });
@@ -114,7 +116,7 @@ describe("auth.api", () => {
     });
     queryClient.setQueryData<{ id: string }>(["currentUser"], { id: "u1" });
     await expect(
-      loginUser({ email: "ada@example.com", password: "wrong-password" }),
+      loginUser({ email: "ada@example.com", password: "wrong-password" }, "captcha-token"),
     ).rejects.toBeTruthy();
 
     expect(queryClient.getQueryData(["currentUser"])).toEqual({ id: "u1" });

@@ -6,6 +6,7 @@ interface ColumnApiResponse {
   board_id: string;
   name: string;
   position: number;
+  version: number;
   created_at: string;
   updated_at: string;
 }
@@ -16,6 +17,7 @@ function mapColumn(raw: ColumnApiResponse): Column {
     boardId: raw.board_id,
     name: raw.name,
     position: raw.position,
+    version: raw.version,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
   };
@@ -41,7 +43,7 @@ export const createColumn = async (
 
 export const updateColumn = async (
   columnId: string,
-  data: { name?: string },
+  data: { name?: string; version: number },
 ): Promise<Column> => {
   const response = await api.patch<ColumnApiResponse>(
     `/columns/${columnId}`,
@@ -53,14 +55,18 @@ export const updateColumn = async (
 export const updateColumnPosition = async (
   columnId: string,
   position: number,
+  version: number,
 ): Promise<Column> => {
   const response = await api.patch<ColumnApiResponse>(
     `/columns/${columnId}/position`,
-    { position },
+    { position, version },
   );
   return mapColumn(response.data);
 };
 
-export const deleteColumn = async (columnId: string): Promise<void> => {
-  await api.delete(`/columns/${columnId}`);
+export const deleteColumn = async (
+  columnId: string,
+  version: number,
+): Promise<void> => {
+  await api.delete(`/columns/${columnId}`, { params: { version } });
 };

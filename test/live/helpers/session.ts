@@ -53,15 +53,15 @@ export function installSessionManager(): void {
 export async function provisionUser(prefix: string): Promise<LiveAccount> {
   const email = uniqueEmail(prefix);
   const password = uniquePassword();
-  await registerUser({ email, password, confirmPassword: password });
-  await loginUser({ email, password });
+  await registerUser({ email, password, confirmPassword: password }, "test-captcha-token");
+  await loginUser({ email, password }, "test-captcha-token");
   const user = await getCurrentUser();
   return { id: user.id, email, password };
 }
 
 /** Switches the shared client to another account's session. */
 export async function loginAs(account: Pick<LiveAccount, "email" | "password">): Promise<void> {
-  await loginUser({ email: account.email, password: account.password });
+  await loginUser({ email: account.email, password: account.password }, "test-captcha-token");
 }
 
 /** Runs an action while authenticated as a specific account. */
