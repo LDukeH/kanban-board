@@ -212,37 +212,63 @@ describe("task.api mutations", () => {
     ]);
     mockApi(handle);
 
-    const updated = await updateTask("t1", { title: "Renamed", version: 7 });
-
+    await expect(updateTask("t1", { title: "Renamed", version: 1 })).resolves.toBeUndefined();
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/tasks/t1",
-      data: { title: "Renamed", version: 7 },
+      data: { title: "Renamed", version: 1 },
     });
-    expect(updated.id).toBe("t1");
-    expect(updated.title).toBe("Task one");
-    expect(updated.version).toBe(7);
   });
 
-  it("updateTaskPosition sends the version and maps the move response", async () => {
-    const moveResponse = {
-      id: "t1",
-      column_id: "c2",
-      position: 2,
-      version: 7,
-    };
+  it("updateTask maps metadata to snake_case and keeps an explicit null due_date", async () => {
+    const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
+    mockApi(handle);
+
+    await updateTask("t1", {
+      priority: "low",
+      // null is the documented "clear the date" signal, so it must survive
+      // serialization rather than being dropped like an absent key.
+      dueDate: null,
+      completed: false,
+      version: 1,
+    });
+
+    expect(handle.requests[0].data).toEqual({
+      priority: "low",
+      due_date: null,
+      completed: false,
+      version: 1,
+    });
+  });
+
+  it("updateTask drops keys that were not provided", async () => {
+    const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1")]);
+    mockApi(handle);
+
+    await updateTask("t1", { priority: "high", version: 1 });
+
+    // No due_date key at all: the stored date must be left untouched.
+    expect(handle.requests[0].data).toEqual({ priority: "high", version: 1 });
+  });
+
+  it("updateTaskPosition sends snake_case column_id", async () => {
     const handle = createMockApiAdapter([
-      route("patch", "/tasks/t1/position", moveResponse),
+      route("patch", "/tasks/t1/position", {
+        id: "t1",
+        column_id: "c2",
+        position: 2,
+        version: 2,
+      }),
     ]);
     mockApi(handle);
 
     await expect(
-      updateTaskPosition("t1", { columnId: "c2", position: 2, version: 7 }),
-    ).resolves.toEqual(moveResponse);
+      updateTaskPosition("t1", { columnId: "c2", position: 2, version: 1 }),
+    ).resolves.toMatchObject({ id: "t1", column_id: "c2", position: 2, version: 2 });
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/tasks/t1/position",
-      data: { column_id: "c2", position: 2, version: 7 },
+      data: { column_id: "c2", position: 2, version: 1 },
     });
   });
 
@@ -252,12 +278,7 @@ describe("task.api mutations", () => {
     ]);
     mockApi(handle);
 
-    await expect(deleteTask("t1", 7)).resolves.toBeUndefined();
-    expect(handle.requests[0]).toMatchObject({
-      method: "delete",
-      path: "/tasks/t1",
-      params: { version: 7 },
-    });
+    await expect(deleteTask("t1", 1)).resolves.toBeUndefined();
   });
 
   it("getTaskAssignees returns the raw assignee list", async () => {

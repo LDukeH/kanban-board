@@ -1,8 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api/axios";
 import { deleteAccount, getCurrentUser, loginUser, logoutUser, registerUser } from "@/lib/api/auth.api";
 import { queryClient } from "@/lib/queryClient";
 import { createMockApiAdapter, noContentRoute, route, type MockApiHandle } from "../../helpers/mockApiModule";
+
+const authMocks = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  signUp: vi.fn(),
+  signInWithPassword: vi.fn(),
+  signOut: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: authMocks,
+  },
+}));
 
 const userPayload = {
   id: "u1",
@@ -16,6 +29,17 @@ function mockApi(handle: MockApiHandle) {
 }
 
 describe("auth.api", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authMocks.getSession.mockResolvedValue({ data: { session: null } });
+    authMocks.signUp.mockResolvedValue({
+      data: { session: { access_token: "token" } },
+      error: null,
+    });
+    authMocks.signInWithPassword.mockResolvedValue({ error: null });
+    authMocks.signOut.mockResolvedValue({ error: null });
+  });
+
   it("getCurrentUser maps snake_case to the frontend User shape", async () => {
     const handle = createMockApiAdapter([route("get", "/auth/me", userPayload)]);
     mockApi(handle);
@@ -31,40 +55,41 @@ describe("auth.api", () => {
     });
   });
 
-  it("registerUser posts the form payload and returns the raw response", async () => {
-    const handle = createMockApiAdapter([route("post", "/auth/register", { ok: true })]);
+  it("registerUser signs up with Supabase and syncs the local user", async () => {
+    const handle = createMockApiAdapter([noContentRoute("post", "/auth/sync")]);
     mockApi(handle);
 
-    const result = await registerUser({
+    await registerUser({
       email: "ada@example.com",
       password: "12345678",
       confirmPassword: "12345678",
-    });
+    }, "captcha-token");
 
-    expect(handle.requests[0]).toMatchObject({
-      method: "post",
-      path: "/auth/register",
-      data: { email: "ada@example.com", password: "12345678", confirmPassword: "12345678" },
+    expect(authMocks.signUp).toHaveBeenCalledWith({
+      email: "ada@example.com",
+      password: "12345678",
+      options: { captchaToken: "captcha-token" },
     });
-    expect(result).toEqual({ ok: true });
+    expect(handle.requests[0]).toMatchObject({ method: "post", path: "/auth/sync" });
   });
 
-  it("loginUser posts the credentials and returns the raw response", async () => {
-    const handle = createMockApiAdapter([route("post", "/auth/login", { ok: true })]);
+  it("loginUser signs in with Supabase and syncs the local user", async () => {
+    const handle = createMockApiAdapter([noContentRoute("post", "/auth/sync")]);
     mockApi(handle);
 
-    const result = await loginUser({ email: "ada@example.com", password: "12345678" });
+    await loginUser({ email: "ada@example.com", password: "12345678" }, "captcha-token");
 
-    expect(handle.requests[0]).toMatchObject({ method: "post", path: "/auth/login" });
-    expect(result).toEqual({ ok: true });
+    expect(authMocks.signInWithPassword).toHaveBeenCalledWith({
+      email: "ada@example.com",
+      password: "12345678",
+      options: { captchaToken: "captcha-token" },
+    });
+    expect(handle.requests[0]).toMatchObject({ method: "post", path: "/auth/sync" });
   });
 
-  it("logoutUser posts to /auth/logout and resolves", async () => {
-    const handle = createMockApiAdapter([noContentRoute("post", "/auth/logout")]);
-    mockApi(handle);
-
+  it("logoutUser signs out from Supabase", async () => {
     await expect(logoutUser()).resolves.toBeUndefined();
-    expect(handle.requests[0]).toMatchObject({ method: "post", path: "/auth/logout" });
+    expect(authMocks.signOut).toHaveBeenCalledOnce();
   });
 
   it("deleteAccount deletes the signed-in account and resolves", async () => {
@@ -86,12 +111,12 @@ describe("auth.api", () => {
   });
 
   it("leaves the cached current user alone on a failed login attempt", async () => {
-    const handle = createMockApiAdapter([route("post", "/auth/login", "Unauthorized", 401)]);
-    mockApi(handle);
-
+    authMocks.signInWithPassword.mockResolvedValueOnce({
+      error: new Error("Invalid login credentials"),
+    });
     queryClient.setQueryData<{ id: string }>(["currentUser"], { id: "u1" });
     await expect(
-      loginUser({ email: "ada@example.com", password: "wrong-password" }),
+      loginUser({ email: "ada@example.com", password: "wrong-password" }, "captcha-token"),
     ).rejects.toBeTruthy();
 
     expect(queryClient.getQueryData(["currentUser"])).toEqual({ id: "u1" });

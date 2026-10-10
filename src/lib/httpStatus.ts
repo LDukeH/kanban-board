@@ -126,8 +126,54 @@ function extractErrorBodyText(body: unknown): string | undefined {
 /** On sign-in a 401/400 means bad credentials (not an expired session); on register the backend body is preferred so validation stays specific. */
 export function describeAuthFormError(
   error: unknown,
-  action: "Sign in" | "Create account",
+  action:
+    | "Sign in"
+    | "Create account"
+    | "Send reset email"
+    | "Update password",
 ): string {
+  const authError = error as {
+    code?: unknown;
+    message?: unknown;
+    status?: unknown;
+  };
+  const code = typeof authError.code === "string" ? authError.code : "";
+  const authStatus =
+    typeof authError.status === "number" ? authError.status : undefined;
+  const message =
+    typeof authError.message === "string"
+      ? authError.message.toLowerCase()
+      : "";
+
+  if (
+    action === "Sign in" &&
+    (code === "email_not_confirmed" || message.includes("email not confirmed"))
+  ) {
+    return "Please confirm your email address before signing in.";
+  }
+  if (message.includes("email provider is disabled")) {
+    return "Email/password sign-in is disabled in Supabase Auth.";
+  }
+  if (
+    action === "Create account" &&
+    (message.includes("error sending confirmation email") ||
+      message.includes("smtp") ||
+      message.includes("email service") ||
+      message.includes("database error saving new user"))
+  ) {
+    return "Supabase could not create the account because its email or database service failed. Check the Supabase Auth SMTP settings and project logs.";
+  }
+  if (message.includes("invalid api key") || message.includes("project ref")) {
+    return "Supabase Auth is not configured correctly for this app.";
+  }
+  if (
+    authStatus === 429 ||
+    code === "signup_rate_limited" ||
+    message.includes("rate limit") ||
+    message.includes("too many requests")
+  ) {
+    return "Supabase Auth is temporarily rate-limiting requests. Wait a minute before trying again.";
+  }
   const status = getHttpStatus(error);
   if (action === "Sign in" && (status === 401 || status === 400)) {
     // Some backends answer 400 for invalid credentials; either way the body ("Unauthorized") is not helpful.

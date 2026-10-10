@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,14 +13,17 @@ import { useForm } from "react-hook-form";
 import { loginUser } from "@/lib/api/auth.api";
 import { describeAuthFormError } from "@/lib/httpStatus";
 import { useQueryClient } from "@tanstack/react-query";
+import CaptchaField from "./CaptchaField";
 
 interface LoginFormProps {
-  onNavigate: (target: "login" | "register") => void;
+  onNavigate: (target: "login" | "register" | "forgot") => void;
 }
 
 export default function LoginForm({ onNavigate }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captcha = useRef<HCaptcha>(null);
   const queryClient = useQueryClient();
 
   const {
@@ -32,12 +36,19 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
 
   async function onSubmit(data: LoginFormSchema) {
     setFormError(null);
+    if (!captchaToken) {
+      setFormError("Please complete the hCaptcha challenge.");
+      return;
+    }
     try {
-      await loginUser(data);
+      await loginUser(data, captchaToken);
 
       await queryClient.refetchQueries({ queryKey: ["currentUser"] });
     } catch (error) {
       setFormError(describeAuthFormError(error, "Sign in"));
+    } finally {
+      captcha.current?.resetCaptcha();
+      setCaptchaToken("");
     }
   }
   return (
@@ -79,6 +90,13 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="login-password">Password</Label>
+            <button
+              type="button"
+              onClick={() => onNavigate("forgot")}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Forgot password?
+            </button>
           </div>
           <div className="relative">
             <Input
@@ -109,6 +127,8 @@ export default function LoginForm({ onNavigate }: LoginFormProps) {
             {errors.password?.message}
           </p>
         </div>
+
+        <CaptchaField ref={captcha} onTokenChange={setCaptchaToken} />
 
         <Button type="submit" className="w-full gap-2" disabled={isSubmitting}>
           {isSubmitting ? (

@@ -3,15 +3,21 @@ import { motion, AnimatePresence } from "motion/react";
 import AuthSidePanel from "./AuthSidePanel";
 import LoginForm from "./LoginForm";
 import RegisterForm from "./RegisterForm";
+import ForgotPasswordForm from "./ForgotPasswordForm";
 
 export default function AuthLayout() {
-  const [activeMode, setActiveMode] = useState<"login" | "register">("login");
+  const [activeMode, setActiveMode] = useState<
+    "login" | "register" | "forgot"
+  >("login");
 
   const isRegister = activeMode === "register";
 
-  const switchMode = useCallback((target: "login" | "register") => {
+  const switchMode = useCallback(
+    (target: "login" | "register" | "forgot") => {
     setActiveMode(target);
-  }, []);
+    },
+    [],
+  );
 
   return (
     <div className="relative flex h-dvh w-full overflow-hidden bg-background">
@@ -43,8 +49,10 @@ export default function AuthLayout() {
             >
               {activeMode === "login" ? (
                 <LoginForm onNavigate={switchMode} />
-              ) : (
+              ) : activeMode === "register" ? (
                 <RegisterForm onNavigate={switchMode} />
+              ) : (
+                <ForgotPasswordForm onNavigate={switchMode} />
               )}
             </motion.div>
           </AnimatePresence>
@@ -79,8 +87,10 @@ export default function AuthLayout() {
               >
                 {activeMode === "login" ? (
                   <LoginForm onNavigate={switchMode} />
-                ) : (
+                ) : activeMode === "register" ? (
                   <RegisterForm onNavigate={switchMode} />
+                ) : (
+                  <ForgotPasswordForm onNavigate={switchMode} />
                 )}
               </motion.div>
             </AnimatePresence>

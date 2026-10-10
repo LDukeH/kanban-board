@@ -17,6 +17,7 @@ interface TaskApiResponse {
   title: string;
   description?: TaskDescription | string | null;
   position: number;
+  version?: number;
   created_at: string;
   updated_at: string;
   // Planning metadata added by migration 019; optional so a pre-019 server cannot break the mapper.
@@ -25,8 +26,6 @@ interface TaskApiResponse {
   completed?: boolean;
   labels?: LabelApiResponse[] | null;
   assignees?: AssigneeApiResponse[] | null;
-  /** Optimistic-concurrency version; optional only so a pre-OCC server still maps — treated as 1. */
-  version?: number;
 }
 
 export interface CreateTaskData {
@@ -52,8 +51,10 @@ export interface UpdateTaskData {
 /** Maps the camelCase request types onto the snake_case body the API expects (`dueDate` -> `due_date`). */
 function toTaskPayload(
   data: CreateTaskData | UpdateTaskData,
+  version?: number,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
+  if (version !== undefined) payload.version = version;
   if (data.title !== undefined) payload.title = data.title;
   if (data.description !== undefined) payload.description = data.description;
   if (data.priority !== undefined) payload.priority = data.priority;
@@ -80,7 +81,6 @@ function mapTask(raw: TaskApiResponse): Task {
     title: raw.title,
     description: normalizeDescription(raw.description),
     position: raw.position,
-    // OCC version comes from the response; fallback 1 only guards a pre-OCC server.
     version: raw.version ?? 1,
     createdAt: raw.created_at,
     // The backend guarantees these three keys; the fallbacks only guard against a pre-019 server so the UI degrades to the neutral values instead of undefined.
@@ -112,13 +112,9 @@ export const createTask = async (
 
 export const updateTask = async (
   taskId: string,
-  data: UpdateTaskData,
-): Promise<Task> => {
-  const response = await api.patch<TaskApiResponse>(
-    `/tasks/${taskId}`,
-    toTaskPayload(data),
-  );
-  return mapTask(response.data);
+  data: UpdateTaskData & { version: number },
+): Promise<void> => {
+  await api.patch(`/tasks/${taskId}`, toTaskPayload(data, data.version));
 };
 
 /** 200 response of PATCH /tasks/{id}/position — the authoritative post-move state, version included. */
@@ -133,20 +129,15 @@ export const updateTaskPosition = async (
   taskId: string,
   data: { columnId: string; position: number; version: number },
 ): Promise<TaskMoveResponse> => {
-  const response = await api.patch<TaskMoveResponse>(
-    `/tasks/${taskId}/position`,
-    {
-      column_id: data.columnId,
-      position: data.position,
-      // OCC: the version read at drag time travels in the JSON body; 409 means someone else moved/edited the task first.
-      version: data.version,
-    },
-  );
+  const response = await api.patch<TaskMoveResponse>(`/tasks/${taskId}/position`, {
+    column_id: data.columnId,
+    position: data.position,
+    version: data.version,
+  });
   return response.data;
 };
 
 export const deleteTask = async (taskId: string, version: number): Promise<void> => {
-  // OCC contract: DELETE /tasks/{id}?version=N as a query parameter.
   await api.delete(`/tasks/${taskId}`, { params: { version } });
 };
 

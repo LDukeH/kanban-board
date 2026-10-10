@@ -1,5 +1,16 @@
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import baseConfig from "./vitest.config";
+
+const configDir = dirname(fileURLToPath(import.meta.url));
+const liveEnv = loadEnv("test", configDir, "");
+for (const [name, value] of Object.entries(liveEnv)) {
+  if (process.env[name] === undefined) {
+    process.env[name] = value;
+  }
+}
 
 // Live-API integration suite (opt-in). Runs the production `src/lib/api/`
 // client against the real Go Kanban API instead of the fake transport adapter.

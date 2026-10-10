@@ -58,16 +58,16 @@ describe("live column API", () => {
 
     expect(updated.id).toBe(doneColumn.id);
     expect(updated.name).toBe("Done v2");
-    // Keep the local copy current so the next mutation sends the bumped version.
     doneColumn = updated;
   });
 
   it("repositions a column", async () => {
     await actingAs(chain.owner, async () => {
-      const moved = await updateColumnPosition(doneColumn.id, {
-        position: 0,
-        version: doneColumn.version,
-      });
+      const moved = await updateColumnPosition(
+        doneColumn.id,
+        0,
+        doneColumn.version,
+      );
       expect(moved.position).toBe(0);
       doneColumn = moved;
 

@@ -103,7 +103,9 @@ export function useBoard(boardId: string | undefined) {
     }: {
       columnId: string;
       data: { name?: string; version: number };
-    }) => updateColumn(columnId, data),
+    }) => {
+      return updateColumn(columnId, data);
+    },
     onSuccess: (updatedColumn) => {
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
@@ -128,7 +130,9 @@ export function useBoard(boardId: string | undefined) {
     }: {
       columnId: string;
       version: number;
-    }) => deleteColumn(columnId, version),
+    }) => {
+      return deleteColumn(columnId, version);
+    },
     onSuccess: (_data, { columnId: deletedColumnId }) => {
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
@@ -160,20 +164,17 @@ export function useBoard(boardId: string | undefined) {
       position: number;
       version: number;
     }) => {
-      const predecessor = boardId
-        ? boardMovePredecessors.get(boardId)
-        : undefined;
-      if (boardId) boardMovePredecessors.delete(boardId);
-
-      return (predecessor ?? Promise.resolve()).then(() => {
-        const cachedVersion = queryClient
-          .getQueryData<Column[]>(["boards", boardId, "columns"])
-          ?.find((column) => column.id === columnId)?.version;
-        return updateColumnPosition(columnId, {
-          position,
-          version: cachedVersion ?? version,
-        });
-      });
+      const currentColumn = queryClient
+        .getQueryData<Column[]>(["boards", boardId, "columns"])
+        ?.find((column) => column.id === columnId);
+      if (!currentColumn) {
+        throw new Error("Column is no longer available.");
+      }
+      return updateColumnPosition(
+        columnId,
+        position,
+        version,
+      );
     },
     onMutate: async ({ columnId, position }) => {
       if (boardId) {

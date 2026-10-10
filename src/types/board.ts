@@ -14,7 +14,6 @@ export interface Column {
   boardId: string;
   name: string;
   position: number;
-  /** Optimistic concurrency version, always >= 1. Read from cache, send back on mutate, overwrite from response. */
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -53,7 +52,6 @@ export interface Task {
   // Canonical format is a Tiptap JSON document ({ type: "doc", ... }) persisted as PostgreSQL JSONB.
   description?: TaskDescription | string;
   position: number;
-  /** Optimistic concurrency version, always >= 1. Read from cache, send back on mutate, overwrite from response. */
   version: number;
   createdAt: string;
   /** Always present in backend responses; defaults to "none". */

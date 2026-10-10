@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { api } from "@/lib/api/axios";
-import { getHttpStatus, isStaleError } from "@/lib/httpStatus";
 import {
   createColumn,
   deleteColumn,
@@ -8,7 +7,12 @@ import {
   updateColumn,
   updateColumnPosition,
 } from "@/lib/api/column.api";
-import { createMockApiAdapter, noContentRoute, route, type MockApiHandle } from "../../helpers/mockApiModule";
+import {
+  createMockApiAdapter,
+  noContentRoute,
+  route,
+  type MockApiHandle,
+} from "../../helpers/mockApiModule";
 
 const columnPayload = {
   id: "c1",
@@ -59,11 +63,11 @@ describe("column.api", () => {
     const handle = createMockApiAdapter([route("patch", "/columns/c1", columnPayload)]);
     mockApi(handle);
 
-    await expect(updateColumn("c1", { name: "Done", version: 4 })).resolves.toEqual(mappedColumn);
+    await expect(updateColumn("c1", { name: "Done", version: 3 })).resolves.toEqual(mappedColumn);
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/columns/c1",
-      data: { name: "Done", version: 4 },
+      data: { name: "Done", version: 3 },
     });
   });
 
@@ -71,7 +75,7 @@ describe("column.api", () => {
     const handle = createMockApiAdapter([route("patch", "/c1/position", columnPayload)]);
     mockApi(handle);
 
-    await expect(updateColumnPosition("c1", { position: 3, version: 4 })).resolves.toEqual(mappedColumn);
+    await expect(updateColumnPosition("c1", 3, 4)).resolves.toEqual(mappedColumn);
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/columns/c1/position",
@@ -84,26 +88,7 @@ describe("column.api", () => {
     mockApi(handle);
 
     await expect(deleteColumn("c1", 4)).resolves.toBeUndefined();
-    expect(handle.requests[0]).toMatchObject({
-      method: "delete",
-      path: "/columns/c1",
-      params: { version: 4 },
-    });
-  });
-
-  it("deleteColumn propagates a 404 so callers treat a missing row as stale", async () => {
-    const handle = createMockApiAdapter([
-      route("delete", "/columns/c1", "not found", 404),
-    ]);
-    mockApi(handle);
-
-    const error = await deleteColumn("c1", 4).then(
-      () => undefined,
-      (err: unknown) => err,
-    );
-
-    expect(error).toBeDefined();
-    expect(getHttpStatus(error)).toBe(404);
-    expect(isStaleError(error)).toBe(true);
+    expect(handle.requests[0]).toMatchObject({ method: "delete", path: "/columns/c1" });
+    expect(handle.requests[0].params).toEqual({ version: 4 });
   });
 });

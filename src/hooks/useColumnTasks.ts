@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/task.api";
 import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
 import { boardLabelsQueryKey } from "@/hooks/useBoard";
-import { isConflictError, isStaleError } from "@/lib/httpStatus";
+import { isStaleError } from "@/lib/httpStatus";
 import { writeStaleMoveNotice } from "@/lib/staleMoveNotices";
 import {
   insertTaskIntoColumn,
@@ -70,6 +70,20 @@ type StoredTaskMove = {
   // Full task snapshot at drop time so a reloaded page can rebuild the card before any GET returns it.
   task?: Task;
 };
+
+function findCachedTask(
+  queryClient: ReturnType<typeof useQueryClient>,
+  boardId: string,
+  taskId: string,
+): Task | undefined {
+  for (const [, tasks] of queryClient.getQueriesData<Task[]>({
+    queryKey: ["boards", boardId, "columns"],
+  })) {
+    const task = tasks?.find((candidate) => candidate.id === taskId);
+    if (task) return task;
+  }
+  return undefined;
+}
 
 function readStoredTaskMoves(): StoredTaskMove[] {
   try {
@@ -243,8 +257,32 @@ export function useColumnTasks(
 
   // Re-apply position PATCHes still in flight when the page loaded (the helper owns the once-per-board guard).
   useEffect(() => {
-    if (!boardId) return;
-    void replayStoredTaskMoves(boardId);
+    if (!boardId || REPLAYING_BOARDS.has(boardId)) return;
+
+    REPLAYING_BOARDS.add(boardId);
+    const moves = readStoredTaskMoves().filter(
+      (move) =>
+        move.boardId === boardId &&
+        move.sourceColumnId &&
+        move.targetColumnId,
+    );
+
+    void Promise.all(
+      moves.map(async (move) => {
+        try {
+          await updateTaskPosition(move.taskId, {
+            columnId: move.targetColumnId,
+            position: move.position,
+            version: move.task?.version ?? 1,
+          });
+          removePendingTaskMove(move);
+        } catch {
+          // Keep failed moves queued for the next board load.
+        }
+      }),
+    ).finally(() => {
+      REPLAYING_BOARDS.delete(boardId);
+    });
   }, [boardId]);
 
   const tasksQuery = useQuery({
@@ -275,25 +313,20 @@ export function useColumnTasks(
       taskId: string;
       data: Omit<UpdateTaskData, "version">;
     }) => {
-      // OCC: the version must come from the cache at mutation time, never from
-      // a stale prop, otherwise an edit followed by a move re-sends the
-      // pre-edit version and self-triggers a 409.
-      const version =
-        boardId && columnId
-          ? (queryClient
-              .getQueryData<Task[]>(columnTasksQueryKey(boardId, columnId))
-              ?.find((task) => task.id === taskId)?.version ?? 1)
-          : 1;
-      return updateTask(taskId, { ...data, version });
+      const task = findCachedTask(queryClient, boardId!, taskId);
+      if (!task) throw new Error(`Task ${taskId} is not available for update.`);
+      return updateTask(taskId, { ...data, version: task.version });
     },
-    onSuccess: (updatedTask, { taskId }) => {
+    onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
-      // Authoritative response — write the whole task (version included) so a
-      // follow-up move sends the fresh version instead of the pre-edit one.
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, columnId),
         (old) =>
-          old?.map((task) => (task.id === taskId ? updatedTask : task)) ?? [],
+          old?.map((task) =>
+            task.id === taskId
+              ? { ...task, ...data, version: task.version + 1 }
+              : task,
+          ) ?? [],
       );
     },
   });
@@ -302,7 +335,6 @@ export function useColumnTasks(
     mutationKey: ["updateTaskPosition", boardId],
     mutationFn: ({
       taskId,
-      sourceColumnId,
       columnId: targetColumnId,
       position,
     }: {
@@ -311,64 +343,14 @@ export function useColumnTasks(
       columnId: string;
       position: number;
     }) => {
-      // Wait for any in-flight move of this task to fully settle (its onSuccess writes the fresh version) so a rapid re-drag never re-sends the pre-move version and self-triggers a 409.
-      const taskPredecessor = taskMovePredecessors.get(taskId);
-      taskMovePredecessors.delete(taskId);
-      // Wait for any in-flight move touching the same columns to settle AND
-      // refetch (the backend bumps versions of every shifted neighbor), so a
-      // second move of a different task never reads a stale neighbor version.
-      const columnPredecessors = columnMovePredecessors.get(taskId) ?? [];
-      columnMovePredecessors.delete(taskId);
-
-      return Promise.all([
-        taskPredecessor ?? Promise.resolve(true),
-        ...columnPredecessors,
-      ]).then(async (ready) => {
-        if (ready.some((isReady) => !isReady)) {
-          throw new Error(
-            "Task move is waiting for the board to resynchronize. Please try again.",
-          );
-        }
-
-        // OCC version read from the cache at send time (optimistic writes never touch versions).
-        const cachedVersion = (columnId?: string) =>
-          boardId && columnId
-            ? queryClient
-                .getQueryData<Task[]>(columnTasksQueryKey(boardId, columnId))
-                ?.find((task) => task.id === taskId)?.version
-            : undefined;
-        const version =
-          cachedVersion(targetColumnId) ?? cachedVersion(sourceColumnId) ?? 1;
-        const request = (taskVersion: number) =>
-          updateTaskPosition(taskId, {
-            columnId: targetColumnId,
-            position,
-            version: taskVersion,
-          });
-
-        try {
-          return await request(version);
-        } catch (error) {
-          if (!isConflictError(error)) throw error;
-
-          // The cache can still contain an optimistic overlay when another
-          // request won the OCC race. Read the raw column endpoints so the
-          // retry cannot reuse that overlay's stale version.
-          const [sourceTasks, targetTasks] = await Promise.all([
-            sourceColumnId
-              ? getColumnTasks(sourceColumnId)
-              : Promise.resolve([]),
-            targetColumnId === sourceColumnId
-              ? Promise.resolve([])
-              : getColumnTasks(targetColumnId),
-          ]);
-          const currentTask =
-            targetTasks.find((task) => task.id === taskId) ??
-            sourceTasks.find((task) => task.id === taskId);
-          if (!currentTask) throw error;
-
-          return request(currentTask.version);
-        }
+      return updateTaskPosition(taskId, {
+        columnId: targetColumnId,
+        position,
+        version:
+          findCachedTask(queryClient, boardId!, taskId)?.version ??
+          (() => {
+            throw new Error(`Task ${taskId} is not available for repositioning.`);
+          })(),
       });
     },
 
@@ -654,14 +636,9 @@ export function useColumnTasks(
 
   const deleteTaskMutation = useMutation({
     mutationFn: (taskId: string) => {
-      // OCC: DELETE carries ?version=N from the cache at mutation time.
-      const version =
-        boardId && columnId
-          ? (queryClient
-              .getQueryData<Task[]>(columnTasksQueryKey(boardId, columnId))
-              ?.find((task) => task.id === taskId)?.version ?? 1)
-          : 1;
-      return deleteTask(taskId, version);
+      const task = findCachedTask(queryClient, boardId!, taskId);
+      if (!task) throw new Error(`Task ${taskId} is not available for deletion.`);
+      return deleteTask(taskId, task.version);
     },
     onSuccess: (_void, taskId) => {
       if (!boardId || !columnId) return;
