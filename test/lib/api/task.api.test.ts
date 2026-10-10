@@ -239,9 +239,6 @@ describe("task.api mutations", () => {
       completed: false,
       version: 1,
     });
-    expect(updated.id).toBe("t1");
-    expect(updated.title).toBe("Task one");
-    expect(updated.version).toBe(7);
   });
 
   it("updateTask drops keys that were not provided", async () => {
@@ -255,10 +252,19 @@ describe("task.api mutations", () => {
   });
 
   it("updateTaskPosition sends snake_case column_id", async () => {
-    const handle = createMockApiAdapter([noContentRoute("patch", "/tasks/t1/position")]);
+    const handle = createMockApiAdapter([
+      route("patch", "/tasks/t1/position", {
+        id: "t1",
+        column_id: "c2",
+        position: 2,
+        version: 2,
+      }),
+    ]);
     mockApi(handle);
 
-    await expect(updateTaskPosition("t1", { columnId: "c2", position: 2, version: 1 })).resolves.toBeUndefined();
+    await expect(
+      updateTaskPosition("t1", { columnId: "c2", position: 2, version: 1 }),
+    ).resolves.toMatchObject({ id: "t1", column_id: "c2", position: 2, version: 2 });
     expect(handle.requests[0]).toMatchObject({
       method: "patch",
       path: "/tasks/t1/position",

@@ -102,15 +102,9 @@ export function useBoard(boardId: string | undefined) {
       data,
     }: {
       columnId: string;
-      data: { name?: string };
+      data: { name?: string; version: number };
     }) => {
-      const currentColumn = queryClient
-        .getQueryData<Column[]>(["boards", boardId, "columns"])
-        ?.find((column) => column.id === columnId);
-      if (!currentColumn) {
-        throw new Error("Column is no longer available.");
-      }
-      return updateColumn(columnId, { ...data, version: currentColumn.version });
+      return updateColumn(columnId, data);
     },
     onSuccess: (updatedColumn) => {
       queryClient.setQueryData<Column[]>(
@@ -130,16 +124,16 @@ export function useBoard(boardId: string | undefined) {
   });
 
   const deleteColumnMutation = useMutation({
-    mutationFn: (columnId: string) => {
-      const currentColumn = queryClient
-        .getQueryData<Column[]>(["boards", boardId, "columns"])
-        ?.find((column) => column.id === columnId);
-      if (!currentColumn) {
-        throw new Error("Column is no longer available.");
-      }
-      return deleteColumn(columnId, currentColumn.version);
+    mutationFn: ({
+      columnId,
+      version,
+    }: {
+      columnId: string;
+      version: number;
+    }) => {
+      return deleteColumn(columnId, version);
     },
-    onSuccess: (_data, deletedColumnId) => {
+    onSuccess: (_data, { columnId: deletedColumnId }) => {
       queryClient.setQueryData<Column[]>(
         ["boards", boardId, "columns"],
         (old) => (old ? old.filter((c) => c.id !== deletedColumnId) : []),
@@ -168,6 +162,7 @@ export function useBoard(boardId: string | undefined) {
     }: {
       columnId: string;
       position: number;
+      version: number;
     }) => {
       const currentColumn = queryClient
         .getQueryData<Column[]>(["boards", boardId, "columns"])
@@ -178,7 +173,7 @@ export function useBoard(boardId: string | undefined) {
       return updateColumnPosition(
         columnId,
         position,
-        currentColumn.version,
+        version,
       );
     },
     onMutate: async ({ columnId, position }) => {

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { api } from "@/lib/api/axios";
-import { getHttpStatus, isStaleError } from "@/lib/httpStatus";
 import {
   createColumn,
   deleteColumn,
@@ -8,7 +7,12 @@ import {
   updateColumn,
   updateColumnPosition,
 } from "@/lib/api/column.api";
-import { createMockApiAdapter, noContentRoute, route, type MockApiHandle } from "../../helpers/mockApiModule";
+import {
+  createMockApiAdapter,
+  noContentRoute,
+  route,
+  type MockApiHandle,
+} from "../../helpers/mockApiModule";
 
 const columnPayload = {
   id: "c1",

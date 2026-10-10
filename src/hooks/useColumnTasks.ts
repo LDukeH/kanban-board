@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/task.api";
 import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
 import { boardLabelsQueryKey } from "@/hooks/useBoard";
-import { isConflictError, isStaleError } from "@/lib/httpStatus";
+import { isStaleError } from "@/lib/httpStatus";
 import { writeStaleMoveNotice } from "@/lib/staleMoveNotices";
 import {
   insertTaskIntoColumn,
@@ -311,7 +311,7 @@ export function useColumnTasks(
       data,
     }: {
       taskId: string;
-      data: UpdateTaskData;
+      data: Omit<UpdateTaskData, "version">;
     }) => {
       const task = findCachedTask(queryClient, boardId!, taskId);
       if (!task) throw new Error(`Task ${taskId} is not available for update.`);
@@ -319,12 +319,14 @@ export function useColumnTasks(
     },
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;
-      // Authoritative response — write the whole task (version included) so a
-      // follow-up move sends the fresh version instead of the pre-edit one.
       queryClient.setQueryData<Task[]>(
         columnTasksQueryKey(boardId, columnId),
         (old) =>
-          old?.map((task) => (task.id === taskId ? updatedTask : task)) ?? [],
+          old?.map((task) =>
+            task.id === taskId
+              ? { ...task, ...data, version: task.version + 1 }
+              : task,
+          ) ?? [],
       );
     },
   });
@@ -333,7 +335,6 @@ export function useColumnTasks(
     mutationKey: ["updateTaskPosition", boardId],
     mutationFn: ({
       taskId,
-      sourceColumnId,
       columnId: targetColumnId,
       position,
     }: {

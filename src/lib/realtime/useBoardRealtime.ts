@@ -1,10 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import {
-  isBoardEventEnvelope,
-  type BoardEventEnvelope,
-} from "./boardEvents";
+import { isBoardEventEnvelope, type BoardEventEnvelope } from "./boardEvents";
 
 export interface BoardRealtimeEventHandlers {
   onEvent: (event: BoardEventEnvelope) => void;
@@ -118,9 +115,7 @@ export function createBoardEventCoalescer(
   };
 }
 
-export type BoardEventCoalescer = ReturnType<
-  typeof createBoardEventCoalescer
->;
+export type BoardEventCoalescer = ReturnType<typeof createBoardEventCoalescer>;
 
 // Subscribes to the private board broadcast channel using the current Supabase session.
 export function useBoardRealtime(
@@ -146,10 +141,11 @@ export function useBoardRealtime(
           message && typeof message === "object"
             ? (message as Record<string, unknown>)
             : null;
-        const raw =
-          record && "payload" in record ? record["payload"] : message;
+        const raw = record && "payload" in record ? record["payload"] : message;
         if (!isBoardEventEnvelope(raw)) {
-          handlersRef.current.onError(new Error("Invalid realtime event payload"));
+          handlersRef.current.onError(
+            new Error("Invalid realtime event payload"),
+          );
           return;
         }
         if (raw.board_id !== boardId) {

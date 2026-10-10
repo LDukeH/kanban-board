@@ -26,8 +26,6 @@ interface TaskApiResponse {
   completed?: boolean;
   labels?: LabelApiResponse[] | null;
   assignees?: AssigneeApiResponse[] | null;
-  /** Optimistic-concurrency version; optional only so a pre-OCC server still maps — treated as 1. */
-  version?: number;
 }
 
 export interface CreateTaskData {
@@ -130,12 +128,13 @@ export interface TaskMoveResponse {
 export const updateTaskPosition = async (
   taskId: string,
   data: { columnId: string; position: number; version: number },
-): Promise<void> => {
-  await api.patch(`/tasks/${taskId}/position`, {
+): Promise<TaskMoveResponse> => {
+  const response = await api.patch<TaskMoveResponse>(`/tasks/${taskId}/position`, {
     column_id: data.columnId,
     position: data.position,
     version: data.version,
   });
+  return response.data;
 };
 
 export const deleteTask = async (taskId: string, version: number): Promise<void> => {
