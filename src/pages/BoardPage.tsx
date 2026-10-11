@@ -11,7 +11,6 @@ import {
   describeLoadError,
   describeTaskMoveError,
   getHttpStatus,
-  reportMutationError,
 } from "@/lib/httpStatus";
 import {
   STALE_MOVE_NOTICE_EVENT,
@@ -63,7 +62,6 @@ function reportMoveFailure(
 ) {
   void promise.catch((err) => {
     onNotice(describe(err));
-    reportMutationError("Board move failed", err);
   });
 }
 
@@ -315,9 +313,13 @@ function BoardContent({ boardId }: { boardId: string }) {
   ).length;
 
   // Realtime syncs other clients' board changes; local mutations already update the cache.
+  // Realtime failures render inline in the same banner slot as move failures.
   useBoardRealtimeSync(boardId, {
     onError: useCallback((error: Error) => {
-      console.error("Board realtime error:", error);
+      setMoveNotice({
+        tone: "error",
+        message: `Live updates paused: ${error.message}. Reload to resume.`,
+      });
     }, []),
   });
 

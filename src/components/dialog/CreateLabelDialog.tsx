@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { useBoard } from "@/hooks/useBoard";
-import { reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { LabelColorPicker } from "@/components/picker/LabelColorPicker";
 import { LABEL_NO_COLOR } from "@/lib/colors";
 
@@ -68,8 +68,7 @@ export function CreateLabelDialog({
       setColor(LABEL_NO_COLOR);
       setOpen(false);
     } catch (err) {
-      setError("Failed to create label. Please try again.");
-      reportMutationError("Create label failed", err);
+      setError(describeMutationError(err, "Failed to create label. Please try again."));
     }
   }
 

@@ -21,7 +21,7 @@ import {
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { describeLoadError, describeMutationError, reportMutationError } from "@/lib/httpStatus";
+import { describeLoadError, describeMutationError } from "@/lib/httpStatus";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import {
   Loader2,
@@ -243,7 +243,6 @@ export function WorkspaceMembersDialog({
             `Could not remove ${emailToHandle(member.email)}. Please try again.`,
           ),
         );
-        reportMutationError("Remove member failed", err);
       })
       .finally(() => setRemovingId(null));
   }
@@ -264,7 +263,6 @@ export function WorkspaceMembersDialog({
             `Could not cancel the invitation for ${label}. Please try again.`,
           ),
         );
-        reportMutationError("Cancel invitation failed", err);
       })
       .finally(() => setCancellingId(null));
   }
@@ -283,7 +281,6 @@ export function WorkspaceMembersDialog({
             `Could not change ${emailToHandle(member.email)}'s role. Please try again.`,
           ),
         );
-        reportMutationError("Change role failed", err);
       })
       .finally(() => setChangingRoleId(null));
   }

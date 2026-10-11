@@ -9,7 +9,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { useLeaveWorkspace } from "@/hooks/useWorkspaces";
-import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { LogOut, Loader2 } from "lucide-react";
 import type { Workspace } from "@/types/workspace";
 
@@ -59,7 +59,6 @@ export function LeaveWorkspaceDialog({
           "Failed to leave the workspace. Please try again.",
         ),
       );
-      reportMutationError("Leave workspace failed", err);
       submitLockedRef.current = false;
     }
   }

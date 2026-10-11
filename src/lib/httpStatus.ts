@@ -140,7 +140,7 @@ export function isCaptchaError(error: unknown): boolean {
   return message.includes("captcha") || code.includes("captcha");
 }
 
-/** On sign-in a 401/400 means bad credentials (not an expired session); on register the backend body is preferred so validation stays specific. */
+/** Maps Supabase / backend auth failures to user-actionable copy. Sign-in stays generic only when Supabase itself is generic ("Invalid login credentials" covers both halves); every other distinguishable cause gets its own message. */
 export function describeAuthFormError(
   error: unknown,
   action:
@@ -202,13 +202,77 @@ export function describeAuthFormError(
   ) {
     return "Supabase Auth is temporarily rate-limiting requests. Wait a minute before trying again.";
   }
+  if (
+    message.includes("user already registered") ||
+    message.includes("user already exists") ||
+    message.includes("already registered") ||
+    message.includes("email already")
+  ) {
+    return "An account with this email already exists. Try signing in instead.";
+  }
+  if (
+    message.includes("unable to validate email address") ||
+    message.includes("invalid email") ||
+    message.includes("email address is invalid")
+  ) {
+    return "That email address doesn't look valid. Check for typos and try again.";
+  }
+  if (
+    message.includes("user not found") ||
+    message.includes("account not found") ||
+    message.includes("no user found") ||
+    message.includes("email not found")
+  ) {
+    return "No account exists for this email. Check for typos or create a new account.";
+  }
+  if (
+    message.includes("wrong password") ||
+    message.includes("incorrect password") ||
+    message.includes("invalid password") ||
+    message.includes("credentials are incorrect")
+  ) {
+    return "Wrong password for this email. Try again or reset your password.";
+  }
+  if (
+    message.includes("link expired") ||
+    message.includes("token expired") ||
+    message.includes("otp expired") ||
+    message.includes("email link is invalid") ||
+    message.includes("invalid token")
+  ) {
+    return "This reset link has expired or is invalid. Request a new one and try again.";
+  }
+  if (
+    message.includes("same password") ||
+    message.includes("should be different")
+  ) {
+    return "Choose a password different from your current one.";
+  }
+  if (
+    message.includes("signup disabled") ||
+    message.includes("signups not allowed") ||
+    message.includes("registration disabled")
+  ) {
+    return "New sign-ups are disabled. Contact support for help.";
+  }
+  // Weak / short passwords: keep Supabase's own detail so the user knows what to fix.
+  if (message.includes("password")) {
+    const raw =
+      typeof authError.message === "string" ? authError.message.trim() : "";
+    const capitalized = raw.charAt(0).toUpperCase() + raw.slice(1);
+    return capitalized.endsWith(".") ? capitalized : `${capitalized}.`;
+  }
   const status = getHttpStatus(error);
   if (
     action === "Sign in" &&
-    (status === 401 || status === 400 || authStatus === 400)
+    (status === 401 ||
+      status === 400 ||
+      authStatus === 400 ||
+      message.includes("invalid login credentials"))
   ) {
-    // Some backends answer 400 for invalid credentials; either way the body ("Unauthorized") is not helpful.
-    return "Invalid email or password. Please try again.";
+    // Supabase answers both "unknown email" and "wrong password" with
+    // "Invalid login credentials", so this must not claim which half failed.
+    return "Wrong email or password. Check for typos and try again.";
   }
   if (status === 409) {
     return "An account with this email already exists. Try signing in instead.";
@@ -216,14 +280,8 @@ export function describeAuthFormError(
   if (isAxiosErrorLike(error) && !error.response) {
     return "Unable to connect to the server. Check your connection and try again.";
   }
-  return describeMutationError(error, `Could not ${action.toLowerCase()}. Please try again.`);
-}
-
-/**
- * Single funnel for reporting a failed UI mutation to the dev console.
- * UI copy stays wherever the caller renders it (dialog/panel/banner); this
- * only keeps the console context searchable and consistent.
- */
-export function reportMutationError(context: string, error: unknown): void {
-  console.error(`${context}:`, error);
+  return describeMutationError(
+    error,
+    `Could not ${action.toLowerCase()}. Please try again.`,
+  );
 }

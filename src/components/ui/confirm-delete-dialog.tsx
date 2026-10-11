@@ -11,7 +11,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { InlineAlert } from "@/components/ui/inline-alert";
-import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 
 interface ConfirmDeleteDialogProps {
   title: string;
@@ -75,7 +75,6 @@ export function ConfirmDeleteDialog({
       setError(
         describeMutationError(err, "Failed to delete. Please try again."),
       );
-      reportMutationError("Delete failed", err);
     }
   }
 

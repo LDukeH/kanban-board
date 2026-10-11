@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
 import { useBoard } from "@/hooks/useBoard";
-import { reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 
 interface CreateColumnDialogProps {
   boardId: string;
@@ -40,8 +40,7 @@ export function CreateColumnDialog({
       setName("");
       setOpen(false);
     } catch (err) {
-      setError("Failed to create column. Please try again.");
-      reportMutationError("Create column failed", err);
+      setError(describeMutationError(err, "Failed to create column. Please try again."));
     }
   }
 

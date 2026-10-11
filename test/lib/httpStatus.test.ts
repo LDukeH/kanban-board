@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   describeAuthFormError,
   describeColumnMoveError,
@@ -10,7 +10,6 @@ import {
   isConflictError,
   isNotFoundError,
   isStaleError,
-  reportMutationError,
 } from "@/lib/httpStatus";
 
 describe("getHttpStatus", () => {
@@ -107,28 +106,76 @@ describe("describeMutationError", () => {
 });
 
 describe("describeAuthFormError", () => {
-  it("maps sign-in 401/400 to invalid credentials", () => {
+  it("maps sign-in 401/400 to wrong email or password without claiming which half failed", () => {
     expect(
       describeAuthFormError(
         { isAxiosError: true, response: { status: 401, data: "Unauthorized" } },
         "Sign in",
       ),
-    ).toBe("Invalid email or password. Please try again.");
+    ).toBe("Wrong email or password. Check for typos and try again.");
     expect(
       describeAuthFormError(
         { isAxiosError: true, response: { status: 400, data: "Unauthorized" } },
         "Sign in",
       ),
-    ).toBe("Invalid email or password. Please try again.");
+    ).toBe("Wrong email or password. Check for typos and try again.");
   });
 
-  it("maps a Supabase 400 sign-in error to invalid credentials", () => {
+  it("stays generic for Supabase's ambiguous invalid-login-credentials", () => {
     expect(
       describeAuthFormError(
         { status: 400, message: "Invalid login credentials" },
         "Sign in",
       ),
-    ).toBe("Invalid email or password. Please try again.");
+    ).toBe("Wrong email or password. Check for typos and try again.");
+  });
+
+  it("states a wrong password truthfully when Supabase says so", () => {
+    expect(
+      describeAuthFormError(
+        { status: 400, message: "Wrong password" },
+        "Sign in",
+      ),
+    ).toBe("Wrong password for this email. Try again or reset your password.");
+  });
+
+  it("states a missing account truthfully when Supabase says so", () => {
+    expect(
+      describeAuthFormError({ status: 400, message: "User not found" }, "Sign in"),
+    ).toBe("No account exists for this email. Check for typos or create a new account.");
+  });
+
+  it("states a malformed email truthfully", () => {
+    expect(
+      describeAuthFormError(
+        { status: 422, message: "Unable to validate email address: invalid format" },
+        "Create account",
+      ),
+    ).toBe("That email address doesn't look valid. Check for typos and try again.");
+  });
+
+  it("states an already-registered email truthfully", () => {
+    expect(
+      describeAuthFormError(
+        { status: 422, message: "User already registered" },
+        "Create account",
+      ),
+    ).toBe("An account with this email already exists. Try signing in instead.");
+  });
+
+  it("keeps the weak-password detail instead of a generic fallback", () => {
+    expect(
+      describeAuthFormError(
+        { status: 422, message: "Password should be at least 6 characters" },
+        "Create account",
+      ),
+    ).toBe("Password should be at least 6 characters.");
+  });
+
+  it("states an expired reset link truthfully", () => {
+    expect(
+      describeAuthFormError({ message: "Email link is invalid or has expired" }, "Update password"),
+    ).toBe("This reset link has expired or is invalid. Request a new one and try again.");
   });
 
   it("reports captcha verification failures separately", () => {
@@ -252,19 +299,5 @@ describe("describeTaskMoveError / describeColumnMoveError", () => {
         "fallback",
       ),
     ).toBe("no access");
-  });
-});
-
-describe("reportMutationError", () => {
-  it("logs the context together with the original error", () => {
-    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const failure = new Error("boom");
-      reportMutationError("Update task failed", failure);
-      expect(spy).toHaveBeenCalledTimes(1);
-      expect(spy).toHaveBeenCalledWith("Update task failed:", failure);
-    } finally {
-      spy.mockRestore();
-    }
   });
 });

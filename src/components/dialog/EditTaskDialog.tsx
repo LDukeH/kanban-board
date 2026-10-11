@@ -49,7 +49,7 @@ import {
   resolveCloseAction,
   validateTaskDraft,
 } from "@/lib/taskDraft";
-import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { TASK_PRIORITIES, type Task, type TaskPriority } from "@/types/board";
 import { cn } from "@/lib/utils";
 
@@ -228,7 +228,6 @@ export function EditTaskDialog({
         setActionError(
           describeMutationError(err, "Failed to update task. Please try again."),
         );
-        reportMutationError("Update task failed", err);
         return false;
       }
     })();
@@ -268,22 +267,17 @@ export function EditTaskDialog({
       setActionError(
         describeMutationError(err, "Failed to update label. Please try again."),
       );
-      reportMutationError("Label toggle failed", err);
     } finally {
       setTogglingLabelId(null);
     }
   }
 
   async function handleDelete() {
-    try {
-      await deleteTask(task.id);
-      setIsDeleteOpen(false);
-      setOpen(false);
-    } catch (err) {
-      // Re-throw so ConfirmDeleteDialog keeps the confirmation open and renders its own inline error, instead of closing over a silent failure.
-      reportMutationError("Delete task failed", err);
-      throw err;
-    }
+    // ConfirmDeleteDialog renders its own inline error on rejection, so let
+    // the failure propagate instead of closing over it or logging it.
+    await deleteTask(task.id);
+    setIsDeleteOpen(false);
+    setOpen(false);
   }
 
   return (
