@@ -272,7 +272,7 @@ export function describeAuthFormError(
   ) {
     // Supabase answers both "unknown email" and "wrong password" with
     // "Invalid login credentials", so this must not claim which half failed.
-    return "Wrong email or password.";
+    return "Wrong email or password. Check for typos and try again.";
   }
   if (status === 409) {
     return "An account with this email already exists. Try signing in instead.";
