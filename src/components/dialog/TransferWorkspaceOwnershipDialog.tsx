@@ -20,7 +20,7 @@ import {
   useWorkspaceMembers,
   useTransferWorkspaceOwnership,
 } from "@/hooks/useWorkspaces";
-import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
 import {
   emailInitial,
@@ -88,7 +88,6 @@ export function TransferWorkspaceOwnershipDialog({
           "Failed to transfer ownership. Please try again.",
         ),
       );
-      reportMutationError("Transfer ownership failed", err);
     } finally {
       submitLockedRef.current = false;
     }

@@ -23,7 +23,10 @@ export function useBoardRealtimeSync(
   const handlers = useMemo(
     () => ({
       onEvent: (event: BoardEventEnvelope) => coalescer?.push(event),
-      onError: onError ?? ((error: Error) => console.error("Board realtime error:", error)),
+      // No console fallback: callers that care (BoardPage) pass onError and
+      // render it inline; otherwise the failure stays silent instead of
+      // logging to the console.
+      onError: onError ?? (() => {}),
     }),
     [coalescer, onError],
   );

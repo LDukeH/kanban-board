@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Pencil, Loader2 } from "lucide-react";
 import { useBoard } from "@/hooks/useBoard";
-import { reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { LabelColorPicker } from "@/components/picker/LabelColorPicker";
 import type { Label as LabelModel } from "@/types/board";
 
@@ -66,8 +66,7 @@ export function EditLabelDialog({
       });
       setOpen(false);
     } catch (err) {
-      setError("Failed to update label. Please try again.");
-      reportMutationError("Update label failed", err);
+      setError(describeMutationError(err, "Failed to update label. Please try again."));
     }
   }
 

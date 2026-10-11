@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/task.api";
 import { addLabelToTask, removeLabelFromTask } from "@/lib/api/label.api";
 import { boardLabelsQueryKey } from "@/hooks/useBoard";
-import { isStaleError, reportMutationError } from "@/lib/httpStatus";
+import { isStaleError } from "@/lib/httpStatus";
 import { writeStaleMoveNotice } from "@/lib/staleMoveNotices";
 import {
   insertTaskIntoColumn,
@@ -224,14 +224,16 @@ export function useToggleTaskCompleted(boardId: string, columnId: string) {
       );
       return { previous };
     },
-    onError: (error, _variables, context) => {
+    onError: (_error, _variables, context) => {
       if (context?.previous) {
         queryClient.setQueryData<Task[]>(
           columnTasksQueryKey(boardId, columnId),
           context.previous,
         );
       }
-      reportMutationError("Toggle task completion failed", error);
+      // No console log: completion toggles re-render optimistically and roll
+      // back inline, so a failure that survives the rollback surfaces on the
+      // next refetch instead of logging.
     },
     onSettled: () => {
       queryClient.invalidateQueries({
@@ -365,7 +367,7 @@ export function useColumnTasks(
       );
       return { previous };
     },
-    onError: (error, _variables, context) => {
+    onError: (_error, _variables, context) => {
       if (!boardId || !columnId) return;
       if (context?.previous) {
         queryClient.setQueryData<Task[]>(
@@ -373,7 +375,8 @@ export function useColumnTasks(
           context.previous,
         );
       }
-      reportMutationError("Update task failed", error);
+      // No console log: the optimistic edit rolls back inline and the settled
+      // refetch surfaces any persistent failure in the task list.
     },
     onSuccess: (_void, { taskId, data }) => {
       if (!boardId || !columnId) return;

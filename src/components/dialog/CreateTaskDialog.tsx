@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2 } from "lucide-react";
 import { useColumnTasks } from "@/hooks/useColumnTasks";
-import { reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { textToTaskDescription } from "@/lib/description";
 import { TASK_PRIORITIES, type TaskPriority } from "@/types/board";
 import { cn } from "@/lib/utils";
@@ -73,8 +73,7 @@ export function CreateTaskDialog({
       setDueDate("");
       setOpen(false);
     } catch (err) {
-      setError("Failed to create task. Please try again.");
-      reportMutationError("Create task failed", err);
+      setError(describeMutationError(err, "Failed to create task. Please try again."));
     }
   }
 

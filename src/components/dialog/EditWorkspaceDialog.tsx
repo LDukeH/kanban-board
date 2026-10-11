@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
 import {
   WORKSPACE_DESCRIPTION_MAX_BYTES,
@@ -101,7 +101,6 @@ export function EditWorkspaceDialog({
           "Failed to update workspace. Please try again.",
         ),
       );
-      reportMutationError("Update workspace failed", err);
     }
   }
 

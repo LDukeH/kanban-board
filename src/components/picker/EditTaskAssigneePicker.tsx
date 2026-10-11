@@ -11,7 +11,7 @@ import { InlineAlert } from "@/components/ui/inline-alert";
 import { useAuth } from "@/hooks/useAuth";
 import { useTaskAssignees } from "@/hooks/useTaskAssignees";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaces";
-import { describeMutationError, reportMutationError } from "@/lib/httpStatus";
+import { describeMutationError } from "@/lib/httpStatus";
 import { cn } from "@/lib/utils";
 import {
   emailInitial,
@@ -95,7 +95,6 @@ export function EditTaskAssigneePicker({
             : "Could not assign this member. Please try again.",
         ),
       );
-      reportMutationError("Assignee toggle failed", err);
     } finally {
       setTogglingUserId(null);
     }

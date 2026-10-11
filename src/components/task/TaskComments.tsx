@@ -8,7 +8,6 @@ import { useTaskComments } from "@/hooks/useTaskComments";
 import {
   describeLoadError,
   describeMutationError,
-  reportMutationError,
 } from "@/lib/httpStatus";
 import { avatarGradient, avatarSeed, emailInitial } from "@/lib/memberDisplay";
 import { formatRelativeTime } from "@/lib/relativeTime";
@@ -72,7 +71,6 @@ export function TaskComments({
       setError(
         describeMutationError(err, "Failed to post comment. Please try again."),
       );
-      reportMutationError("Create comment failed", err);
     }
   }
 

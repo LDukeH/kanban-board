@@ -1,7 +1,6 @@
 import { createBoard } from "@/lib/api/board.api";
 import { createColumn } from "@/lib/api/column.api";
 import { createLabel } from "@/lib/api/label.api";
-import { reportMutationError } from "@/lib/httpStatus";
 import type { Column, Label } from "@/types/board";
 import type {
   BoardTemplate,
@@ -26,9 +25,10 @@ export async function materializeBoardTemplate(
   for (const column of template.columns) {
     try {
       createdColumns.push(await createColumn(board.id, { name: column.name }));
-    } catch (error) {
+    } catch {
       failedColumns.push(column.name);
-      reportMutationError(`Template column "${column.name}" was not created`, error);
+      // No console log: the failure is collected into failedColumns and
+      // rendered inline by describeTemplateOutcome in the template dialog.
     }
   }
 
@@ -39,9 +39,10 @@ export async function materializeBoardTemplate(
       createdLabels.push(
         await createLabel(board.id, { name: label.name, color: label.color }),
       );
-    } catch (error) {
+    } catch {
       failedLabels.push(label.name);
-      reportMutationError(`Template label "${label.name}" was not created`, error);
+      // No console log: the failure is collected into failedLabels and
+      // rendered inline by describeTemplateOutcome in the template dialog.
     }
   }
 
