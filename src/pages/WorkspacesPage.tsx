@@ -63,7 +63,7 @@ export default function WorkspacesPage() {
         <CreateWorkspaceDialog />
       </header>
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 md:p-6">
         {notice && <InlineAlert message={notice} className="mb-6" />}
         {/* The inbox renders nothing unless there is an invitation awaiting a
             decision, so it costs no chrome on the common path. */}

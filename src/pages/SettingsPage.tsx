@@ -272,7 +272,7 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 md:p-6">
         {notice && (
           <div className="mb-4">
             <InlineAlert

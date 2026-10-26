@@ -199,6 +199,16 @@
   }
 }
 
+/* Enable momentum scrolling on iOS Safari for overflow containers. */
+@utility touch-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Allow touch pan on horizontal scroll containers. */
+@utility touch-pan-x {
+  touch-action: pan-x pan-y;
+}
+
 /* React-Toastify — route the toast tokens through the app design tokens. */
 :root {
   --toastify-toast-width: 18rem;

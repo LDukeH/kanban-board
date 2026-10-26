@@ -92,10 +92,13 @@ export function CreateTaskDialog({
           )
         }
       />
-      <DialogPopup>
-        <DialogTitle>Create Task</DialogTitle>
-        <DialogDescription>Add a new task to this column.</DialogDescription>
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
+      <DialogPopup className="max-w-full lg:max-w-md mx-0 lg:mx-auto rounded-none border-0 bg-background p-4 lg:p-6">
+        <DialogTitle className="text-lg lg:text-base font-semibold mb-2 lg:mb-0">Create Task</DialogTitle>
+        <DialogDescription className="text-sm lg:text-base text-muted-foreground mb-4 lg:mb-0">Add a new task to this column.</DialogDescription>
+        <form
+          onSubmit={handleSubmit}
+          className="mt-4 flex flex-col gap-4 overflow-auto lg:overflow-visible"
+        >
           <div className="flex flex-col gap-2">
             <Label htmlFor="task-title">Title</Label>
             <Input
@@ -105,6 +108,7 @@ export function CreateTaskDialog({
               onChange={(e) => setTitle(e.target.value)}
               required
               autoFocus
+              inputMode="text"
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -115,6 +119,7 @@ export function CreateTaskDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
+              inputMode="text"
             />
           </div>
 

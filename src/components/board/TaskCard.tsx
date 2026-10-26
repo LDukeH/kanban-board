@@ -223,19 +223,19 @@ export function TaskCard({
             const { visible, hidden } = splitTaskLabels(labels);
             return (
               <div
-                className="mt-1.5 flex flex-wrap items-center gap-1"
+                className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] lg:text-sm text-muted-foreground"
                 aria-label={`Labels: ${labels.map((label) => label.name).join(", ")}`}
               >
                 {visible.map((label) => (
                   <LabelBadge
                     key={label.id}
                     label={label}
-                    className="max-w-28 text-[11px]"
+                    className="rounded px-2 py-0.5 text-[10px] font-medium lg:max-w-28 lg:text-[11px] lg:px-1.5 lg:py-0.5"
                   />
                 ))}
                 {hidden.length > 0 && (
                   <span
-                    className="inline-flex h-5 shrink-0 items-center rounded border border-border bg-muted px-1.5 text-[11px] font-semibold text-muted-foreground"
+                    className="inline-flex h-5 shrink-0 items-center rounded border border-background bg-muted lg:text-[11px] px-1.5"
                     title={hidden.map((label) => label.name).join(", ")}
                   >
                     +{hidden.length}
@@ -246,11 +246,11 @@ export function TaskCard({
           })()}
 
         {(task.priority !== "none" || task.dueDate) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+          <div className="mt-1.5 flex flex-wrap items-center lg:gap-x-2.5 lg:gap-y-1 text-xs text-muted-foreground">
             {task.priority !== "none" && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-control border px-1.5 py-0.5 font-medium",
+                  "inline-flex items-center gap-1 rounded border lg:rounded-control lg:px-1.5 lg:py-0.5 font-medium text-[10px] lg:text-sm",
                   PRIORITY_CHIP[task.priority],
                 )}
                 title={`Priority: ${PRIORITY_LABEL[task.priority]}`}
@@ -263,7 +263,7 @@ export function TaskCard({
             {task.dueDate && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-1 font-medium",
+                  "inline-flex items-center gap-1 font-medium text-[10px] lg:text-sm",
                   overdue
                     ? "text-danger"
                     : dueSoon

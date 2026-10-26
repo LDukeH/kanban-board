@@ -453,8 +453,8 @@ function BoardContent({ boardId }: { boardId: string }) {
   }
   return (
     <DashboardLayout className="overflow-hidden">
-      <header className="flex shrink-0 items-center justify-between gap-3 bg-background px-6 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="flex shrink-0 items-center justify-between gap-3 bg-background px-4 py-3 md:px-6">
+        <div className="flex min-w-0 items-center gap-2 md:gap-3">
           <button
             onClick={() =>
               navigate(
@@ -463,18 +463,18 @@ function BoardContent({ boardId }: { boardId: string }) {
                   : "/workspaces",
               )
             }
-            className="flex size-9 shrink-0 items-center justify-center rounded-control text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex size-8 shrink-0 items-center justify-center rounded-control text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring md:size-9"
             aria-label="Back to workspace"
           >
-            <ArrowLeft className="size-5" />
+            <ArrowLeft className="size-4 md:size-5" />
           </button>
 
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-card bg-linear-to-br from-indigo-500 to-violet-600 text-white">
-            <Kanban className="size-5" />
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-card bg-linear-to-br from-indigo-500 to-violet-600 text-white md:size-10">
+            <Kanban className="size-4 md:size-5" />
           </div>
 
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-foreground">
+            <h1 className="truncate text-base font-semibold text-foreground md:text-lg">
               {isLoadingBoard ? "Loading..." : (board?.name ?? "Board")}
             </h1>
 
@@ -500,7 +500,7 @@ function BoardContent({ boardId }: { boardId: string }) {
         </div>
       )}
 
-      <div className="shrink-0 px-6 pt-3">
+      <div className="shrink-0 px-4 pt-3 md:px-6">
         <ProgressSummary
           heading="Board progress"
           isLoading={boardSummary.isLoadingSummary}
@@ -520,7 +520,7 @@ function BoardContent({ boardId }: { boardId: string }) {
 
       {/* Toolbar directly above the columns: a reserved slot on the left holds the
           "reordering paused" notice so Filters/Labels on the right never shift. */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-6 pt-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 pt-2 md:px-6">
         <div
           aria-live="polite"
           className="flex min-h-8 min-w-0 flex-1 items-center"
@@ -569,9 +569,9 @@ function BoardContent({ boardId }: { boardId: string }) {
       <DragDropProvider
         onDragEnd={canManageColumns || canUseTasks ? handleDragEnd : undefined}
       >
-        <div className="min-h-0 flex-1 overflow-hidden pl-6 py-4">
+        <div className="min-h-0 flex-1 overflow-hidden pl-4 py-3 md:pl-6 md:py-4">
           <div
-            className="h-full overflow-x-auto overflow-y-hidden scrollbar-none pr-6"
+            className="h-full overflow-x-auto overflow-y-hidden scrollbar-none touch-scroll pr-4 md:pr-6"
             onWheel={handleBoardWheel}
           >
             {isLoadingBoard || isLoadingColumns ? (
@@ -590,7 +590,7 @@ function BoardContent({ boardId }: { boardId: string }) {
                 {canManageColumns && <CreateColumnDialog boardId={boardId} />}
               </div>
             ) : (
-              <div className="flex h-full items-start gap-3">
+              <div className={`flex h-full items-start gap-2 md:gap-3`}>
                 {sortedColumns.map((column, index) => (
                   <ColumnCard
                     key={column.id}
@@ -611,9 +611,9 @@ function BoardContent({ boardId }: { boardId: string }) {
                     trigger={
                       <button
                         type="button"
-                        className="flex h-24 w-80 shrink-0 items-center justify-center gap-2 rounded-card border-2 border-dashed border-border text-sm font-medium text-muted-foreground outline-none transition-colors hover:border-primary/50 hover:bg-muted/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                        className={`flex h-20 w-48 shrink-0 items-center justify-center gap-2 rounded-card border-2 border-dashed border-border text-sm font-medium text-muted-foreground outline-none transition-colors hover:border-primary/50 hover:bg-muted/40 hover:text-primary focus-visible:ring-2 focus-visible:ring-ring md:h-24 md:w-80`}
                       >
-                        <Plus className="size-4" />
+                        <Plus className="size-4 md:size-5" />
                         Add column
                       </button>
                     }
