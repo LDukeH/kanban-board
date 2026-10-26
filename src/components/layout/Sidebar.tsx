@@ -1,10 +1,12 @@
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
   Settings,
   LayoutGrid,
   Plus,
   FolderKanban,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +20,10 @@ import { getBoardColor } from "@/lib/colors";
 
 interface SidebarProps {
   className?: string;
+  /** Whether the sidebar is open (mobile only). */
+  isOpen?: boolean;
+  /** Callback when the sidebar should close (mobile only). */
+  onClose?: () => void;
 }
 
 function NavButton({
@@ -63,12 +69,32 @@ function NavButton({
   );
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({
+  className,
+  isOpen = false,
+  onClose,
+}: SidebarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
   const { recentWorkspaces, recentBoards } = useRecentStore();
+
+  // Close the sidebar when resizing up to desktop, and track mobile state.
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
+
+  useEffect(() => {
+    const onResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768 && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [onClose]);
 
   // The workspace the boards section is scoped to.
   const activeWorkspaceId = (() => {
@@ -94,13 +120,28 @@ export function Sidebar({ className }: SidebarProps) {
     "Workspace";
 
   return (
-    <aside
-      className={cn(
-        "flex h-full w-64 flex-col border-r border-border bg-sidebar",
-        className,
+    <>
+      {/* Mobile backdrop: dims content when the drawer is open. */}
+      {isMobile && isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden
+        />
       )}
-    >
-      <div className="flex items-center justify-between gap-2.5 px-5 py-4">
+      <aside
+        className={cn(
+          "flex h-full flex-col border-r border-border bg-sidebar",
+          // Desktop: always visible, fixed width.
+          "sm:flex sm:w-64",
+          // Mobile: hidden by default, slide-in drawer.
+          isMobile && !isOpen && "hidden",
+          isMobile && isOpen &&
+            "fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out",
+          className,
+        )}
+      >
+        <div className="flex items-center justify-between gap-2.5 px-5 py-4">
         <div className="flex items-center gap-2.5">
           <img
             src="/kanvas-logo-wo-tagline.png"
@@ -111,7 +152,17 @@ export function Sidebar({ className }: SidebarProps) {
             Kanvas
           </span>
         </div>
-        <NotificationBell className="ml-auto" />
+        {isMobile && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-control p-1 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            aria-label="Close sidebar"
+          >
+            <X className="size-5" />
+          </button>
+        )}
+        {!isMobile && <NotificationBell className="ml-auto" />}
       </div>
 
       <nav className="border-b border-border px-3 py-3">
@@ -245,5 +296,6 @@ export function Sidebar({ className }: SidebarProps) {
         />
       </div>
     </aside>
+    </>
   );
 }

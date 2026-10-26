@@ -154,7 +154,7 @@ export default function WorkspacePage() {
         </div>
       </header>
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-4 md:p-6">
         {isLoadingBoards ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />

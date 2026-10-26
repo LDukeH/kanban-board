@@ -139,7 +139,7 @@ export function ColumnCard({
     <div
       ref={ref}
       className={cn(
-        "flex max-h-full min-h-32 w-80 shrink-0 flex-col rounded-card border border-border/80 bg-card",
+        "flex max-h-full min-h-32 w-[240px] min-w-[200px] max-w-[320px] lg:w-[320px] lg:min-w-[280px] lg:max-w-[380px] shrink-0 flex-col rounded-card border border-border/80 bg-card",
         className,
         isDragging && "opacity-50",
       )}
